@@ -1,0 +1,36 @@
+[project]
+name = "s7bb-fetcher"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32",
+    "pydantic>=2.7",
+    "lxml>=5.2",
+]
+
+[project.scripts]
+s7bb-fetch = "s7bb_fetcher.cli:fetch"
+s7bb-export = "s7bb_fetcher.cli:export"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/s7bb_fetcher"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

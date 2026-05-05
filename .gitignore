@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+.ruff_cache/
+.pytest_cache/
+
+# SQLite DB (stays on VM only)
+data/s7bb.db
+
+# Environment
+.env
+
+# Node
+node_modules/
+site/dist/
+
+# OS
+.DS_Store

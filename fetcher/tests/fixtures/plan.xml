@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<timetable station="Baierbrunn" eva="8004073">
+  <s id="trip-S7-001-2605051200">
+    <tl f="S" t="p" o="800725" c="S" n="7"/>
+    <ar pt="2605051200" pp="1" l="7" ppth="München Ost|Leuchtenbergring|Berg am Laim|Heimstetten|Grub|Poing|Markt Schwaben|Ottenhofen|Aufhausen|Graben|Altenerding|Erding"/>
+    <dp pt="2605051201" pp="2" l="7" ppth="Deisenhofen|Furth|Höllriegelskreuth|Pullach|Großhesselohe Isartalbahnhof|Wolfratshausen"/>
+  </s>
+  <s id="trip-S7-002-2605051230">
+    <tl f="S" t="p" o="800725" c="S" n="7"/>
+    <ar pt="2605051230" pp="1" l="7" ppth="Wolfratshausen|Großhesselohe Isartalbahnhof|Pullach|Höllriegelskreuth|Furth|Deisenhofen"/>
+    <dp pt="2605051231" pp="2" l="7" ppth="Deisenhofen|Fasangarten|Giesing|Ostbahnhof|München Ost|Leuchtenbergring|Berg am Laim|Trudering"/>
+  </s>
+  <s id="trip-S7-003-2605051300">
+    <tl f="S" t="p" o="800725" c="S" n="7"/>
+    <ar pt="2605051300" pp="1" l="7" ppth="München Ost|Leuchtenbergring|Deisenhofen"/>
+    <dp pt="2605051301" pp="2" l="7" ppth="Deisenhofen|Furth|Wolfratshausen"/>
+  </s>
+</timetable>

@@ -1,0 +1,13 @@
+[Unit]
+Description=S7BB: fetch S7 Baierbrunn timetable from DB API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=s7bb
+WorkingDirectory=/opt/s7bb
+EnvironmentFile=/opt/s7bb/.env
+ExecStart=/opt/s7bb/.venv/bin/s7bb-fetch
+StandardOutput=journal
+StandardError=journal

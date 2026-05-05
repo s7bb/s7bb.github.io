@@ -1,0 +1,21 @@
+{
+  "name": "s7bb-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.3"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.9.0",
+    "@typescript-eslint/parser": "^7.9.0",
+    "eslint": "^9.3.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}
