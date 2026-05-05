@@ -8,7 +8,7 @@ import requests
 from lxml import etree
 
 BASE_URL = "https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1"
-BAIERBRUNN_EVA = "8004073"
+BAIERBRUNN_EVA = os.environ.get("S7BB_EVA", "8000781")
 _DE_TZ = ZoneInfo("Europe/Berlin")
 
 

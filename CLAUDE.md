@@ -26,7 +26,7 @@ DB Timetables API (XML) → Python fetcher → SQLite (data/s7bb.db)
 - Storage: **SQLite** (`data/s7bb.db` stays on VM, never committed)
 - GitHub push: VM commits `data/latest.json` hourly via deploy key; generated site deployed by Actions
 - DB API: `apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1`, auth via `DB-Api-Key` header
-- Baierbrunn EVA number: `8004073`
+- Baierbrunn EVA number: `8000781` (overridable via `S7BB_EVA` env var)
 - Fetch cadence: every 5 min (systemd timer)
 - Chart library: Chart.js v4
 
