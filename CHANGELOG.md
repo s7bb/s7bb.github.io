@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Fetcher Docker image switched from `python:3.12-slim` + `pip install .` to
+  the official `ghcr.io/astral-sh/uv` image with `uv sync`. When `uv.lock`
+  is present in `fetcher/`, builds are reproducible via `uv sync --frozen`;
+  without it, uv resolves at build time. Run `cd fetcher && uv lock` once
+  and commit `uv.lock` to lock dependency versions for production builds.
+- Added `fetcher/.dockerignore` to keep build context small and avoid
+  shipping tests / virtualenvs into the image.
+
 ### Added
 - Docker container for fetcher: single `s7bb-fetcher` service runs fetch and
   export+push on independent APScheduler cron schedules (`FETCH_CRON`,

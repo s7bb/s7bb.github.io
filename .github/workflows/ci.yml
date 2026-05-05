@@ -7,6 +7,7 @@ on:
     paths:
       - "fetcher/**"
       - "site/**"
+      - ".github/workflows/ci.yml"
 
 jobs:
   python:
@@ -52,3 +53,26 @@ jobs:
       - name: Type-check + build
         run: npm run build
         working-directory: site
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build fetcher image
+        uses: docker/build-push-action@v6
+        with:
+          context: fetcher
+          file: fetcher/Dockerfile
+          push: false
+          load: true
+          tags: s7bb-fetcher:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test image
+        run: |
+          docker run --rm s7bb-fetcher:ci s7bb-fetch --help
+          docker run --rm s7bb-fetcher:ci s7bb-export --help
