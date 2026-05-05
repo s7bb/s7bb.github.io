@@ -182,6 +182,17 @@ uv run s7bb-export --archive 2026-05
 
 ---
 
+## Built with Claude Code
+
+This project was designed and scaffolded using [Claude Code](https://claude.ai/code) (Anthropic's AI coding assistant). The architecture, Python fetcher, TypeScript site, GitHub Actions workflows, and all initial code were generated in a collaborative planning + implementation session.
+
+The AI-assisted workflow:
+1. **Architecture planning** — open decisions (storage format, API choice, deploy strategy, chart library) were resolved via a structured plan before any code was written.
+2. **Scaffolding** — all files generated from the approved plan in a single session.
+3. **Ongoing development** — Claude Code used for subsequent changes, refactoring, and documentation.
+
+---
+
 ## License
 
 MIT
