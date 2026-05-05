@@ -13,7 +13,7 @@ from s7bb_fetcher.storage import open_db, upsert_records
 def _make_arrival(train_id: str, scheduled: str, direction_bucket: str, **kwargs) -> ArrivalRecord:
     defaults = dict(
         line="S7", station="Baierbrunn",
-        direction="Wolfratshausen" if direction_bucket == "wolfratshausen" else "München Ost",
+        direction="Wolfratshausen" if direction_bucket == "wolfratshausen" else "München Hbf Gl.27-36",
         direction_bucket=direction_bucket,
         actual_time=scheduled, delay_minutes=0, cancelled=False, reason=None,
     )

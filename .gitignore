@@ -9,6 +9,8 @@ dist/
 
 # SQLite DB (stays on VM only)
 data/s7bb.db
+data/s7bb.db-shm
+data/s7bb.db-wal
 
 # Environment
 .env

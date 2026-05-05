@@ -37,11 +37,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("""
             UPDATE arrivals SET direction_bucket = CASE
                 WHEN direction = 'Wolfratshausen' THEN 'wolfratshausen'
-                WHEN direction LIKE '%München%'
-                  OR direction IN ('Ostbahnhof', 'Kreuzstraße', 'Aying',
-                                   'Höhenkirchen-Siegertsbrunn', 'Wächterhof',
-                                   'Dürrnhaar', 'Ebersberg')
-                THEN 'muenchen'
+                WHEN direction LIKE '%München%' THEN 'muenchen'
                 ELSE 'unknown'
             END
         """)
