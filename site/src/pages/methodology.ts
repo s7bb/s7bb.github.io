@@ -20,9 +20,19 @@ export function renderMethodology(container: HTMLElement): void {
         </ul>
       </dd>
 
+      <dt>Was bedeutet „keine Daten"?</dt>
+      <dd>Für diesen planmäßigen Zug (20-Minuten-Takt) liegen keine Informationen
+          aus der DB-API vor. Das kann bedeuten:
+        <ul>
+          <li>Der Abruf war zum Zeitpunkt des Zuges ausgefallen</li>
+          <li>Die DB-API hat diesen Zug nicht zurückgeliefert</li>
+        </ul>
+        Ein Zug ohne Daten ist <em>nicht</em> dasselbe wie ein ausgefallener Zug —
+        er erscheint hier nur als Lücke im 20-Minuten-Raster.</dd>
+
       <dt>Werden alle Züge erfasst?</dt>
       <dd>Es werden nur Züge der Linie <strong>S7</strong> am Bahnhof Baierbrunn
-          berücksichtigt.</dd>
+          in beiden Richtungen erfasst: Richtung München und Richtung Wolfratshausen.</dd>
 
       <dt>Warum fehlen manchmal Daten?</dt>
       <dd>Kurzfristige Ausfälle des Abrufservers oder der DB-API können zu

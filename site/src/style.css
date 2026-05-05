@@ -107,6 +107,25 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .reasons-box { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-top: 1rem; }
 .reasons-box ul { margin-left: 1.25rem; line-height: 1.9; }
 
+/* Today two-column layout */
+.today-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1rem; }
+@media (max-width: 700px) { .today-grid { grid-template-columns: 1fr; } }
+.direction-col h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; color: #333; }
+.today-combined { margin-top: 0.5rem; font-size: 0.85rem; color: #666; }
+.today-combined summary { cursor: pointer; }
+
+/* Missing / no-data rows and badge */
+.arrival-row--missing { opacity: 0.55; font-style: italic; background: #fafafa; }
+.badge--missing { background: #e9ecef; color: #666; }
+.summary-item--missing { color: #888; }
+
+/* Stats direction blocks */
+.direction-stats { margin-bottom: 1.5rem; }
+.direction-stats h3 { font-size: 1.05rem; margin-bottom: 0.25rem; }
+.stats-summary { font-size: 0.85rem; color: #666; margin-bottom: 0.75rem; }
+.direction-stats h4 { font-size: 0.9rem; color: #555; margin-bottom: 0.4rem; }
+.section-divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
 /* Misc */
 .data-age { font-size: 0.8rem; color: #888; margin-top: 1rem; }
 .loading, .error { padding: 2rem; text-align: center; color: #888; }

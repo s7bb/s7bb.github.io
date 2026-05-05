@@ -1,10 +1,29 @@
 import type { S7Data } from "../data.js";
+import { last7DaysByDay, directionLabel } from "../data.js";
 import { renderStatusPie } from "../charts/statusPie.js";
 import { renderAvgDelayLine } from "../charts/avgDelayLine.js";
-import { last7DaysByDay } from "../data.js";
+
+function renderDirectionStats(data: S7Data, bucket: "muenchen" | "wolfratshausen"): string {
+  const label = directionLabel(bucket);
+  const agg = data.aggregates.last_7_days.by_direction[bucket];
+  return `
+    <div class="direction-stats">
+      <h3>Richtung ${label}</h3>
+      <p class="stats-summary">${agg.total} Züge · Ø ${agg.avg_delay_min} min · ${agg.missing} ohne Daten</p>
+      <div class="charts-grid">
+        <div class="chart-box">
+          <h4>Pünktlichkeit</h4>
+          <canvas id="chart-pie-${bucket}"></canvas>
+        </div>
+        <div class="chart-box">
+          <h4>Ø Verspätung / Tag</h4>
+          <canvas id="chart-line-${bucket}"></canvas>
+        </div>
+      </div>
+    </div>`;
+}
 
 export function renderStats(data: S7Data, container: HTMLElement): void {
-  const byDay = last7DaysByDay(data);
   const agg = data.aggregates.last_7_days;
 
   const topReasons = (() => {
@@ -16,20 +35,13 @@ export function renderStats(data: S7Data, container: HTMLElement): void {
   })();
 
   container.innerHTML = `
-    <h2>Statistik — S7 Baierbrunn</h2>
-    <div class="charts-grid">
-      <div class="chart-box">
-        <h3>Pünktlichkeit (7 Tage)</h3>
-        <canvas id="chart-status-pie"></canvas>
-      </div>
-      <div class="chart-box">
-        <h3>Ø Verspätung pro Tag</h3>
-        <canvas id="chart-delay-line"></canvas>
-      </div>
-    </div>
+    <h2>Statistik — S7 Baierbrunn (7 Tage)</h2>
+    ${renderDirectionStats(data, "muenchen")}
+    <hr class="section-divider">
+    ${renderDirectionStats(data, "wolfratshausen")}
     ${topReasons.length ? `
     <div class="reasons-box">
-      <h3>Häufigste Gründe</h3>
+      <h3>Häufigste Gründe (alle Richtungen)</h3>
       <ul>
         ${topReasons.map(([r, n]) => `<li>${r} <em>(${n}×)</em></li>`).join("")}
       </ul>
@@ -37,6 +49,8 @@ export function renderStats(data: S7Data, container: HTMLElement): void {
     <p class="data-age">Zeitraum: letzte ${data.window_days} Tage · ${agg.total} Züge erfasst</p>
   `;
 
-  renderStatusPie("chart-status-pie", agg);
-  renderAvgDelayLine("chart-delay-line", byDay);
+  renderStatusPie("chart-pie-muenchen", data.aggregates.last_7_days.by_direction.muenchen);
+  renderAvgDelayLine("chart-line-muenchen", last7DaysByDay(data, "muenchen"));
+  renderStatusPie("chart-pie-wolfratshausen", data.aggregates.last_7_days.by_direction.wolfratshausen);
+  renderAvgDelayLine("chart-line-wolfratshausen", last7DaysByDay(data, "wolfratshausen"));
 }

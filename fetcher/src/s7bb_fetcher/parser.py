@@ -5,15 +5,22 @@ from datetime import datetime, timezone
 
 from lxml import etree
 
+MUENCHEN_TERMINI = {
+    "München Hbf", "München Ost", "Ostbahnhof", "Hauptbahnhof",
+    "Kreuzstraße", "Aying", "Höhenkirchen-Siegertsbrunn",
+    "Wächterhof", "Dürrnhaar", "Ebersberg",
+}
+
 
 @dataclass
 class ArrivalRecord:
     train_id: str
     line: str
     station: str
-    direction: str          # "Wolfratshausen" | "München Ost" | unknown
-    scheduled_time: str     # ISO8601 UTC
-    actual_time: str | None # ISO8601 UTC, None if cancelled
+    direction: str           # raw terminus from DB API
+    direction_bucket: str    # "muenchen" | "wolfratshausen" | "unknown"
+    scheduled_time: str      # ISO8601 UTC
+    actual_time: str | None  # ISO8601 UTC, None if cancelled
     delay_minutes: int | None
     cancelled: bool
     reason: str | None
@@ -34,13 +41,27 @@ def _last_stop(path: str) -> str:
     return parts[-1] if parts else "unbekannt"
 
 
+def classify_direction(dp_ppth: str) -> str:
+    """Classify departure path into direction bucket.
+
+    Returns "wolfratshausen", "muenchen", or "unknown".
+    """
+    if not dp_ppth:
+        return "unknown"
+    terminus = _last_stop(dp_ppth)
+    if terminus == "Wolfratshausen":
+        return "wolfratshausen"
+    if terminus in MUENCHEN_TERMINI or "München" in dp_ppth:
+        return "muenchen"
+    return "unknown"
+
+
 def parse_timetable(
     plan_xml: etree._Element,
     changes_xml: etree._Element,
     station: str = "Baierbrunn",
 ) -> list[ArrivalRecord]:
     """Merge plan + changes into ArrivalRecord list."""
-    # Build changes index keyed by stop id
     change_index: dict[str, etree._Element] = {}
     for s in changes_xml.findall(".//s"):
         sid = s.get("id")
@@ -75,17 +96,19 @@ def parse_timetable(
 
         scheduled_dt = _parse_db_time(pt_raw)
 
-        # Direction from planned path of arrival (where it came from) or departure path (where it goes)
         dp = stop.find("dp")
         direction = "unbekannt"
+        dp_ppth = ""
         if dp is not None:
-            ppth = dp.get("ppth", "")
-            direction = _last_stop(ppth) if ppth else direction
+            dp_ppth = dp.get("ppth", "")
+            direction = _last_stop(dp_ppth) if dp_ppth else direction
         if direction == "unbekannt" and ar is not None:
             ppth = ar.get("ppth", "")
             if ppth:
                 parts = [p.strip() for p in ppth.split("|") if p.strip()]
                 direction = parts[0] if parts else direction
+
+        direction_bucket = classify_direction(dp_ppth)
 
         cancelled = False
         actual_dt: datetime | None = None
@@ -100,7 +123,7 @@ def parse_timetable(
                 ct_raw = car.get("ct")
                 if ct_raw and not cancelled:
                     actual_dt = _parse_db_time(ct_raw)
-                reason = car.get("m") or car.get("msc")  # message / message code
+                reason = car.get("m") or car.get("msc")
 
         delay_minutes: int | None = None
         if not cancelled and actual_dt is not None:
@@ -115,6 +138,7 @@ def parse_timetable(
             line=f"S{tl.get('n', '?')}" if tl.get("f") == "S" else line,
             station=station,
             direction=direction,
+            direction_bucket=direction_bucket,
             scheduled_time=_iso(scheduled_dt),
             actual_time=_iso(actual_dt),
             delay_minutes=delay_minutes,

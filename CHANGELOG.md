@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Per-direction tracking: arrivals split into "Richtung München" and "Richtung Wolfratshausen" on all pages
+- Heute page shows two columns (one per direction), stacking on narrow screens
+- Statistik and Letzte 7 Tage pages show separate charts and aggregates per direction
+- Missing-train detection: expected 20-minute schedule slots inferred from observed data; gaps shown with "keine Daten" badge
+- New `direction_bucket` field (`muenchen` | `wolfratshausen` | `unknown`) on every arrival in `latest.json`
+- New `aggregates.*.by_direction` block and `expected_slots.today` block in `latest.json` (backwards-compatible additions)
+- Methodik page explains "keine Daten" badge
+- Automatic SQLite migration adds `direction_bucket` column to existing databases on first run
 - Initial project scaffold: Python fetcher, SQLite storage, Vite+TS static site
 - DB Timetables API client (`api.py`) with plan and full-changes endpoints
 - XML parser merging planned + actual timetable into `ArrivalRecord` dataclasses

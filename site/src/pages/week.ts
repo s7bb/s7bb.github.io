@@ -1,9 +1,8 @@
 import type { S7Data } from "../data.js";
-import { last7DaysByDay } from "../data.js";
+import { last7DaysByDay, directionLabel } from "../data.js";
 import { renderDelayHistogram } from "../charts/delayHistogram.js";
 
 export function renderWeek(data: S7Data, container: HTMLElement): void {
-  const byDay = last7DaysByDay(data);
   const agg = data.aggregates.last_7_days;
 
   container.innerHTML = `
@@ -15,9 +14,15 @@ export function renderWeek(data: S7Data, container: HTMLElement): void {
       <span class="summary-item">Ø ${agg.avg_delay_min} min Verspätung</span>
     </div>
     <div class="chart-container">
-      <canvas id="chart-week-delay"></canvas>
+      <h3>Richtung ${directionLabel("muenchen")}</h3>
+      <canvas id="chart-week-muenchen"></canvas>
+    </div>
+    <div class="chart-container">
+      <h3>Richtung ${directionLabel("wolfratshausen")}</h3>
+      <canvas id="chart-week-wolfratshausen"></canvas>
     </div>
   `;
 
-  renderDelayHistogram("chart-week-delay", byDay);
+  renderDelayHistogram("chart-week-muenchen", last7DaysByDay(data, "muenchen"));
+  renderDelayHistogram("chart-week-wolfratshausen", last7DaysByDay(data, "wolfratshausen"));
 }
