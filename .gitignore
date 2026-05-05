@@ -13,6 +13,13 @@ data/s7bb.db
 # Environment
 .env
 
+# TLS certificates / keys (never commit)
+certificate/
+
+# DB Marketplace credentials (never commit)
+db-api/client_id
+db-api/client_secret
+
 # Node
 node_modules/
 site/dist/
