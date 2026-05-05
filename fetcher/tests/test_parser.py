@@ -49,15 +49,19 @@ def test_direction_bucket_wolfratshausen():
 
 
 def test_direction_bucket_muenchen_by_terminus():
-    assert classify_direction("Höllriegelskreuth|Pullach|Solln|München Hbf|München Ost") == "muenchen"
+    assert classify_direction(
+        "Buchenhain|Höllriegelskreuth|Pullach|München-Solln|München Hbf Gl.27-36"
+    ) == "muenchen"
 
 
-def test_direction_bucket_muenchen_by_keyword():
-    assert classify_direction("Buchenhain|Höllriegelskreuth|Pullach|Großhesselohe|Aying") == "muenchen"
+def test_direction_bucket_muenchen_terminus_only():
+    """Terminus alone, no full path."""
+    assert classify_direction("München Hbf Gl.27-36") == "muenchen"
 
 
-def test_direction_bucket_muenchen_name_in_path():
-    assert classify_direction("Siemenswerke|München Hbf|Marienplatz|Ostbahnhof|Kreuzstraße") == "muenchen"
+def test_direction_bucket_unknown_when_munich_midpath_only():
+    """Post-2024 S7 split: Kreuzstraße/Aying no longer S7. Terminus must be München."""
+    assert classify_direction("München Hbf|Marienplatz|Ostbahnhof|Kreuzstraße") == "unknown"
 
 
 def test_direction_bucket_unknown_empty():
