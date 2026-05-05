@@ -84,9 +84,11 @@ npm run lint     # eslint
 
 **Dependency pinning:** all deps use `=X.Y.Z` exact versions. Match this style when adding deps.
 
-**Commit format:** Conventional Commits required. Allowed types: `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `style`, `revert`. Breaking changes: append `!` and add `BREAKING CHANGE:` footer.
+**Versioning:** [Semantic Versioning](https://semver.org) — `MAJOR.MINOR.PATCH`. Breaking API/data-schema changes bump MAJOR; new features bump MINOR; bug fixes bump PATCH.
 
-**Changelog:** every user-facing change goes in `CHANGELOG.md` under `[Unreleased]` before merging. Entries describe user-visible effect, not code paths.
+**Commit format:** [Conventional Commits](https://www.conventionalcommits.org) required. Allowed types: `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `style`, `revert`. Breaking changes: append `!` and add `BREAKING CHANGE:` footer.
 
-**Release:** bump  version + rename `[Unreleased]` in `CHANGELOG.md` + commit `chore(release): X.Y.Z` + tag `vX.Y.Z`.
+**Changelog:** [Keep a Changelog](https://keepachangelog.com) format. Every user-facing change goes in `CHANGELOG.md` under `[Unreleased]` before merging. Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`. Entries describe user-visible effect, not code paths.
+
+**Release:** bump version in `pyproject.toml` + rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` + commit `chore(release): X.Y.Z` + tag `vX.Y.Z`.
 
