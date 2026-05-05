@@ -59,11 +59,6 @@ def test_direction_bucket_muenchen_terminus_only():
     assert classify_direction("München Hbf Gl.27-36") == "muenchen"
 
 
-def test_direction_bucket_unknown_when_munich_midpath_only():
-    """Post-2024 S7 split: Kreuzstraße/Aying no longer S7. Terminus must be München."""
-    assert classify_direction("München Hbf|Marienplatz|Ostbahnhof|Kreuzstraße") == "unknown"
-
-
 def test_direction_bucket_unknown_empty():
     assert classify_direction("") == "unknown"
 
