@@ -39,6 +39,8 @@ jobs:
       - name: Build site
         run: npm run build
         working-directory: site
+        env:
+          GITHUB_PAGES: "1"
 
       - name: Copy data into dist
         run: |

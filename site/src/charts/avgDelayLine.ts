@@ -8,6 +8,7 @@ export function renderAvgDelayLine(
 ): void {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
   if (!canvas) return;
+  Chart.getChart(canvas)?.destroy();
 
   const labels = data.map((d) => {
     const dt = new Date(d.date);

@@ -1,5 +1,5 @@
 import type { S7Data } from "../data.js";
-import { last7DaysByDay, directionLabel } from "../data.js";
+import { last7DaysByDay, directionLabel, escapeHtml } from "../data.js";
 import { renderStatusPie } from "../charts/statusPie.js";
 import { renderAvgDelayLine } from "../charts/avgDelayLine.js";
 
@@ -43,7 +43,7 @@ export function renderStats(data: S7Data, container: HTMLElement): void {
     <div class="reasons-box">
       <h3>Häufigste Gründe (alle Richtungen)</h3>
       <ul>
-        ${topReasons.map(([r, n]) => `<li>${r} <em>(${n}×)</em></li>`).join("")}
+        ${topReasons.map(([r, n]) => `<li>${escapeHtml(r)} <em>(${n}×)</em></li>`).join("")}
       </ul>
     </div>` : ""}
     <p class="data-age">Zeitraum: letzte ${data.window_days} Tage · ${agg.total} Züge erfasst</p>

@@ -17,10 +17,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (serves `latest.json` on port 8080, activated via `--profile dev`)
 - `.env.example` extended with `FETCH_CRON`, `EXPORT_CRON`,
   `SSH_DEPLOY_KEY_PATH`, git identity, and `UID`/`GID` variables
+- HTML escaping for free-text fields (delay reason, direction) before they
+  are rendered in the static site
+- Optional `SSH_KNOWN_HOSTS_PATH` env var for pinning the GitHub host key
+  inside the fetcher container
 
 ### Changed
-- Systemd timers superseded by container-internal APScheduler; existing units
-  in `fetcher/systemd/` are retained for reference
+- DB Timetables API timestamps are now correctly interpreted as
+  `Europe/Berlin` local time and converted to UTC; previously stored as UTC
+  directly, causing a 1–2 hour offset on every arrival
+- Vite static site now respects `BASE_URL` so it deploys correctly to a
+  GitHub Pages project subpath (`/s7bb/`) when `GITHUB_PAGES=1` is set
+  during build
+- SQLite database now opened in WAL mode with a 5-second busy timeout to
+  avoid lock contention between the fetch and export jobs
+- Charts are explicitly destroyed and recreated on re-render to prevent
+  Chart.js memory leaks while navigating between pages
+- `cancelled` is now a JSON boolean (was `0`/`1`) in `latest.json` and in
+  the TypeScript `Arrival` interface
+- Pinned all Python and npm dependency versions to exact pins per project
+  policy (`==X.Y.Z` / no `^`)
+
+### Security
+- Fetcher git push uses `IdentitiesOnly=yes` and
+  `StrictHostKeyChecking=accept-new` instead of disabling host-key
+  verification; SSH key path is shell-quoted
+- Fetcher commits now use the configured `GIT_AUTHOR_*` /
+  `GIT_COMMITTER_*` env vars instead of falling back to whatever is in
+  the container's git config
+
+### Removed
+- `fetcher/systemd/*` unit files and `fetcher/push-data.sh` (superseded by
+  container-internal APScheduler and `pusher.py`)
+
+### Fixed
+- Train filter now matches only line `S7` (was accidentally accepting any
+  S-Bahn line with `f="S"` due to a redundant double-check)
+- `s7bb-fetch` now requests the timetable for the current Europe/Berlin
+  hour rather than the current UTC hour
 
 ### Added
 - Per-direction tracking: arrivals split into "Richtung München" and "Richtung Wolfratshausen" on all pages

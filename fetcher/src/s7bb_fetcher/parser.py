@@ -2,8 +2,11 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from lxml import etree
+
+_DE_TZ = ZoneInfo("Europe/Berlin")
 
 MUENCHEN_TERMINI = {
     "München Hbf", "München Ost", "Ostbahnhof", "Hauptbahnhof",
@@ -27,8 +30,9 @@ class ArrivalRecord:
 
 
 def _parse_db_time(raw: str) -> datetime:
-    """DB time format: YYMMDDHHMM → UTC datetime (DB times are local DE, treat as UTC for simplicity)."""
-    return datetime.strptime(raw, "%y%m%d%H%M").replace(tzinfo=timezone.utc)
+    """DB time format: YYMMDDHHMM (Europe/Berlin local) → UTC datetime."""
+    local = datetime.strptime(raw, "%y%m%d%H%M").replace(tzinfo=_DE_TZ)
+    return local.astimezone(timezone.utc)
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -80,11 +84,8 @@ def parse_timetable(
         line_num = tl.get("n", "")
         line = f"{line_type}{line_num}" if line_type else line_num
 
-        # Only track S7
-        if not line.startswith("S7") and tl.get("f") != "S":
-            line_f = tl.get("f", "")
-            if line_f != "S":
-                continue
+        if line != "S7":
+            continue
 
         ar = stop.find("ar")
         if ar is None:
@@ -135,7 +136,7 @@ def parse_timetable(
 
         records.append(ArrivalRecord(
             train_id=sid,
-            line=f"S{tl.get('n', '?')}" if tl.get("f") == "S" else line,
+            line="S7",
             station=station,
             direction=direction,
             direction_bucket=direction_bucket,

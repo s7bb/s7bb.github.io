@@ -20,7 +20,10 @@ def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
         (since,),
     )
     cols = [d[0] for d in cur.description]
-    return [dict(zip(cols, row)) for row in cur.fetchall()]
+    out = [dict(zip(cols, row)) for row in cur.fetchall()]
+    for r in out:
+        r["cancelled"] = bool(r["cancelled"])
+    return out
 
 
 def _aggregate(rows: list[dict]) -> dict:
@@ -152,6 +155,8 @@ def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_
     )
     cols = [d[0] for d in cur.description]
     rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+    for r in rows:
+        r["cancelled"] = bool(r["cancelled"])
 
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
