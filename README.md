@@ -11,17 +11,17 @@ Tracks on-time performance of the Deutsche Bahn S7 S-Bahn line at Baierbrunn sta
 ```
 DB Timetables API (XML)
         │
-        ▼  every 5 min (systemd timer on VM)
+        ▼  every 5 min (APScheduler in container)
   s7bb-fetch  →  data/s7bb.db  (SQLite, stays on VM)
         │
-        ▼  every hour (systemd timer on VM)
-  s7bb-export  →  data/latest.json  →  git push
+        ▼  every hour (APScheduler in container)
+  s7bb-export → data/latest.json → git push
         │
         ▼  GitHub Actions (triggered by push to data/**)
   Vite build  →  GitHub Pages
 ```
 
-The fetcher runs on a small VM and pushes `data/latest.json` hourly. GitHub Actions rebuilds and deploys the static site on every push.
+The fetcher runs in a Docker container on a small VM and pushes `data/latest.json` hourly. GitHub Actions rebuilds and deploys the static site on every push.
 
 ---
 
@@ -93,25 +93,18 @@ uv run s7bb-fetch       # fetches current hour → data/s7bb.db
 uv run s7bb-export      # writes data/latest.json
 ```
 
-### 3. Configure systemd timers (VM)
+### 3. Run the container (VM)
 
 ```bash
-# Copy units
-sudo cp fetcher/systemd/s7bb-fetch.service  /etc/systemd/system/
-sudo cp fetcher/systemd/s7bb-fetch.timer    /etc/systemd/system/
-sudo cp fetcher/systemd/s7bb-export.service /etc/systemd/system/
-sudo cp fetcher/systemd/s7bb-export.timer   /etc/systemd/system/
-
-# Install push script
-sudo cp fetcher/push-data.sh /opt/s7bb/push-data.sh
-sudo chmod +x /opt/s7bb/push-data.sh
-
-# Enable and start
-sudo systemctl daemon-reload
-sudo systemctl enable --now s7bb-fetch.timer s7bb-export.timer
+docker compose up -d s7bb-fetcher
 ```
 
-The fetch timer fires every 5 minutes. The export timer fires hourly and calls `push-data.sh` to commit and push `data/latest.json`.
+The container runs APScheduler with two cron jobs:
+
+- `FETCH_CRON` (default `*/5 * * * *`) → fetch + upsert into SQLite
+- `EXPORT_CRON` (default `0 * * * *`) → export `data/latest.json` and push to git
+
+Both cron expressions and the SSH deploy key path are configured via `.env`.
 
 ### 4. Configure GitHub Pages
 

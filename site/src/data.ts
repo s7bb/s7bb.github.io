@@ -9,7 +9,7 @@ export interface Arrival {
   scheduled_time: string;
   actual_time: string | null;
   delay_minutes: number | null;
-  cancelled: number; // 0 | 1 from SQLite
+  cancelled: boolean;
   reason: string | null;
 }
 
@@ -39,10 +39,21 @@ export interface S7Data {
 }
 
 export async function loadData(): Promise<S7Data> {
-  const url = import.meta.env.DEV ? "../data/latest.json" : "./data/latest.json";
+  const url = import.meta.env.DEV
+    ? "../data/latest.json"
+    : `${import.meta.env.BASE_URL}data/latest.json`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to load data: ${resp.status}`);
   return resp.json() as Promise<S7Data>;
+}
+
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export function directionLabel(bucket: DirectionBucket): string {

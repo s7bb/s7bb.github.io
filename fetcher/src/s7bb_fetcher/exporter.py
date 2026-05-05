@@ -3,12 +3,12 @@
 import json
 import sqlite3
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
 def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     cur = conn.execute(
         """
         SELECT train_id, line, station, direction, direction_bucket, scheduled_time,
@@ -20,7 +20,10 @@ def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
         (since,),
     )
     cols = [d[0] for d in cur.description]
-    return [dict(zip(cols, row)) for row in cur.fetchall()]
+    out = [dict(zip(cols, row)) for row in cur.fetchall()]
+    for r in out:
+        r["cancelled"] = bool(r["cancelled"])
+    return out
 
 
 def _aggregate(rows: list[dict]) -> dict:
@@ -28,9 +31,19 @@ def _aggregate(rows: list[dict]) -> dict:
     cancelled = sum(1 for r in rows if r["cancelled"])
     late = sum(1 for r in rows if not r["cancelled"] and (r["delay_minutes"] or 0) > 0)
     on_time = total - cancelled - late
-    delays = [r["delay_minutes"] for r in rows if not r["cancelled"] and r["delay_minutes"] is not None]
+    delays = [
+        r["delay_minutes"]
+        for r in rows
+        if not r["cancelled"] and r["delay_minutes"] is not None
+    ]
     avg_delay = round(sum(delays) / len(delays), 1) if delays else 0.0
-    return {"total": total, "on_time": on_time, "late": late, "cancelled": cancelled, "avg_delay_min": avg_delay}
+    return {
+        "total": total,
+        "on_time": on_time,
+        "late": late,
+        "cancelled": cancelled,
+        "avg_delay_min": avg_delay,
+    }
 
 
 def _expected_slots(rows: list[dict]) -> list[str]:
@@ -79,7 +92,7 @@ def _direction_aggregate(rows: list[dict], bucket: str, expected_slots: list[str
 
 
 def _today_rows(rows: list[dict]) -> list[dict]:
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
     return [r for r in rows if r["scheduled_time"].startswith(today)]
 
 
@@ -103,8 +116,12 @@ def _build_aggregates(rows: list[dict], today_rows: list[dict]) -> tuple[dict, d
     week_agg = {
         **_aggregate(rows),
         "by_direction": {
-            "muenchen": _direction_aggregate(rows, "muenchen", _expected_slots(muenchen_week)),
-            "wolfratshausen": _direction_aggregate(rows, "wolfratshausen", _expected_slots(wolf_week)),
+            "muenchen": _direction_aggregate(
+                rows, "muenchen", _expected_slots(muenchen_week)
+            ),
+            "wolfratshausen": _direction_aggregate(
+                rows, "wolfratshausen", _expected_slots(wolf_week)
+            ),
         },
     }
     today_slots = {"muenchen": slots_muenchen, "wolfratshausen": slots_wolf}
@@ -117,7 +134,7 @@ def export_latest(conn: sqlite3.Connection, out_path: Path, window_days: int = 7
     today_agg, week_agg, today_slots = _build_aggregates(rows, today_rows)
 
     payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "station": "Baierbrunn",
         "line": "S7",
         "window_days": window_days,
@@ -152,9 +169,11 @@ def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_
     )
     cols = [d[0] for d in cur.description]
     rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+    for r in rows:
+        r["cancelled"] = bool(r["cancelled"])
 
     payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "station": "Baierbrunn",
         "line": "S7",
         "period": f"{year:04d}-{month:02d}",

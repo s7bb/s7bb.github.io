@@ -1,7 +1,7 @@
 """SQLite storage for arrival records."""
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .parser import ArrivalRecord
@@ -50,7 +50,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 def open_db(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), timeout=5.0)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.executescript(SCHEMA)
     conn.commit()
     _migrate(conn)
@@ -59,7 +62,7 @@ def open_db(path: Path) -> sqlite3.Connection:
 
 def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> int:
     """Insert or replace records. Returns number of rows affected."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     rows = [
         (
             r.train_id, r.line, r.station, r.direction, r.direction_bucket,

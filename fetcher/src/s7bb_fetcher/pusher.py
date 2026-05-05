@@ -2,7 +2,8 @@
 
 import logging
 import os
-from datetime import datetime, timezone
+import shlex
+from datetime import UTC, datetime
 from pathlib import Path
 
 import git
@@ -10,6 +11,13 @@ import git
 logger = logging.getLogger(__name__)
 
 _LATEST_JSON = "data/latest.json"
+
+
+def _actor(name_var: str, email_var: str, default_name: str) -> git.Actor:
+    return git.Actor(
+        os.environ.get(name_var, default_name),
+        os.environ.get(email_var, "s7bb-bot@localhost"),
+    )
 
 
 def push_latest(repo_path: Path) -> bool:
@@ -31,13 +39,25 @@ def push_latest(repo_path: Path) -> bool:
         logger.info("push_latest: no changes, skipping commit")
         return False
 
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    repo.index.commit(f"chore: update latest.json {ts}")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    author = _actor("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "s7bb-bot")
+    committer = _actor("GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "s7bb-bot")
+    repo.index.commit(
+        f"chore: update latest.json {ts}",
+        author=author,
+        committer=committer,
+    )
 
     env = {}
     ssh_key = os.environ.get("SSH_DEPLOY_KEY_PATH", "")
     if ssh_key:
-        env["GIT_SSH_COMMAND"] = f"ssh -i {ssh_key} -o StrictHostKeyChecking=no"
+        parts = ["ssh", "-i", shlex.quote(ssh_key),
+                 "-o", "IdentitiesOnly=yes",
+                 "-o", "StrictHostKeyChecking=accept-new"]
+        known_hosts = os.environ.get("SSH_KNOWN_HOSTS_PATH", "")
+        if known_hosts:
+            parts += ["-o", f"UserKnownHostsFile={shlex.quote(known_hosts)}"]
+        env["GIT_SSH_COMMAND"] = " ".join(parts)
 
     origin = repo.remotes["origin"]
     push_infos = origin.push(env=env)

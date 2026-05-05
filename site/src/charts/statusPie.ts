@@ -6,6 +6,7 @@ Chart.register(PieController, ArcElement, Tooltip, Legend);
 export function renderStatusPie(canvasId: string, agg: DayAggregate): void {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
   if (!canvas) return;
+  Chart.getChart(canvas)?.destroy();
 
   new Chart(canvas, {
     type: "pie",

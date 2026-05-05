@@ -1,5 +1,5 @@
 import type { S7Data } from "../data.js";
-import { arrivalsByDirection, directionLabel } from "../data.js";
+import { arrivalsByDirection, directionLabel, escapeHtml } from "../data.js";
 import type { Arrival } from "../data.js";
 
 function formatTime(iso: string): string {
@@ -38,9 +38,9 @@ function renderDirectionColumn(data: S7Data, bucket: "muenchen" | "wolfratshause
       <div class="arrival-row ${record.cancelled ? "arrival-row--cancelled" : ""}">
         <span class="arrival-time">${formatTime(record.scheduled_time)}</span>
         <span class="arrival-line">S7</span>
-        <span class="arrival-direction">${record.direction}</span>
+        <span class="arrival-direction">${escapeHtml(record.direction)}</span>
         ${statusBadge(record)}
-        ${record.reason ? `<span class="arrival-reason">${record.reason}</span>` : ""}
+        ${record.reason ? `<span class="arrival-reason">${escapeHtml(record.reason)}</span>` : ""}
       </div>`;
   }).join("");
 

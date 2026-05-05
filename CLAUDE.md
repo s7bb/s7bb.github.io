@@ -67,12 +67,8 @@ npm run lint     # eslint
 ## VM Setup (production)
 
 1. Clone repo with deploy key that can push to `main`.
-2. Copy `.env.example` → `/opt/s7bb/.env`, fill in API credentials.
-3. `uv sync` in `fetcher/`, install `fetcher/push-data.sh` at `/opt/s7bb/`.
-4. Copy `fetcher/systemd/` units to `/etc/systemd/system/`, enable timers:
-   ```bash
-   systemctl enable --now s7bb-fetch.timer s7bb-export.timer
-   ```
+2. Copy `.env.example` → `.env`, fill in API credentials, SSH key path, UID/GID.
+3. `docker compose up -d s7bb-fetcher` — APScheduler runs fetch+export+push inside container.
 
 ## GitHub Pages Setup
 

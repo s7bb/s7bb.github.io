@@ -1,13 +1,15 @@
 """DB Timetables API HTTP client."""
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 from lxml import etree
 
 BASE_URL = "https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1"
 BAIERBRUNN_EVA = "8004073"
+_DE_TZ = ZoneInfo("Europe/Berlin")
 
 
 def _session() -> requests.Session:
@@ -46,8 +48,8 @@ def fetch_recent_changes(eva: str) -> etree._Element:
 
 
 def fetch_baierbrunn_now() -> tuple[etree._Element, etree._Element]:
-    """Return (plan_xml, changes_xml) for Baierbrunn at current UTC hour."""
-    now = datetime.now(timezone.utc)
+    """Return (plan_xml, changes_xml) for Baierbrunn at current Europe/Berlin hour."""
+    now = datetime.now(tz=_DE_TZ)
     date = now.strftime("%y%m%d")
     hour = now.strftime("%H")
     plan = fetch_plan(BAIERBRUNN_EVA, date, hour)
