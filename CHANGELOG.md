@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+<<<<<<< fix/security-vite-bump
 - Bumped `vite` 5.2.11 → 6.4.2 in `site/` to close 12 Dependabot alerts
   covering `server.fs.deny` bypass / path-traversal variants
   (GHSA-4w7w-66w2-5vf9, GHSA-93m4-6634-74q7, GHSA-g4jq-h2w9-997c,
@@ -17,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transitive `esbuild` dev-server CORS issue (GHSA-67mh-4wv8-2f99). The
   vulnerable code paths only run in `vite dev`; the deployed static site
   was never exposed.
+=======
+- Bumped fetcher dependencies to address Dependabot alerts:
+  - `lxml` 5.2.2 → 6.1.0 (GHSA-vfmq-68hx-4jfw — XXE via default `iterparse()`/`ETCompatXMLParser()` settings)
+  - `requests` 2.32.3 → 2.33.1 (GHSA-9hjg-9r4m-mvj7 `.netrc` credential leak; GHSA-gc5v-m9x4-r6x2 insecure temp-file reuse in `extract_zipped_paths`)
+  - `gitpython` 3.1.47 → 3.1.49
+  - dev: `pytest` 8.2.2 → 9.0.3 (GHSA-6w46-j5rx-g56g — vulnerable tmpdir handling)
+- Hardened DB Timetables XML parsing: `api.py` now uses an explicit
+  `lxml.etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)`
+  for all `fromstring` calls, defence-in-depth against malicious XML even
+  though the upstream is a trusted DB API.
+>>>>>>> main
 
 ### Fixed
 - Train filter previously read line from `<tl c=.. n=..>` (category + train run
