@@ -187,11 +187,11 @@ Example plan XML:
 ```xml
 <timetable station="Baierbrunn" eva="8000781">
   <s id="trip-S7-001-2605051200">
-    <tl f="S" t="p" o="800725" c="S" n="7"/>
-    <ar pt="2605051200" pp="1" l="7"
-        ppth="München Ost|Leuchtenbergring|...|Erding"/>
-    <dp pt="2605051201" pp="2" l="7"
-        ppth="Deisenhofen|Furth|...|Wolfratshausen"/>
+    <tl f="S" t="p" o="800725" c="S" n="6761"/>
+    <ar pt="2605051200" pp="2" l="S7"
+        ppth="München Hbf Gl.27-36|...|Buchenhain"/>
+    <dp pt="2605051201" pp="2" l="S7"
+        ppth="Hohenschäftlarn|Ebenhausen-Schäftlarn|Icking|Wolfratshausen"/>
   </s>
 </timetable>
 ```

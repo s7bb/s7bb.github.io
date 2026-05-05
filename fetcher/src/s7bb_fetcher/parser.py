@@ -8,12 +8,6 @@ from lxml import etree
 
 _DE_TZ = ZoneInfo("Europe/Berlin")
 
-MUENCHEN_TERMINI = {
-    "München Hbf", "München Ost", "Ostbahnhof", "Hauptbahnhof",
-    "Kreuzstraße", "Aying", "Höhenkirchen-Siegertsbrunn",
-    "Wächterhof", "Dürrnhaar", "Ebersberg",
-}
-
 
 @dataclass
 class ArrivalRecord:
@@ -48,6 +42,8 @@ def _last_stop(path: str) -> str:
 def classify_direction(dp_ppth: str) -> str:
     """Classify departure path into direction bucket.
 
+    S7 (since 2024 timetable split) runs Wolfratshausen <-> München Hbf Gl.27-36.
+
     Returns "wolfratshausen", "muenchen", or "unknown".
     """
     if not dp_ppth:
@@ -55,7 +51,7 @@ def classify_direction(dp_ppth: str) -> str:
     terminus = _last_stop(dp_ppth)
     if terminus == "Wolfratshausen":
         return "wolfratshausen"
-    if terminus in MUENCHEN_TERMINI or "München" in dp_ppth:
+    if "München" in terminus:
         return "muenchen"
     return "unknown"
 
@@ -76,20 +72,14 @@ def parse_timetable(
 
     for stop in plan_xml.findall(".//s"):
         sid = stop.get("id", "")
-        tl = stop.find("tl")
-        if tl is None:
-            continue
-
-        line_type = tl.get("c", "")
-        line_num = tl.get("n", "")
-        line = f"{line_type}{line_num}" if line_type else line_num
-
-        if line != "S7":
-            continue
 
         ar = stop.find("ar")
         if ar is None:
             continue  # departure-only stop, skip
+
+        line = (ar.get("l") or "").strip()
+        if line != "S7":
+            continue
 
         pt_raw = ar.get("pt")
         if not pt_raw:

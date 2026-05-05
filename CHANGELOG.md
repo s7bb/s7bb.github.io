@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Train filter previously read line from `<tl c=.. n=..>` (category + train run
+  number, e.g. `S6765`) and never matched `S7`, so the parser dropped every
+  arrival and the database stayed empty. Filter now reads the line attribute
+  from `<ar l="S7">`, matching the real DB Timetables XML schema. Test fixture
+  `plan.xml` updated to use `l="S7"` to reflect production data.
+
+### Changed
+- Direction classification simplified to two buckets matching the post-2024
+  S7 timetable split (Wolfratshausen ↔ München Hbf Gl.27-36). The previous
+  `MUENCHEN_TERMINI` set listed eastern-branch stations (Kreuzstraße, Aying,
+  Höhenkirchen-Siegertsbrunn, Ebersberg, ...) that are no longer served by
+  S7 since the line was split in 2024.
+
+### Added
+- `db-api/s7_baierbrunn_now.py` smoke script: fetches plan + full-changes for
+  Baierbrunn and prints current S7 arrivals (scheduled, actual, delay,
+  direction, platform, origin) to stdout. Useful for verifying API access and
+  the parser's filter logic without touching the database.
+
 ### Changed
 - Fetcher Docker image switched from `python:3.12-slim` + `pip install .` to
   the official `ghcr.io/astral-sh/uv` image with `uv sync`. When `uv.lock`
