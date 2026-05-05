@@ -40,7 +40,7 @@ Both credentials are obtained by:
 
 Example:
 ```http
-GET /db-api-marketplace/apis/timetables/v1/plan/8004073/260505/12 HTTP/1.1
+GET /db-api-marketplace/apis/timetables/v1/plan/8000781/260505/12 HTTP/1.1
 Host: apis.deutschebahn.com
 DB-Api-Key: <your-api-key>
 DB-Client-Id: <your-client-id>
@@ -83,13 +83,13 @@ Returns the **planned timetable** for a station for a given hour.
 
 | Parameter | Location | Type | Format | Description |
 |-----------|----------|------|--------|-------------|
-| `evaNo` | path | string | numeric | EVA station number (e.g. `8004073` for Baierbrunn) |
+| `evaNo` | path | string | numeric | EVA station number (e.g. `8000781` for Baierbrunn) |
 | `date` | path | string | `YYMMDD` | Date in 2-digit year + month + day format |
 | `hour` | path | string | `HH` | Hour in 24-hour format (00–23) |
 
 Example:
 ```
-GET https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1/plan/8004073/260505/12
+GET https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1/plan/8000781/260505/12
 ```
 
 Returns all scheduled stops at Baierbrunn for the hour 12:00–12:59 on 2026-05-05.
@@ -108,7 +108,7 @@ Returns the **full set of current changes** for a station — all deviations fro
 
 Example:
 ```
-GET https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1/fchg/8004073
+GET https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1/fchg/8000781
 ```
 
 Response: XML `<timetable>` element with `<s>` children, each containing changed `<ar>` (arrival) or `<dp>` (departure) sub-elements.
@@ -125,7 +125,7 @@ Returns **only changes from the last ~2 minutes** for a station. A lighter-weigh
 
 Example:
 ```
-GET https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1/rchg/8004073
+GET https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1/rchg/8000781
 ```
 
 ---
@@ -185,7 +185,7 @@ Each stop is an `<s>` element with `id` attribute. Relevant children:
 
 Example plan XML:
 ```xml
-<timetable station="Baierbrunn" eva="8004073">
+<timetable station="Baierbrunn" eva="8000781">
   <s id="trip-S7-001-2605051200">
     <tl f="S" t="p" o="800725" c="S" n="7"/>
     <ar pt="2605051200" pp="1" l="7"
@@ -211,7 +211,7 @@ Each `<s>` element is keyed by `id` matching the plan stop. Changed `<ar>` or `<
 
 Example changes XML (one delayed, one cancelled):
 ```xml
-<timetable station="Baierbrunn" eva="8004073">
+<timetable station="Baierbrunn" eva="8000781">
   <s id="trip-S7-001-2605051200">
     <ar ct="2605051207" cs="d"/>
   </s>
@@ -225,7 +225,7 @@ Example changes XML (one delayed, one cancelled):
 
 When no changes exist:
 ```xml
-<timetable station="Baierbrunn" eva="8004073"/>
+<timetable station="Baierbrunn" eva="8000781"/>
 ```
 
 ---
@@ -246,7 +246,7 @@ In the S7BB fetcher, times are parsed with `datetime.strptime(raw, "%y%m%d%H%M")
 | Property | Value |
 |----------|-------|
 | Station name | Baierbrunn |
-| EVA number | `8004073` |
+| EVA number | `8000781` |
 | Line | S7 (München ↔ Wolfratshausen) |
 
 ---

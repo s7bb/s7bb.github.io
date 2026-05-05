@@ -46,7 +46,7 @@ Both are required. Keep them secret — never commit them to the repository.
 | Base URL | `https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1` |
 | Auth headers | `DB-Api-Key: <key>` and `DB-Client-Id: <id>` |
 | Response format | XML |
-| Baierbrunn EVA number | `8004073` |
+| Baierbrunn EVA number | `8000781` (env: `S7BB_EVA`) |
 
 Endpoints used:
 

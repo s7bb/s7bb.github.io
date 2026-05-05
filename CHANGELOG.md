@@ -64,6 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   S-Bahn line with `f="S"` due to a redundant double-check)
 - `s7bb-fetch` now requests the timetable for the current Europe/Berlin
   hour rather than the current UTC hour
+- Baierbrunn EVA station number corrected from `8004073` to `8000781`
+  (the previous value caused the DB Timetables API to reject every
+  `/plan` and `/fchg` request with HTTP 400). EVA is now sourced from the
+  `S7BB_EVA` env var with the correct default; documentation and example
+  env file updated to match
 
 ### Added
 - Per-direction tracking: arrivals split into "Richtung München" and "Richtung Wolfratshausen" on all pages
