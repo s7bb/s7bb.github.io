@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Docker container for fetcher: single `s7bb-fetcher` service runs fetch and
+  export+push on independent APScheduler cron schedules (`FETCH_CRON`,
+  `EXPORT_CRON` env vars)
+- `push-data.sh` logic migrated to Python (`pusher.py`); runs inside the
+  container with SSH deploy key mounted as a volume
+- `docker-compose.yml` with `s7bb-fetcher` (production) and `s7bb-dev`
+  (serves `latest.json` on port 8080, activated via `--profile dev`)
+- `.env.example` extended with `FETCH_CRON`, `EXPORT_CRON`,
+  `SSH_DEPLOY_KEY_PATH`, git identity, and `UID`/`GID` variables
+
+### Changed
+- Systemd timers superseded by container-internal APScheduler; existing units
+  in `fetcher/systemd/` are retained for reference
+
+### Added
 - Per-direction tracking: arrivals split into "Richtung München" and "Richtung Wolfratshausen" on all pages
 - Heute page shows two columns (one per direction), stacking on narrow screens
 - Statistik and Letzte 7 Tage pages show separate charts and aggregates per direction

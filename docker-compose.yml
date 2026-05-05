@@ -1,0 +1,27 @@
+services:
+  s7bb-fetcher:
+    build:
+      context: fetcher
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    # Run as host user to avoid permission conflicts on the data/ volume.
+    # Set UID and GID in .env (e.g. UID=1000 GID=1000).
+    user: "${UID}:${GID}"
+    volumes:
+      - ./data:/data
+      - .:/repo
+      - ${SSH_DEPLOY_KEY_PATH}:${SSH_DEPLOY_KEY_PATH}:ro
+    environment:
+      DATA_DIR: /data
+      REPO_PATH: /repo
+
+  s7bb-dev:
+    image: python:3.12-slim
+    command: python3 -m http.server 8080 --directory /data
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data:ro
+    profiles:
+      - dev
