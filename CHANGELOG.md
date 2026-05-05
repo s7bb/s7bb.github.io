@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Bumped `vite` 5.2.11 → 6.4.2 in `site/` to close 12 Dependabot alerts
+  covering `server.fs.deny` bypass / path-traversal variants
+  (GHSA-4w7w-66w2-5vf9, GHSA-93m4-6634-74q7, GHSA-g4jq-h2w9-997c,
+  GHSA-jqfw-vq24-v9c3, GHSA-859w-5945-r5v3, GHSA-356w-63v5-8wf4,
+  GHSA-xcj6-pq6g-qj4x, GHSA-4r4m-qw57-chr8, GHSA-x574-m823-4x7w,
+  GHSA-vg6x-rcgg-rjx6, GHSA-9cwx-2883-4wfx, GHSA-64vr-g452-qvp3) and one
+  transitive `esbuild` dev-server CORS issue (GHSA-67mh-4wv8-2f99). The
+  vulnerable code paths only run in `vite dev`; the deployed static site
+  was never exposed.
+
 ### Fixed
 - Train filter previously read line from `<tl c=.. n=..>` (category + train run
   number, e.g. `S6765`) and never matched `S7`, so the parser dropped every
