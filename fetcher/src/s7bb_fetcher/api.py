@@ -11,6 +11,14 @@ BASE_URL = "https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1"
 BAIERBRUNN_EVA = os.environ.get("S7BB_EVA", "8000781")
 _DE_TZ = ZoneInfo("Europe/Berlin")
 
+# XXE-hardened parser: no external entities, no DTD load, no network.
+_XML_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    no_network=True,
+    load_dtd=False,
+    huge_tree=False,
+)
+
 
 def _session() -> requests.Session:
     api_key = os.environ["DB_API_KEY"]
@@ -28,7 +36,7 @@ def fetch_plan(eva: str, date: str, hour: str) -> etree._Element:
     url = f"{BASE_URL}/plan/{eva}/{date}/{hour}"
     resp = _session().get(url, timeout=10)
     resp.raise_for_status()
-    return etree.fromstring(resp.content)
+    return etree.fromstring(resp.content, parser=_XML_PARSER)
 
 
 def fetch_full_changes(eva: str) -> etree._Element:
@@ -36,7 +44,7 @@ def fetch_full_changes(eva: str) -> etree._Element:
     url = f"{BASE_URL}/fchg/{eva}"
     resp = _session().get(url, timeout=10)
     resp.raise_for_status()
-    return etree.fromstring(resp.content)
+    return etree.fromstring(resp.content, parser=_XML_PARSER)
 
 
 def fetch_recent_changes(eva: str) -> etree._Element:
@@ -44,7 +52,7 @@ def fetch_recent_changes(eva: str) -> etree._Element:
     url = f"{BASE_URL}/rchg/{eva}"
     resp = _session().get(url, timeout=10)
     resp.raise_for_status()
-    return etree.fromstring(resp.content)
+    return etree.fromstring(resp.content, parser=_XML_PARSER)
 
 
 def fetch_baierbrunn_now() -> tuple[etree._Element, etree._Element]:

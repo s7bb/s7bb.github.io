@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Bumped fetcher dependencies to address Dependabot alerts:
+  - `lxml` 5.2.2 → 6.1.0 (GHSA-vfmq-68hx-4jfw — XXE via default `iterparse()`/`ETCompatXMLParser()` settings)
+  - `requests` 2.32.3 → 2.33.1 (GHSA-9hjg-9r4m-mvj7 `.netrc` credential leak; GHSA-gc5v-m9x4-r6x2 insecure temp-file reuse in `extract_zipped_paths`)
+  - `gitpython` 3.1.47 → 3.1.49
+  - dev: `pytest` 8.2.2 → 9.0.3 (GHSA-6w46-j5rx-g56g — vulnerable tmpdir handling)
+- Hardened DB Timetables XML parsing: `api.py` now uses an explicit
+  `lxml.etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)`
+  for all `fromstring` calls, defence-in-depth against malicious XML even
+  though the upstream is a trusted DB API.
+
 ### Fixed
 - Train filter previously read line from `<tl c=.. n=..>` (category + train run
   number, e.g. `S6765`) and never matched `S7`, so the parser dropped every
