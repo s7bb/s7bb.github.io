@@ -1,7 +1,7 @@
 """Parse DB Timetables XML into ArrivalRecord dataclasses."""
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from lxml import etree
@@ -32,7 +32,7 @@ class ArrivalRecord:
 def _parse_db_time(raw: str) -> datetime:
     """DB time format: YYMMDDHHMM (Europe/Berlin local) → UTC datetime."""
     local = datetime.strptime(raw, "%y%m%d%H%M").replace(tzinfo=_DE_TZ)
-    return local.astimezone(timezone.utc)
+    return local.astimezone(UTC)
 
 
 def _iso(dt: datetime | None) -> str | None:

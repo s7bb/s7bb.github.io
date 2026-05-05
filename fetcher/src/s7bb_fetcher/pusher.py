@@ -3,7 +3,7 @@
 import logging
 import os
 import shlex
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import git
@@ -39,7 +39,7 @@ def push_latest(repo_path: Path) -> bool:
         logger.info("push_latest: no changes, skipping commit")
         return False
 
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     author = _actor("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "s7bb-bot")
     committer = _actor("GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "s7bb-bot")
     repo.index.commit(

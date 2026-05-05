@@ -1,13 +1,13 @@
 import json
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from s7bb_fetcher.exporter import _expected_slots, export_latest
-from s7bb_fetcher.storage import open_db, upsert_records
 from s7bb_fetcher.parser import ArrivalRecord
-from datetime import datetime, timezone
+from s7bb_fetcher.storage import open_db, upsert_records
 
 
 def _make_arrival(train_id: str, scheduled: str, direction_bucket: str, **kwargs) -> ArrivalRecord:
@@ -23,7 +23,7 @@ def _make_arrival(train_id: str, scheduled: str, direction_bucket: str, **kwargs
 @pytest.fixture
 def populated_db(tmp_path: Path) -> sqlite3.Connection:
     conn = open_db(tmp_path / "test.db")
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
 
     records = [
         # München direction: 10:00, 10:20, 10:40, 11:00 (four slots, none missing)
