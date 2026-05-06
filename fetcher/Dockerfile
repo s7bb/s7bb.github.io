@@ -1,6 +1,7 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-# git binary required at runtime: GitPython shells out to it
+# git binary required at runtime: GitPython shells out to it. Push uses
+# HTTPS with a fine-grained PAT delivered via GIT_ASKPASS; no SSH client needed.
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 

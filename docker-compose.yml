@@ -5,13 +5,13 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
-    # Run as host user to avoid permission conflicts on the data/ volume.
-    # Set UID and GID in .env (e.g. UID=1000 GID=1000).
-    user: "${UID}:${GID}"
+    # Run as container UID 0. In rootless nerdctl this maps to the host
+    # invoking user, so bind mounts (data/, repo) preserve ownership.
+    # Setting UID=1000 here would map to a sub-UID and break write access.
+    user: "0:0"
     volumes:
       - ./data:/data
       - .:/repo
-      - ${SSH_DEPLOY_KEY_PATH}:${SSH_DEPLOY_KEY_PATH}:ro
     environment:
       DATA_DIR: /data
       REPO_PATH: /repo

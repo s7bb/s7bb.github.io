@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- Replaced the SSH deploy key used for the hourly `data/latest.json` push with
+  a fine-grained GitHub Personal Access Token over HTTPS. PAT scope is
+  `Contents: Read and write` on a single repo; a server-side push ruleset on
+  `main` further restricts allowed paths to `data/latest.json` and
+  `data/archive/**`, blocks force-pushes, blocks branch deletion, and requires
+  linear history. Previously the deploy key could write any file to any
+  branch.
+- Token is delivered to `git push` via a per-push `GIT_ASKPASS` helper script;
+  it never appears in process arguments and never lands in `.git/config`.
 - Bumped `vite` 5.2.11 → 6.4.2 in `site/` to close 12 Dependabot alerts
   covering `server.fs.deny` bypass / path-traversal variants
   (GHSA-4w7w-66w2-5vf9, GHSA-93m4-6634-74q7, GHSA-g4jq-h2w9-997c,
@@ -26,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `lxml.etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)`
   for all `fromstring` calls, defence-in-depth against malicious XML even
   though the upstream is a trusted DB API.
+
+### Removed
+- SSH deploy key push path. `SSH_DEPLOY_KEY_PATH` and `SSH_KNOWN_HOSTS_PATH`
+  env vars, the host SSH-key bind mount in `docker-compose.yml`, and the
+  `openssh-client` package in `fetcher/Dockerfile` are gone.
 
 ### Fixed
 - Train filter previously read line from `<tl c=.. n=..>` (category + train run

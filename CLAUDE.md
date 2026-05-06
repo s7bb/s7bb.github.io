@@ -24,7 +24,7 @@ DB Timetables API (XML) → Python fetcher → SQLite (data/s7bb.db)
 
 ### Key decisions (locked)
 - Storage: **SQLite** (`data/s7bb.db` stays on VM, never committed)
-- GitHub push: VM commits `data/latest.json` hourly via deploy key; generated site deployed by Actions
+- GitHub push: VM commits `data/latest.json` hourly via fine-grained GitHub PAT over HTTPS, server-side restricted by a `main`-branch ruleset to `data/latest.json` and `data/archive/**`; generated site deployed by Actions
 - DB API: `apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1`, auth via `DB-Api-Key` header
 - Baierbrunn EVA number: `8000781` (overridable via `S7BB_EVA` env var)
 - Fetch cadence: every 5 min (systemd timer)
@@ -66,8 +66,8 @@ npm run lint     # eslint
 
 ## VM Setup (production)
 
-1. Clone repo with deploy key that can push to `main`.
-2. Copy `.env.example` → `.env`, fill in API credentials, SSH key path, UID/GID.
+1. Clone repo over HTTPS.
+2. Copy `.env.example` → `.env`, fill in API credentials, `GITHUB_PAT` (see README §5), UID/GID.
 3. `docker compose up -d s7bb-fetcher` — APScheduler runs fetch+export+push inside container.
 
 ## GitHub Pages Setup

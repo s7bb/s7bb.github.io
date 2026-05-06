@@ -1,8 +1,10 @@
-"""Push data/latest.json to git remote via SSH deploy key."""
+"""Push data/latest.json to git remote via fine-grained GitHub PAT (HTTPS)."""
 
 import logging
 import os
-import shlex
+import re
+import stat
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,6 +13,14 @@ import git
 logger = logging.getLogger(__name__)
 
 _LATEST_JSON = "data/latest.json"
+_HTTPS_USER = "x-access-token"
+_PUSH_REFSPEC = "HEAD:refs/heads/main"
+
+# Matches both `git@github.com:owner/repo(.git)?` and `https://github.com/owner/repo(.git)?`.
+_ORIGIN_RE = re.compile(
+    r"^(?:git@github\.com:|https?://(?:[^@]+@)?github\.com/)"
+    r"(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
+)
 
 
 def _actor(name_var: str, email_var: str, default_name: str) -> git.Actor:
@@ -20,10 +30,50 @@ def _actor(name_var: str, email_var: str, default_name: str) -> git.Actor:
     )
 
 
+def _resolve_slug(repo: git.Repo) -> str:
+    """Return `owner/repo` from GITHUB_REPO_SLUG or by parsing origin."""
+    override = os.environ.get("GITHUB_REPO_SLUG", "").strip()
+    if override:
+        return override
+
+    origin_url = repo.remotes["origin"].url
+    m = _ORIGIN_RE.match(origin_url)
+    if not m:
+        raise RuntimeError(
+            f"cannot parse owner/repo from origin URL {origin_url!r}; "
+            "set GITHUB_REPO_SLUG=owner/repo to override"
+        )
+    return f"{m['owner']}/{m['repo']}"
+
+
+def _push_via_pat(repo: git.Repo, token: str) -> None:
+    """Push HEAD to origin/main over HTTPS, delivering token via GIT_ASKPASS."""
+    slug = _resolve_slug(repo)
+    https_url = f"https://{_HTTPS_USER}@github.com/{slug}.git"
+
+    fd, helper_path = tempfile.mkstemp(prefix="s7bb-askpass-", suffix=".sh")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write('#!/bin/sh\nprintf %s "$GITHUB_PAT"\n')
+        os.chmod(helper_path, stat.S_IRWXU)  # 0o700
+
+        env = os.environ.copy()
+        env["GIT_ASKPASS"] = helper_path
+        env["GITHUB_PAT"] = token
+        env["GIT_TERMINAL_PROMPT"] = "0"
+
+        repo.git.push(https_url, _PUSH_REFSPEC, env=env)
+    finally:
+        try:
+            os.unlink(helper_path)
+        except OSError:
+            logger.warning("failed to unlink GIT_ASKPASS helper %s", helper_path)
+
+
 def push_latest(repo_path: Path) -> bool:
     """Stage, commit, and push data/latest.json.
 
-    Returns True if a commit was made, False if nothing changed.
+    Returns True if a commit was made and pushed, False if nothing changed.
     Raises on git or push errors.
     """
     repo = git.Repo(str(repo_path))
@@ -48,22 +98,10 @@ def push_latest(repo_path: Path) -> bool:
         committer=committer,
     )
 
-    env = {}
-    ssh_key = os.environ.get("SSH_DEPLOY_KEY_PATH", "")
-    if ssh_key:
-        parts = ["ssh", "-i", shlex.quote(ssh_key),
-                 "-o", "IdentitiesOnly=yes",
-                 "-o", "StrictHostKeyChecking=accept-new"]
-        known_hosts = os.environ.get("SSH_KNOWN_HOSTS_PATH", "")
-        if known_hosts:
-            parts += ["-o", f"UserKnownHostsFile={shlex.quote(known_hosts)}"]
-        env["GIT_SSH_COMMAND"] = " ".join(parts)
+    token = os.environ.get("GITHUB_PAT", "").strip()
+    if not token:
+        raise RuntimeError("GITHUB_PAT not set; cannot push to GitHub")
 
-    origin = repo.remotes["origin"]
-    push_infos = origin.push(env=env)
-    for info in push_infos:
-        if info.flags & git.PushInfo.ERROR:
-            raise RuntimeError(f"git push failed: {info.summary}")
-
+    _push_via_pat(repo, token)
     logger.info("push_latest: pushed to origin/main")
     return True
