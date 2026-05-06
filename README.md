@@ -61,7 +61,7 @@ Endpoints used:
 
 - Python 3.11+ with [uv](https://docs.astral.sh/uv/) (`pip install uv`)
 - Node.js 20+
-- A VM with internet access and `git` configured with a deploy key that can push to this repo
+- A VM with internet access. The fetcher pushes via HTTPS using a fine-grained GitHub Personal Access Token (no SSH key required — see §5)
 
 ### 1. Clone and configure
 
@@ -104,7 +104,7 @@ The container runs APScheduler with two cron jobs:
 - `FETCH_CRON` (default `*/5 * * * *`) → fetch + upsert into SQLite
 - `EXPORT_CRON` (default `0 * * * *`) → export `data/latest.json` and push to git
 
-Both cron expressions and the SSH deploy key path are configured via `.env`.
+Both cron expressions and the GitHub PAT (`GITHUB_PAT`) are configured via `.env`.
 
 ### 4. Configure GitHub Pages
 
@@ -112,17 +112,65 @@ Both cron expressions and the SSH deploy key path are configured via `.env`.
 2. No secrets needed — the deploy workflow uses OIDC (`id-token: write`).
 3. On the first push of `data/latest.json` from the VM, GitHub Actions will build and deploy the site automatically.
 
-### 5. Deploy key for git push from VM
+### 5. GitHub credentials for push from VM
 
-1. Generate a key pair on the VM: `ssh-keygen -t ed25519 -f ~/.ssh/s7bb_deploy`
-2. Add the **public key** to the repo: **Settings → Deploy keys → Add → Allow write access**.
-3. Configure SSH on the VM:
+The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)** scoped to a single repository, layered with a server-side **push ruleset** that restricts which paths the bot is allowed to write. Even if the PAT leaks, the ruleset still rejects any change outside `data/latest.json` and `data/archive/**`.
 
+#### 5a. Add the push ruleset (do this first)
+
+1. Repo **Settings → Rules → Rulesets → New branch ruleset**.
+2. **Name:** `protect-main-from-bot-scope-creep`. **Status:** Active. **Bypass list:** empty.
+3. **Target branches:** include the default branch (`main`).
+4. **Branch rules:**
+   - Restrict deletions
+   - Block force pushes
+   - Require linear history
+   - **Restrict file paths** → allow-list:
+     - `data/latest.json`
+     - `data/archive/**`
+5. **Create.**
+
+#### 5b. Create the fine-grained PAT
+
+1. **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.**
+2. **Token name:** `s7bb-fetcher push`.
+3. **Resource owner:** the account that owns this repo.
+4. **Expiration:** 1 year (the maximum). GitHub emails the owner before expiry.
+5. **Repository access → Only select repositories →** select **only this repo**.
+6. **Permissions → Repository permissions:**
+   - **Contents:** Read and write
+   - **Metadata:** Read-only (auto-selected, cannot be deselected)
+   - All others: **No access**
+7. **Generate token.** Copy it immediately — GitHub shows it only once.
+
+#### 5c. Install the token on the VM
+
+```bash
+# In /opt/s7bb/.env
+GITHUB_PAT=github_pat_xxxxxxxxxxxxxxxx
 ```
-# ~/.ssh/config
-Host github.com
-  IdentityFile ~/.ssh/s7bb_deploy
+
+Restart the container to pick up the new value:
+
+```bash
+docker compose up -d s7bb-fetcher
 ```
+
+The token is delivered to `git push` via a per-push `GIT_ASKPASS` helper. It never lands in `.git/config`, never appears in process arguments, and never persists past one push.
+
+#### 5d. Annual rotation
+
+1. Roughly 7 days before expiry, GitHub emails the PAT owner.
+2. Generate a replacement PAT with identical scope (steps 5b.1–7).
+3. Replace `GITHUB_PAT` in `.env` on the VM and restart: `docker compose up -d s7bb-fetcher`.
+4. Wait for the next hourly push to succeed (`docker compose logs --tail 50 s7bb-fetcher`).
+5. **Revoke the old PAT** in GitHub Settings.
+
+#### 5e. Suspected leak
+
+1. **Revoke the PAT immediately** in GitHub Settings.
+2. Generate a replacement, update `.env`, restart the container.
+3. Audit recent commits on `main` for unexpected paths — the push ruleset should have blocked anything off-scope; verify in the repo's commit history.
 
 ---
 
