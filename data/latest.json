@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-06T00:06:16.164023+00:00",
+  "generated_at": "2026-05-06T01:11:58.166440+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -755,8 +755,8 @@
       "direction": "Wolfratshausen",
       "direction_bucket": "wolfratshausen",
       "scheduled_time": "2026-05-05T23:59:00+00:00",
-      "actual_time": "2026-05-05T23:59:00+00:00",
-      "delay_minutes": 0,
+      "actual_time": "2026-05-06T00:01:00+00:00",
+      "delay_minutes": 2,
       "cancelled": false,
       "reason": null
     }
@@ -789,10 +789,10 @@
     },
     "last_7_days": {
       "total": 63,
-      "on_time": 27,
-      "late": 36,
+      "on_time": 26,
+      "late": 37,
       "cancelled": 0,
-      "avg_delay_min": 0.8,
+      "avg_delay_min": 0.9,
       "by_direction": {
         "muenchen": {
           "total": 31,
@@ -804,10 +804,10 @@
         },
         "wolfratshausen": {
           "total": 32,
-          "on_time": 14,
-          "late": 18,
+          "on_time": 13,
+          "late": 19,
           "cancelled": 0,
-          "avg_delay_min": 1.0,
+          "avg_delay_min": 1.1,
           "missing": 8
         }
       }
