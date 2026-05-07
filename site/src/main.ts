@@ -7,54 +7,29 @@ import { renderMethodology } from "./pages/methodology.js";
 import { renderArchiveList } from "./pages/archive-list.js";
 import { renderArchiveDetail } from "./pages/archive-detail.js";
 
-type LivePage = "heute" | "woche" | "statistik" | "methodik";
+type PageId = "heute" | "woche" | "statistik" | "archiv" | "methodik";
 
 interface Route {
-  section: "live" | "archiv";
-  livePage?: LivePage;
+  page: PageId;
   period?: string;
 }
+
+const PAGE_IDS: PageId[] = ["heute", "woche", "statistik", "archiv", "methodik"];
 
 function parseRoute(hash: string): Route {
   const h = hash.replace(/^#\/?/, "");
   if (h.startsWith("archiv/")) {
-    const period = h.slice("archiv/".length);
-    return { section: "archiv", period };
+    return { page: "archiv", period: h.slice("archiv/".length) };
   }
-  if (h === "archiv") return { section: "archiv" };
-  if (h === "" || h === "live") return { section: "live", livePage: "heute" };
-  if (["heute", "woche", "statistik", "methodik"].includes(h)) {
-    return { section: "live", livePage: h as LivePage };
+  if ((PAGE_IDS as string[]).includes(h)) {
+    return { page: h as PageId };
   }
-  return { section: "live", livePage: "heute" };
-}
-
-const liveTabs: { id: LivePage; label: string }[] = [
-  { id: "heute",     label: "Heute" },
-  { id: "woche",     label: "Letzte 7 Tage" },
-  { id: "statistik", label: "Statistik" },
-  { id: "methodik",  label: "Methodik" },
-];
-
-function renderSubNav(route: Route): void {
-  const subnav = document.getElementById("sub-nav")!;
-  if (route.section === "live") {
-    subnav.innerHTML = liveTabs
-      .map((t) => `<a href="#${t.id}" data-page="${t.id}">${t.label}</a>`)
-      .join("");
-    subnav.querySelectorAll("a").forEach((a) =>
-      a.classList.toggle("active", a.dataset.page === route.livePage),
-    );
-    subnav.style.display = "";
-  } else {
-    subnav.innerHTML = "";
-    subnav.style.display = "none";
-  }
+  return { page: "heute" };
 }
 
 async function main() {
   const content = document.getElementById("content")!;
-  const topNav = document.getElementById("top-nav")!;
+  const nav = document.getElementById("nav")!;
 
   let liveData: Awaited<ReturnType<typeof loadData>> | null = null;
   async function getLiveData() {
@@ -63,14 +38,13 @@ async function main() {
   }
 
   async function renderRoute(route: Route): Promise<void> {
-    topNav.querySelectorAll("a").forEach((a) =>
-      a.classList.toggle("active", a.dataset.section === route.section),
+    nav.querySelectorAll("a").forEach((a) =>
+      a.classList.toggle("active", a.dataset.page === route.page),
     );
-    renderSubNav(route);
     content.innerHTML = `<p class="loading">Lade Daten…</p>`;
 
     try {
-      if (route.section === "archiv") {
+      if (route.page === "archiv") {
         if (route.period) {
           await renderArchiveDetail(route.period, content);
         } else {
@@ -78,13 +52,17 @@ async function main() {
         }
         return;
       }
+      if (route.page === "methodik") {
+        content.innerHTML = "";
+        renderMethodology(content);
+        return;
+      }
       const data = await getLiveData();
       content.innerHTML = "";
-      switch (route.livePage) {
+      switch (route.page) {
         case "heute":     renderToday(data, content); break;
         case "woche":     await renderWeek(data, content); break;
         case "statistik": renderStats(data, content); break;
-        case "methodik":  renderMethodology(content); break;
       }
     } catch (e) {
       console.error(e);

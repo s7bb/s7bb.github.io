@@ -211,18 +211,21 @@ def export_monthly_archive(
     for r in rows:
         r["cancelled"] = bool(r["cancelled"])
 
+    muenchen_rows = [r for r in rows if r["direction_bucket"] == "muenchen"]
+    wolfratshausen_rows = [r for r in rows if r["direction_bucket"] == "wolfratshausen"]
+
     aggregates = {
         **_aggregate(rows),
         "by_direction": {
-            "muenchen":       _aggregate([r for r in rows if r["direction_bucket"] == "muenchen"]),
-            "wolfratshausen": _aggregate([r for r in rows if r["direction_bucket"] == "wolfratshausen"]),
+            "muenchen":       _aggregate(muenchen_rows),
+            "wolfratshausen": _aggregate(wolfratshausen_rows),
         },
     }
 
     daily = _daily_aggregates(rows)
     daily_by_direction = {
-        "muenchen":       _daily_aggregates([r for r in rows if r["direction_bucket"] == "muenchen"]),
-        "wolfratshausen": _daily_aggregates([r for r in rows if r["direction_bucket"] == "wolfratshausen"]),
+        "muenchen":       _daily_aggregates(muenchen_rows),
+        "wolfratshausen": _daily_aggregates(wolfratshausen_rows),
     }
 
     payload = {

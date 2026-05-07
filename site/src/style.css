@@ -131,18 +131,11 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .loading, .error { padding: 2rem; text-align: center; color: #888; }
 .error { color: var(--red); }
 
-#sub-nav {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 1px solid var(--border, #ddd);
-  padding: 0.25rem 0.5rem;
-  font-size: 0.9rem;
-}
-#sub-nav a {
-  text-decoration: none;
-  padding: 0.2rem 0.5rem;
-  color: inherit;
-}
-#sub-nav a.active {
-  border-bottom: 2px solid currentColor;
-}
+
+.archive-table-wrap { overflow-x: auto; }
+.archive-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.archive-table th, .archive-table td { padding: 0.25rem 0.5rem; border-bottom: 1px solid #eee; text-align: left; }
+.archive-table th { background: #f5f5f5; }
+.month-links { list-style: none; padding: 0; }
+.month-links li { padding: 0.4rem 0; border-bottom: 1px solid #eee; }
+.month-summary { color: #666; font-size: 0.85rem; margin-left: 0.5rem; }

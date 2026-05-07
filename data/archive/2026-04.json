@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-05-07T07:05:03.245342+00:00",
+  "station": "Baierbrunn",
+  "line": "S7",
+  "period": "2026-04",
+  "finalized": false,
+  "arrivals": [],
+  "aggregates": {
+    "total": 0,
+    "on_time": 0,
+    "late": 0,
+    "cancelled": 0,
+    "avg_delay_min": 0.0,
+    "by_direction": {
+      "muenchen": {
+        "total": 0,
+        "on_time": 0,
+        "late": 0,
+        "cancelled": 0,
+        "avg_delay_min": 0.0
+      },
+      "wolfratshausen": {
+        "total": 0,
+        "on_time": 0,
+        "late": 0,
+        "cancelled": 0,
+        "avg_delay_min": 0.0
+      }
+    }
+  },
+  "daily": [],
+  "daily_by_direction": {
+    "muenchen": [],
+    "wolfratshausen": []
+  }
+}
