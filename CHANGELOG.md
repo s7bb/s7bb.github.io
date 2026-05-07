@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Monthly archive JSON files at `data/archive/YYYY-MM.json` with full row history, daily aggregates, and per-direction breakdowns.
+- `data/archive/index.json` summarising all available months.
+- Site `Archiv` tab with 12-month bar chart, monthly detail view, and raw-data download.
+- CLI flags `s7bb-export --archive-index` and `--refinalize`.
+
+### Changed
+- Hourly export job now writes `latest.json` plus current-month archive plus archive index, and pushes everything in one commit.
+- Site nav reorganized into top-level `Live` / `Archiv` tabs.
+
+### BREAKING CHANGE
+- `pusher.push_latest` renamed to `push_data` and now stages `data/archive/*.json` in addition to `data/latest.json`.
+
 ### Security
 - Replaced the SSH deploy key used for the hourly `data/latest.json` push with
   a fine-grained GitHub Personal Access Token over HTTPS. PAT scope is
