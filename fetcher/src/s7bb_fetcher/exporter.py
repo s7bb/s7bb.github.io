@@ -1,10 +1,30 @@
 """Export SQLite data to JSON files consumed by the static site."""
 
 import json
+import os
 import sqlite3
+import tempfile
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+
+def _atomic_write_json(path: Path, payload: object) -> None:
+    """Write JSON atomically: temp file in same dir, then os.replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
@@ -145,8 +165,7 @@ def export_latest(conn: sqlite3.Connection, out_path: Path, window_days: int = 7
         },
         "expected_slots": {"today": today_slots},
     }
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write_json(out_path, payload)
 
 
 def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_path: Path) -> None:
@@ -180,5 +199,4 @@ def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_
         "arrivals": rows,
         "aggregates": _aggregate(rows),
     }
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _atomic_write_json(out_path, payload)

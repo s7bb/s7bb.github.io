@@ -103,3 +103,26 @@ def test_direction_bucket_in_arrivals(populated_db, tmp_path):
     buckets = {a["direction_bucket"] for a in data["arrivals"]}
     assert "muenchen" in buckets
     assert "wolfratshausen" in buckets
+
+
+def test_atomic_write_replaces_existing_file(tmp_path):
+    from s7bb_fetcher.exporter import _atomic_write_json
+
+    target = tmp_path / "out.json"
+    target.write_text('{"old": true}', encoding="utf-8")
+
+    _atomic_write_json(target, {"new": True})
+
+    assert json.loads(target.read_text()) == {"new": True}
+    # No leftover temp files in the directory
+    leftovers = [p for p in tmp_path.iterdir() if p.name != "out.json"]
+    assert leftovers == []
+
+
+def test_atomic_write_creates_parent_dirs(tmp_path):
+    from s7bb_fetcher.exporter import _atomic_write_json
+
+    target = tmp_path / "sub" / "deeper" / "out.json"
+    _atomic_write_json(target, {"k": 1})
+    assert target.exists()
+    assert json.loads(target.read_text()) == {"k": 1}
