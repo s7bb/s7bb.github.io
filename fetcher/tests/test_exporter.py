@@ -200,3 +200,65 @@ def test_finalized_flag_true_when_requested(tmp_path):
     export_monthly_archive(conn, 2026, 4, out, finalized=True)
     data = json.loads(out.read_text())
     assert data["finalized"] is True
+
+
+def test_archive_index_lists_months_in_order(tmp_path):
+    from s7bb_fetcher.exporter import export_archive_index, export_monthly_archive
+
+    conn = open_db(tmp_path / "test.db")
+    upsert_records(conn, [
+        _make_arrival("a", "2026-03-15T08:00:00+00:00", "muenchen"),
+        _make_arrival("b", "2026-04-15T08:00:00+00:00", "muenchen"),
+        _make_arrival("c", "2026-05-01T08:00:00+00:00", "wolfratshausen"),
+    ])
+    archive_dir = tmp_path / "archive"
+    export_monthly_archive(conn, 2026, 3, archive_dir / "2026-03.json", finalized=True)
+    export_monthly_archive(conn, 2026, 4, archive_dir / "2026-04.json", finalized=True)
+    export_monthly_archive(conn, 2026, 5, archive_dir / "2026-05.json", finalized=False)
+
+    index_path = archive_dir / "index.json"
+    export_archive_index(archive_dir, index_path)
+    idx = json.loads(index_path.read_text())
+
+    periods = [m["period"] for m in idx["months"]]
+    assert periods == ["2026-03", "2026-04", "2026-05"]
+    finals = [m["finalized"] for m in idx["months"]]
+    assert finals == [True, True, False]
+
+
+def test_archive_index_includes_summary_and_by_direction(tmp_path):
+    from s7bb_fetcher.exporter import export_archive_index, export_monthly_archive
+
+    conn = open_db(tmp_path / "test.db")
+    upsert_records(conn, [
+        _make_arrival("m1", "2026-04-01T08:00:00+00:00", "muenchen"),
+        _make_arrival("w1", "2026-04-01T08:13:00+00:00", "wolfratshausen", delay_minutes=2),
+    ])
+    archive_dir = tmp_path / "archive"
+    export_monthly_archive(conn, 2026, 4, archive_dir / "2026-04.json")
+
+    index_path = archive_dir / "index.json"
+    export_archive_index(archive_dir, index_path)
+    idx = json.loads(index_path.read_text())
+
+    apr = next(m for m in idx["months"] if m["period"] == "2026-04")
+    assert apr["total"] == 2
+    assert apr["by_direction"]["muenchen"]["total"] == 1
+    assert apr["by_direction"]["wolfratshausen"]["late"] == 1
+    assert idx["station"] == "Baierbrunn"
+    assert "generated_at" in idx
+
+
+def test_archive_index_skips_non_period_files(tmp_path):
+    from s7bb_fetcher.exporter import export_archive_index
+
+    archive_dir = tmp_path / "archive"
+    archive_dir.mkdir()
+    (archive_dir / "index.json").write_text('{"months":[]}')
+    (archive_dir / "README.txt").write_text("ignore me")
+    (archive_dir / "garbage.json").write_text('{"period":"not-a-month"}')
+
+    out = archive_dir / "index.json"
+    export_archive_index(archive_dir, out)
+    idx = json.loads(out.read_text())
+    assert idx["months"] == []

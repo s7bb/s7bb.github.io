@@ -2,11 +2,14 @@
 
 import json
 import os
+import re
 import sqlite3
 import tempfile
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+_PERIOD_RE = re.compile(r"^(\d{4})-(\d{2})$")
 
 
 def _atomic_write_json(path: Path, payload: object) -> None:
@@ -234,3 +237,38 @@ def export_monthly_archive(
         "daily_by_direction": daily_by_direction,
     }
     _atomic_write_json(out_path, payload)
+
+
+def export_archive_index(archive_dir: Path, index_path: Path) -> None:
+    """Build data/archive/index.json by scanning archive_dir for YYYY-MM.json files."""
+    months: list[dict] = []
+    if archive_dir.exists():
+        for entry in sorted(archive_dir.iterdir()):
+            if entry.name == index_path.name or entry.suffix != ".json":
+                continue
+            stem = entry.stem
+            if not _PERIOD_RE.match(stem):
+                continue
+            try:
+                payload = json.loads(entry.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            agg = payload.get("aggregates", {})
+            months.append({
+                "period": payload.get("period", stem),
+                "finalized": bool(payload.get("finalized", False)),
+                "total":         agg.get("total", 0),
+                "on_time":       agg.get("on_time", 0),
+                "late":          agg.get("late", 0),
+                "cancelled":     agg.get("cancelled", 0),
+                "avg_delay_min": agg.get("avg_delay_min", 0.0),
+                "by_direction":  agg.get("by_direction", {}),
+            })
+
+    months.sort(key=lambda m: m["period"])
+    out = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "station": "Baierbrunn",
+        "months": months,
+    }
+    _atomic_write_json(index_path, out)
