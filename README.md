@@ -106,6 +106,20 @@ The container runs APScheduler with two cron jobs:
 
 Both cron expressions and the GitHub PAT (`GITHUB_PAT`) are configured via `.env`.
 
+### Diagnosing startup problems
+
+The fetcher runs a preflight check on startup. If the container exits immediately, run the same checks manually to see which one failed:
+
+```bash
+docker compose run --rm s7bb-fetcher s7bb-preflight
+```
+
+The CLI prints one line per check. `[OK]` is healthy, `[WARN]` is a soft failure (the service would still start), `[FAIL]` is a hard failure (the service aborts). Common fixes:
+
+- `repo_ownership [FAIL]: dubious ownership` — set `GIT_SAFE_DIRECTORY=/repo` in `.env` or align host UID with the container's `UID`/`GID`.
+- `data_writable [FAIL]: permission denied` — the bind-mounted `data/` directory is not writable by the container user.
+- `github [WARN]: bad or expired GITHUB_PAT` — issue a new fine-grained PAT and update `.env`.
+
 ### 4. Configure GitHub Pages
 
 1. Repo **Settings → Pages → Source → GitHub Actions**.
