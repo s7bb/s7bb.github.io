@@ -191,12 +191,20 @@ def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_
     for r in rows:
         r["cancelled"] = bool(r["cancelled"])
 
+    aggregates = {
+        **_aggregate(rows),
+        "by_direction": {
+            "muenchen":       _aggregate([r for r in rows if r["direction_bucket"] == "muenchen"]),
+            "wolfratshausen": _aggregate([r for r in rows if r["direction_bucket"] == "wolfratshausen"]),
+        },
+    }
+
     payload = {
         "generated_at": datetime.now(UTC).isoformat(),
         "station": "Baierbrunn",
         "line": "S7",
         "period": f"{year:04d}-{month:02d}",
         "arrivals": rows,
-        "aggregates": _aggregate(rows),
+        "aggregates": aggregates,
     }
     _atomic_write_json(out_path, payload)

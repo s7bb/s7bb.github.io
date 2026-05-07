@@ -126,3 +126,25 @@ def test_atomic_write_creates_parent_dirs(tmp_path):
     _atomic_write_json(target, {"k": 1})
     assert target.exists()
     assert json.loads(target.read_text()) == {"k": 1}
+
+
+def test_monthly_archive_includes_by_direction(tmp_path):
+    from s7bb_fetcher.exporter import export_monthly_archive
+
+    conn = open_db(tmp_path / "test.db")
+    records = [
+        _make_arrival("m1", "2026-04-01T08:00:00+00:00", "muenchen"),
+        _make_arrival("m2", "2026-04-15T08:00:00+00:00", "muenchen", delay_minutes=3),
+        _make_arrival("w1", "2026-04-01T08:13:00+00:00", "wolfratshausen"),
+        _make_arrival("w2", "2026-04-20T08:13:00+00:00", "wolfratshausen", cancelled=True),
+    ]
+    upsert_records(conn, records)
+    out = tmp_path / "2026-04.json"
+
+    export_monthly_archive(conn, 2026, 4, out)
+    data = json.loads(out.read_text())
+
+    bd = data["aggregates"]["by_direction"]
+    assert bd["muenchen"]["total"] == 2
+    assert bd["muenchen"]["late"] == 1
+    assert bd["wolfratshausen"]["cancelled"] == 1
