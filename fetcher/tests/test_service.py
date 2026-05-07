@@ -15,6 +15,8 @@ def _patch_service(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(service, "DB_PATH", tmp_path / "s7bb.db")
     monkeypatch.setattr(service, "OUT_PATH", tmp_path / "latest.json")
     monkeypatch.setattr(service, "REPO_PATH", tmp_path)
+    monkeypatch.setattr(service, "ARCHIVE_DIR", tmp_path / "archive")
+    monkeypatch.setattr(service, "INDEX_PATH", tmp_path / "archive" / "index.json")
 
 
 @pytest.fixture
