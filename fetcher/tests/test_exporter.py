@@ -176,3 +176,27 @@ def test_monthly_archive_includes_by_direction(tmp_path):
     assert bd["muenchen"]["total"] == 2
     assert bd["muenchen"]["late"] == 1
     assert bd["wolfratshausen"]["cancelled"] == 1
+
+
+def test_finalized_flag_default_false(tmp_path):
+    from s7bb_fetcher.exporter import export_monthly_archive
+
+    conn = open_db(tmp_path / "test.db")
+    upsert_records(conn, [_make_arrival("m1", "2026-04-01T08:00:00+00:00", "muenchen")])
+    out = tmp_path / "2026-04.json"
+
+    export_monthly_archive(conn, 2026, 4, out)
+    data = json.loads(out.read_text())
+    assert data["finalized"] is False
+
+
+def test_finalized_flag_true_when_requested(tmp_path):
+    from s7bb_fetcher.exporter import export_monthly_archive
+
+    conn = open_db(tmp_path / "test.db")
+    upsert_records(conn, [_make_arrival("m1", "2026-04-01T08:00:00+00:00", "muenchen")])
+    out = tmp_path / "2026-04.json"
+
+    export_monthly_archive(conn, 2026, 4, out, finalized=True)
+    data = json.loads(out.read_text())
+    assert data["finalized"] is True

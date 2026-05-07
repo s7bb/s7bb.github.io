@@ -179,7 +179,13 @@ def _daily_aggregates(rows: list[dict]) -> list[dict]:
     ]
 
 
-def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_path: Path) -> None:
+def export_monthly_archive(
+    conn: sqlite3.Connection,
+    year: int,
+    month: int,
+    out_path: Path,
+    finalized: bool = False,
+) -> None:
     """Export one calendar month of data to an archive JSON file."""
     start = f"{year:04d}-{month:02d}-01"
     if month == 12:
@@ -221,6 +227,7 @@ def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_
         "station": "Baierbrunn",
         "line": "S7",
         "period": f"{year:04d}-{month:02d}",
+        "finalized": finalized,
         "arrivals": rows,
         "aggregates": aggregates,
         "daily": daily,
