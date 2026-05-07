@@ -14,6 +14,7 @@ from s7bb_fetcher.preflight import (
     _check_data_writable,
     _check_repo_ownership,
     _check_repo_writable,
+    _check_sqlite,
 )
 
 
@@ -139,3 +140,30 @@ def test_repo_ownership_other_git_error_passthrough():
         c = _check_repo_ownership(Path("/repo"))
     assert c.ok is False
     assert "some other failure" in c.message
+
+
+def test_sqlite_creates_and_passes(tmp_path):
+    db = tmp_path / "s7bb.db"
+    c = _check_sqlite(db)
+    assert c.ok is True
+    assert c.name == "sqlite"
+    assert db.exists()  # open_db creates it
+
+
+def test_sqlite_corrupt(tmp_path):
+    db = tmp_path / "s7bb.db"
+    db.write_bytes(b"this is not a sqlite database\x00\x01\x02")
+    c = _check_sqlite(db)
+    assert c.ok is False
+    assert c.severity is Severity.HARD
+
+
+def test_sqlite_parent_unwritable(tmp_path):
+    parent = tmp_path / "ro"
+    parent.mkdir()
+    parent.chmod(0o500)
+    try:
+        c = _check_sqlite(parent / "s7bb.db")
+        assert c.ok is False
+    finally:
+        parent.chmod(0o700)

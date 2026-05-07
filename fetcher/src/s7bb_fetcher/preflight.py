@@ -10,11 +10,14 @@ from __future__ import annotations
 import enum
 import logging
 import os
+import sqlite3
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 import git
+
+from .storage import open_db
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +99,28 @@ def _check_repo_ownership(repo_path: Path) -> Check:
             )
         return Check(name, Severity.HARD, False, f"git status failed: {stderr or e}")
     return Check(name, Severity.HARD, True, f"git accepts {repo_path}")
+
+
+def _check_sqlite(db_path: Path) -> Check:
+    name = "sqlite"
+    try:
+        conn = open_db(db_path)
+    except sqlite3.DatabaseError as e:
+        return Check(name, Severity.HARD, False, f"{db_path} is not a valid SQLite database: {e}")
+    except PermissionError as e:
+        return Check(name, Severity.HARD, False, f"cannot create DB at {db_path}: {e}")
+    except OSError as e:
+        return Check(name, Severity.HARD, False, f"cannot open DB at {db_path}: {e}")
+    try:
+        row = conn.execute("PRAGMA integrity_check").fetchone()
+        result = row[0] if row else "(no result)"
+        if result != "ok":
+            return Check(name, Severity.HARD, False, f"integrity_check returned: {result}")
+    except sqlite3.DatabaseError as e:
+        return Check(name, Severity.HARD, False, f"integrity_check failed: {e}")
+    finally:
+        conn.close()
+    return Check(name, Severity.HARD, True, f"{db_path} opens and integrity_check=ok")
 
 
 def run(*_args, **_kwargs) -> list[Check]:
