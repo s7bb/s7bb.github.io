@@ -48,7 +48,7 @@ export async function loadIndex(): Promise<ArchiveIndex> {
       const url = `${archiveBase()}/index.json`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Failed to load archive index: ${resp.status}`);
-      return resp.clone().json() as Promise<ArchiveIndex>;
+      return resp.json() as Promise<ArchiveIndex>;
     })().catch((e) => { _indexCache = null; throw e; });
   }
   return _indexCache;
@@ -64,7 +64,7 @@ export async function loadMonth(period: string): Promise<MonthlyArchive> {
       const url = `${archiveBase()}/${period}.json`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Failed to load month ${period}: ${resp.status}`);
-      return resp.clone().json() as Promise<MonthlyArchive>;
+      return resp.json() as Promise<MonthlyArchive>;
     })().catch((e) => { _monthCache.delete(period); throw e; });
     _monthCache.set(period, cached);
   }

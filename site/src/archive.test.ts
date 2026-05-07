@@ -42,8 +42,8 @@ describe("loadIndex", () => {
   });
 
   it("caches across calls within a session", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(indexJson), { status: 200 }) as Response,
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => Promise.resolve(new Response(JSON.stringify(indexJson), { status: 200 }) as Response),
     );
     await loadIndex();
     await loadIndex();
@@ -69,8 +69,8 @@ describe("loadMonth", () => {
   });
 
   it("caches per-month", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(monthJson), { status: 200 }) as Response,
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => Promise.resolve(new Response(JSON.stringify(monthJson), { status: 200 }) as Response),
     );
     await loadMonth("2026-04");
     await loadMonth("2026-04");
