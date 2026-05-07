@@ -1,4 +1,4 @@
-"""Push data/latest.json and data/archive/*.json to git remote via fine-grained GitHub PAT (HTTPS)."""
+"""Push data/latest.json + data/archive/*.json to git via GitHub PAT (HTTPS)."""
 
 import logging
 import os
