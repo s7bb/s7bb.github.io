@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-07
+
 ### Added
 - Monthly archive JSON files at `data/archive/YYYY-MM.json` with full row history, daily aggregates, and per-direction breakdowns.
 - `data/archive/index.json` summarising all available months.
