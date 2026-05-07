@@ -16,7 +16,7 @@ Target: keep raw rows forever (for audit/download) and surface historical aggreg
 | 1 | Archive purpose | Both raw preservation **and** site-facing stats |
 | 2 | File granularity | Monthly flat files, `data/archive/YYYY-MM.json` |
 | 3 | Write cadence | Rolling rewrite of current month every hour; finalize previous month on day 1 of next month |
-| 4 | `latest.json` window | Unchanged: 7-day rolling |
+| 4 | `latest.json` window | Unchanged: 7-day rolling. Overlaps with the current and (early in a month) previous-month archive — duplication is intentional, archive is the long-term source, `latest.json` keeps the live view fast. |
 | 5 | Archive content | Full rows + monthly aggregates + daily aggregates + by-direction daily |
 | 6 | Discovery | `data/archive/index.json` lists available months with summary stats |
 | 7 | Site UX | Combined: 12-month strip on main page (from index) + dedicated `Archiv` tab for monthly detail |
@@ -59,9 +59,11 @@ DB Timetables API
 
 `_export_job` (hourly) sequence:
 
+All time comparisons use UTC (`datetime.now(UTC)`) to match the rest of the codebase.
+
 1. `export_latest()` → `data/latest.json`.
-2. `export_monthly_archive(now.year, now.month)` → `data/archive/YYYY-MM.json` with `finalized=false`.
-3. If `now.day == 1` AND `now.hour == 0`: also `export_monthly_archive(prev_month)` with `finalized=true`.
+2. `export_monthly_archive(now.year, now.month)` → `data/archive/YYYY-MM.json` with `finalized=false`. This rewrites the current month every hour, capturing late corrections from the DB API.
+3. If `now.day == 1` AND `now.hour == 0` (UTC): additionally call `export_monthly_archive(prev_year, prev_month)` with `finalized=true` to freeze the just-completed month. This is the **only** path that writes the previous month — at hour 1 onward, `now.month` is already the new month, so step 2 targets the new file and the finalized previous-month archive is left untouched.
 4. `export_archive_index()` → `data/archive/index.json`.
 5. `push_data()` — single commit if any diff.
 
