@@ -29,7 +29,7 @@ export function renderMonthsBar(canvasId: string, months: MonthSummary[]): void 
       onClick: (_evt, elements) => {
         if (!elements.length) return;
         const i = elements[0].index;
-        location.hash = `#/archiv/${labels[i]}`;
+        location.hash = `#archiv/${labels[i]}`;
       },
       plugins: { legend: { position: "bottom" } },
       scales: {

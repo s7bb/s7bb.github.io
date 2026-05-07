@@ -32,7 +32,7 @@ export async function renderArchiveList(container: HTMLElement): Promise<void> {
       <ul class="month-links">
         ${idx.months.slice().reverse().map((m) => `
           <li>
-            <a href="#/archiv/${m.period}">${germanMonth(m.period)}</a>
+            <a href="#archiv/${m.period}">${germanMonth(m.period)}</a>
             <span class="month-summary">
               ${m.total} Züge · ${m.on_time} pünktlich · ${m.late} verspätet · ${m.cancelled} ausgefallen
               ${m.finalized ? "" : " <em>(läuft)</em>"}
