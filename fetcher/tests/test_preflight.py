@@ -1,9 +1,16 @@
 """Tests for preflight.py."""
 
+import git as _git_for_repo_writable_setup
 import pytest
 
 from s7bb_fetcher import preflight
-from s7bb_fetcher.preflight import Check, PreflightFailed, Severity, _check_data_writable
+from s7bb_fetcher.preflight import (
+    Check,
+    PreflightFailed,
+    Severity,
+    _check_data_writable,
+    _check_repo_writable,
+)
 
 
 def test_module_exports_expected_symbols():
@@ -56,3 +63,40 @@ def test_data_writable_readonly(tmp_path):
 def test_data_writable_leaves_no_residue(tmp_path):
     _check_data_writable(tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+def _init_repo(path):
+    repo = _git_for_repo_writable_setup.Repo.init(path)
+    (path / "README.md").write_text("hello")
+    repo.index.add(["README.md"])
+    repo.index.commit("init", author=_git_for_repo_writable_setup.Actor("t", "t@t"),
+                       committer=_git_for_repo_writable_setup.Actor("t", "t@t"))
+    return repo
+
+
+def test_repo_writable_ok(tmp_path):
+    _init_repo(tmp_path)
+    c = _check_repo_writable(tmp_path)
+    assert c.ok is True
+    assert c.name == "repo_writable"
+
+
+def test_repo_writable_missing(tmp_path):
+    c = _check_repo_writable(tmp_path / "nope")
+    assert c.ok is False
+
+
+def test_repo_writable_not_a_git_repo(tmp_path):
+    c = _check_repo_writable(tmp_path)
+    assert c.ok is False
+    assert "git" in c.message.lower()
+
+
+def test_repo_writable_readonly(tmp_path):
+    _init_repo(tmp_path)
+    tmp_path.chmod(0o500)
+    try:
+        c = _check_repo_writable(tmp_path)
+        assert c.ok is False
+    finally:
+        tmp_path.chmod(0o700)
