@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "dependencies": {
     "chart.js": "4.4.3"
@@ -15,7 +16,9 @@
     "@typescript-eslint/eslint-plugin": "7.9.0",
     "@typescript-eslint/parser": "7.9.0",
     "eslint": "8.57.0",
+    "jsdom": "25.0.1",
     "typescript": "5.4.5",
-    "vite": "6.4.2"
+    "vite": "6.4.2",
+    "vitest": "2.1.4"
   }
 }
