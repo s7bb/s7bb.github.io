@@ -4,57 +4,101 @@ import { renderToday } from "./pages/today.js";
 import { renderWeek } from "./pages/week.js";
 import { renderStats } from "./pages/stats.js";
 import { renderMethodology } from "./pages/methodology.js";
+import { renderArchiveList } from "./pages/archive-list.js";
+import { renderArchiveDetail } from "./pages/archive-detail.js";
 
-type PageId = "heute" | "woche" | "statistik" | "methodik";
+type LivePage = "heute" | "woche" | "statistik" | "methodik";
 
-const pages: Record<PageId, (data: unknown, el: HTMLElement) => void> = {
-  heute: (d, el) => renderToday(d as Parameters<typeof renderToday>[0], el),
-  woche: (d, el) => renderWeek(d as Parameters<typeof renderWeek>[0], el),
-  statistik: (d, el) => renderStats(d as Parameters<typeof renderStats>[0], el),
-  methodik: (_d, el) => renderMethodology(el),
-};
+interface Route {
+  section: "live" | "archiv";
+  livePage?: LivePage;
+  period?: string;
+}
+
+function parseRoute(hash: string): Route {
+  const h = hash.replace(/^#\/?/, "");
+  if (h.startsWith("archiv/")) {
+    const period = h.slice("archiv/".length);
+    return { section: "archiv", period };
+  }
+  if (h === "archiv") return { section: "archiv" };
+  if (h === "" || h === "live") return { section: "live", livePage: "heute" };
+  if (["heute", "woche", "statistik", "methodik"].includes(h)) {
+    return { section: "live", livePage: h as LivePage };
+  }
+  return { section: "live", livePage: "heute" };
+}
+
+const liveTabs: { id: LivePage; label: string }[] = [
+  { id: "heute",     label: "Heute" },
+  { id: "woche",     label: "Letzte 7 Tage" },
+  { id: "statistik", label: "Statistik" },
+  { id: "methodik",  label: "Methodik" },
+];
+
+function renderSubNav(route: Route): void {
+  const subnav = document.getElementById("sub-nav")!;
+  if (route.section === "live") {
+    subnav.innerHTML = liveTabs
+      .map((t) => `<a href="#${t.id}" data-page="${t.id}">${t.label}</a>`)
+      .join("");
+    subnav.querySelectorAll("a").forEach((a) =>
+      a.classList.toggle("active", a.dataset.page === route.livePage),
+    );
+    subnav.style.display = "";
+  } else {
+    subnav.innerHTML = "";
+    subnav.style.display = "none";
+  }
+}
 
 async function main() {
   const content = document.getElementById("content")!;
-  const nav = document.getElementById("nav")!;
+  const topNav = document.getElementById("top-nav")!;
 
-  let currentData: Awaited<ReturnType<typeof loadData>> | null = null;
-
-  async function getData() {
-    if (!currentData) currentData = await loadData();
-    return currentData;
+  let liveData: Awaited<ReturnType<typeof loadData>> | null = null;
+  async function getLiveData() {
+    if (!liveData) liveData = await loadData();
+    return liveData;
   }
 
-  async function showPage(id: PageId) {
+  async function renderRoute(route: Route): Promise<void> {
+    topNav.querySelectorAll("a").forEach((a) =>
+      a.classList.toggle("active", a.dataset.section === route.section),
+    );
+    renderSubNav(route);
     content.innerHTML = `<p class="loading">Lade Daten…</p>`;
-    nav.querySelectorAll("a").forEach((a) => a.classList.toggle("active", a.dataset.page === id));
+
     try {
-      const data = id === "methodik" ? null : await getData();
+      if (route.section === "archiv") {
+        if (route.period) {
+          await renderArchiveDetail(route.period, content);
+        } else {
+          await renderArchiveList(content);
+        }
+        return;
+      }
+      const data = await getLiveData();
       content.innerHTML = "";
-      pages[id](data!, content);
+      switch (route.livePage) {
+        case "heute":     renderToday(data, content); break;
+        case "woche":     renderWeek(data, content); break;
+        case "statistik": renderStats(data, content); break;
+        case "methodik":  renderMethodology(content); break;
+      }
     } catch (e) {
-      content.innerHTML = `<p class="error">Fehler beim Laden der Daten. Bitte später nochmal versuchen.</p>`;
       console.error(e);
+      content.innerHTML = `<p class="error">Fehler beim Laden der Daten. Bitte später nochmal versuchen.</p>`;
     }
   }
 
-  nav.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === "A" && target.dataset.page) {
-      e.preventDefault();
-      const page = target.dataset.page as PageId;
-      history.pushState({ page }, "", `#${page}`);
-      void showPage(page);
-    }
-  });
+  function navigate() {
+    void renderRoute(parseRoute(location.hash));
+  }
 
-  window.addEventListener("popstate", (e: PopStateEvent) => {
-    const page = (e.state as { page?: PageId } | null)?.page ?? "heute";
-    void showPage(page);
-  });
+  window.addEventListener("hashchange", navigate);
 
-  const initial = (location.hash.slice(1) as PageId) || "heute";
-  void showPage(initial);
+  navigate();
 }
 
 void main();
