@@ -6,6 +6,13 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
+export function nextUpdate(generatedAt: string): Date {
+  const d = new Date(generatedAt);
+  d.setUTCMinutes(0, 0, 0);
+  d.setUTCHours(d.getUTCHours() + 1);
+  return d;
+}
+
 function statusBadge(a: Arrival): string {
   if (a.cancelled) return `<span class="badge badge--cancelled">ausgefallen</span>`;
   if ((a.delay_minutes ?? 0) > 0) return `<span class="badge badge--late">+${a.delay_minutes} min</span>`;
@@ -66,6 +73,6 @@ export function renderToday(data: S7Data, container: HTMLElement): void {
     <details class="today-combined">
       <summary>Gesamt heute: ${agg.total} Züge · Ø ${agg.avg_delay_min} min Verspätung</summary>
     </details>
-    <p class="data-age">Stand: ${new Date(data.generated_at).toLocaleString("de-DE")}</p>
+    <p class="data-age">Stand: ${new Date(data.generated_at).toLocaleString("de-DE")} · Nächstes Update: ${formatTime(nextUpdate(data.generated_at).toISOString())}</p>
   `;
 }
