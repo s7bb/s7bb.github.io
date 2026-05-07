@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-07T00:25:25.661527+00:00",
+  "generated_at": "2026-05-07T01:31:40.902617+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -2087,8 +2087,8 @@
       "direction": "Wolfratshausen",
       "direction_bucket": "wolfratshausen",
       "scheduled_time": "2026-05-06T23:59:00+00:00",
-      "actual_time": "2026-05-07T00:19:00+00:00",
-      "delay_minutes": 20,
+      "actual_time": "2026-05-07T00:16:00+00:00",
+      "delay_minutes": 17,
       "cancelled": false,
       "reason": null
     }
