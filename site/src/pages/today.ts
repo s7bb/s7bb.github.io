@@ -73,6 +73,6 @@ export function renderToday(data: S7Data, container: HTMLElement): void {
     <details class="today-combined">
       <summary>Gesamt heute: ${agg.total} Züge · Ø ${agg.avg_delay_min} min Verspätung</summary>
     </details>
-    <p class="data-age">Stand: ${new Date(data.generated_at).toLocaleString("de-DE")}</p>
+    <p class="data-age">Stand: ${new Date(data.generated_at).toLocaleString("de-DE")} · Nächstes Update: ${formatTime(nextUpdate(data.generated_at).toISOString())}</p>
   `;
 }
