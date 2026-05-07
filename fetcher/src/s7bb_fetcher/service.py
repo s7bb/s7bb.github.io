@@ -4,6 +4,7 @@ import logging
 import os
 import signal
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -19,6 +20,19 @@ DATA_DIR  = Path(os.environ.get("DATA_DIR",  "/data"))
 REPO_PATH = Path(os.environ.get("REPO_PATH", "/repo"))
 DB_PATH   = DATA_DIR / "s7bb.db"
 OUT_PATH  = DATA_DIR / "latest.json"
+ARCHIVE_DIR = DATA_DIR / "archive"
+INDEX_PATH  = ARCHIVE_DIR / "index.json"
+
+
+def _prev_year_month(year: int, month: int) -> tuple[int, int]:
+    return (year - 1, 12) if month == 1 else (year, month - 1)
+
+
+def _safe(label: str, fn, *args, **kwargs) -> None:
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        logger.exception("export_job step %s failed", label)
 
 
 def _fetch_job() -> None:
@@ -37,17 +51,37 @@ def _fetch_job() -> None:
 
 
 def _export_job() -> None:
-    from .exporter import export_latest
-    from .pusher import push_data
-    from .storage import open_db
+    from . import exporter, pusher, storage
 
+    now = datetime.now(UTC)
+    conn = None
     try:
-        conn = open_db(DB_PATH)
-        export_latest(conn, OUT_PATH)
-        logger.info("export_job: wrote %s", OUT_PATH)
-        push_data(REPO_PATH)
+        conn = storage.open_db(DB_PATH)
     except Exception:
-        logger.exception("export_job failed")
+        logger.exception("export_job: open_db failed; aborting")
+        return
+
+    _safe("latest", exporter.export_latest, conn, OUT_PATH)
+
+    current_archive = ARCHIVE_DIR / f"{now.year:04d}-{now.month:02d}.json"
+    _safe(
+        "archive_current",
+        exporter.export_monthly_archive,
+        conn, now.year, now.month, current_archive, finalized=False,
+    )
+
+    if now.day == 1 and now.hour == 0:
+        py, pm = _prev_year_month(now.year, now.month)
+        prev_archive = ARCHIVE_DIR / f"{py:04d}-{pm:02d}.json"
+        _safe(
+            "archive_finalize",
+            exporter.export_monthly_archive,
+            conn, py, pm, prev_archive, finalized=True,
+        )
+
+    _safe("archive_index", exporter.export_archive_index, ARCHIVE_DIR, INDEX_PATH)
+
+    _safe("push", pusher.push_data, REPO_PATH)
 
 
 def main() -> None:
