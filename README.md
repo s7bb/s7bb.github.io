@@ -2,7 +2,7 @@
 
 Tracks on-time performance of the Deutsche Bahn S7 S-Bahn line at Baierbrunn station (Munich). Shows live delays, cancellations, and weekly statistics. Published as a static site on GitHub Pages, updated hourly.
 
-**Live site:** *(add your GitHub Pages URL here)*
+**Site:** https://s7bb.github.io
 
 ---
 
