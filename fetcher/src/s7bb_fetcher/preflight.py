@@ -74,6 +74,30 @@ def _check_repo_writable(repo_path: Path) -> Check:
     return Check(name, Severity.HARD, True, f"{repo_path} is writable and git-readable")
 
 
+def _check_repo_ownership(repo_path: Path) -> Check:
+    name = "repo_ownership"
+    try:
+        repo = git.Repo(str(repo_path))
+        repo.git.status()
+    except git.InvalidGitRepositoryError:
+        return Check(name, Severity.HARD, False, f"{repo_path} is not a git repository")
+    except git.NoSuchPathError:
+        return Check(name, Severity.HARD, False, f"{repo_path} does not exist")
+    except git.exc.GitCommandError as e:
+        stderr = (e.stderr or "").strip()
+        if "dubious ownership" in stderr.lower():
+            return Check(
+                name,
+                Severity.HARD,
+                False,
+                f"git refuses to use {repo_path}: dubious ownership detected. "
+                f"Fix host mount ownership to match the container user, "
+                f"or set GIT_SAFE_DIRECTORY={repo_path} in .env.",
+            )
+        return Check(name, Severity.HARD, False, f"git status failed: {stderr or e}")
+    return Check(name, Severity.HARD, True, f"git accepts {repo_path}")
+
+
 def run(*_args, **_kwargs) -> list[Check]:
     """Placeholder; later tasks fill this in."""
     return []

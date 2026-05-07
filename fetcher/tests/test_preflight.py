@@ -1,5 +1,8 @@
 """Tests for preflight.py."""
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import git as _git_for_repo_writable_setup
 import pytest
 
@@ -9,6 +12,7 @@ from s7bb_fetcher.preflight import (
     PreflightFailed,
     Severity,
     _check_data_writable,
+    _check_repo_ownership,
     _check_repo_writable,
 )
 
@@ -100,3 +104,38 @@ def test_repo_writable_readonly(tmp_path):
         assert c.ok is False
     finally:
         tmp_path.chmod(0o700)
+
+
+def test_repo_ownership_ok(tmp_path):
+    _init_repo(tmp_path)
+    c = _check_repo_ownership(tmp_path)
+    assert c.ok is True
+    assert c.name == "repo_ownership"
+
+
+def test_repo_ownership_dubious_message():
+    fake_repo = MagicMock()
+    err = _git_for_repo_writable_setup.exc.GitCommandError(
+        ["git", "status"],
+        128,
+        stderr="fatal: detected dubious ownership in repository at '/repo'",
+    )
+    fake_repo.git.status.side_effect = err
+    with patch("s7bb_fetcher.preflight.git.Repo", return_value=fake_repo):
+        c = _check_repo_ownership(Path("/repo"))
+    assert c.ok is False
+    assert c.severity is Severity.HARD
+    assert "dubious ownership" in c.message.lower()
+    assert "GIT_SAFE_DIRECTORY" in c.message  # remediation hint surfaced
+
+
+def test_repo_ownership_other_git_error_passthrough():
+    fake_repo = MagicMock()
+    err = _git_for_repo_writable_setup.exc.GitCommandError(
+        ["git", "status"], 1, stderr="some other failure"
+    )
+    fake_repo.git.status.side_effect = err
+    with patch("s7bb_fetcher.preflight.git.Repo", return_value=fake_repo):
+        c = _check_repo_ownership(Path("/repo"))
+    assert c.ok is False
+    assert "some other failure" in c.message
