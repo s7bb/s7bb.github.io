@@ -26,6 +26,7 @@ packages = ["src/s7bb_fetcher"]
 dev = [
     "pytest==9.0.3",
     "ruff==0.4.8",
+    "freezegun==1.5.1",
 ]
 
 [tool.ruff]
