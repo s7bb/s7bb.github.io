@@ -16,7 +16,7 @@ import git
 import pytest
 
 from s7bb_fetcher import pusher
-from s7bb_fetcher.pusher import push_latest
+from s7bb_fetcher.pusher import push_data
 
 
 @pytest.fixture
@@ -84,7 +84,7 @@ def test_pat_push_happy_path(monkeypatch, dirty_latest):
         return ""
 
     _install_fake_push(monkeypatch, fake_push)
-    result = push_latest(Path(dirty_latest.working_tree_dir))
+    result = push_data(Path(dirty_latest.working_tree_dir))
 
     assert result is True
     assert captured["args"][0] == "https://x-access-token@github.com/owner/s7bb.git"
@@ -96,20 +96,6 @@ def test_pat_push_happy_path(monkeypatch, dirty_latest):
     assert not os.path.exists(captured["env"]["GIT_ASKPASS"])
 
 
-def test_no_changes_skips_push(monkeypatch, working_repo):
-    monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
-    called = []
-
-    def fake_push(self, *args, **kwargs):
-        called.append(True)
-        return ""
-
-    _install_fake_push(monkeypatch, fake_push)
-    result = push_latest(Path(working_repo.working_tree_dir))
-    assert result is False
-    assert called == []
-
-
 def test_push_failure_propagates(monkeypatch, dirty_latest):
     monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
 
@@ -118,7 +104,7 @@ def test_push_failure_propagates(monkeypatch, dirty_latest):
 
     _install_fake_push(monkeypatch, fake_push)
     with pytest.raises(git.GitCommandError):
-        push_latest(Path(dirty_latest.working_tree_dir))
+        push_data(Path(dirty_latest.working_tree_dir))
 
 
 def test_helper_cleaned_up_on_push_failure(monkeypatch, dirty_latest):
@@ -131,7 +117,7 @@ def test_helper_cleaned_up_on_push_failure(monkeypatch, dirty_latest):
 
     _install_fake_push(monkeypatch, fake_push)
     with pytest.raises(git.GitCommandError):
-        push_latest(Path(dirty_latest.working_tree_dir))
+        push_data(Path(dirty_latest.working_tree_dir))
 
     after = set(glob.glob(pattern))
     assert after == before, f"leftover helpers: {after - before}"
@@ -147,7 +133,7 @@ def test_missing_pat_raises(monkeypatch, dirty_latest):
 
     _install_fake_push(monkeypatch, fake_push)
     with pytest.raises(RuntimeError, match="GITHUB_PAT not set"):
-        push_latest(Path(dirty_latest.working_tree_dir))
+        push_data(Path(dirty_latest.working_tree_dir))
     assert called == []
 
 
@@ -167,7 +153,7 @@ def test_slug_parsing_from_origin(monkeypatch, dirty_latest, origin_url):
         return ""
 
     _install_fake_push(monkeypatch, fake_push)
-    push_latest(Path(dirty_latest.working_tree_dir))
+    push_data(Path(dirty_latest.working_tree_dir))
 
     assert captured["url"] == "https://x-access-token@github.com/owner/s7bb.git"
 
@@ -183,7 +169,7 @@ def test_repo_slug_override_wins(monkeypatch, dirty_latest):
         return ""
 
     _install_fake_push(monkeypatch, fake_push)
-    push_latest(Path(dirty_latest.working_tree_dir))
+    push_data(Path(dirty_latest.working_tree_dir))
 
     assert captured["url"] == "https://x-access-token@github.com/right/right.git"
 
@@ -192,7 +178,7 @@ def test_unparseable_origin_raises(monkeypatch, dirty_latest):
     dirty_latest.remotes["origin"].set_url("file:///tmp/not-github.git")
     monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
     with pytest.raises(RuntimeError, match="cannot parse owner/repo"):
-        push_latest(Path(dirty_latest.working_tree_dir))
+        push_data(Path(dirty_latest.working_tree_dir))
 
 
 def test_origin_regex_rejects_non_github():
@@ -212,3 +198,60 @@ def test_helper_script_content_uses_pat_env_var():
     src = (Path(__file__).resolve().parent.parent
            / "src" / "s7bb_fetcher" / "pusher.py").read_text()
     assert re.search(r'printf %s "\$GITHUB_PAT"', src)
+
+
+def test_push_data_stages_archive_and_latest(monkeypatch, dirty_latest):
+    monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
+    work = Path(dirty_latest.working_tree_dir)
+
+    arch_dir = work / "data" / "archive"
+    arch_dir.mkdir(parents=True, exist_ok=True)
+    (arch_dir / "2026-04.json").write_text('{"period":"2026-04"}\n')
+    (arch_dir / "index.json").write_text('{"months":[]}\n')
+
+    captured = {}
+
+    def fake_push(self, *args, **kwargs):
+        captured["url"] = args[0]
+        return ""
+
+    _install_fake_push(monkeypatch, fake_push)
+    result = push_data(work)
+
+    assert result is True
+    last = dirty_latest.head.commit
+    files = set(last.stats.files.keys())
+    assert "data/latest.json" in files
+    assert "data/archive/2026-04.json" in files
+    assert "data/archive/index.json" in files
+    assert last.message.startswith("chore: update data ")
+
+
+def test_push_data_skips_when_no_diff(monkeypatch, working_repo):
+    monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
+    called = []
+
+    def fake_push(self, *args, **kwargs):
+        called.append(True)
+        return ""
+
+    _install_fake_push(monkeypatch, fake_push)
+    result = push_data(Path(working_repo.working_tree_dir))
+    assert result is False
+    assert called == []
+
+
+def test_push_data_single_commit_for_combined_changes(monkeypatch, dirty_latest):
+    monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
+    work = Path(dirty_latest.working_tree_dir)
+    arch_dir = work / "data" / "archive"
+    arch_dir.mkdir(parents=True, exist_ok=True)
+    (arch_dir / "2026-04.json").write_text('{"period":"2026-04"}\n')
+
+    head_before = dirty_latest.head.commit
+    _install_fake_push(monkeypatch, lambda self, *a, **kw: "")
+    push_data(work)
+    head_after = dirty_latest.head.commit
+
+    assert head_after != head_before
+    assert head_after.parents[0] == head_before

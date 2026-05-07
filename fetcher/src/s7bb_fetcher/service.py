@@ -38,14 +38,14 @@ def _fetch_job() -> None:
 
 def _export_job() -> None:
     from .exporter import export_latest
-    from .pusher import push_latest
+    from .pusher import push_data
     from .storage import open_db
 
     try:
         conn = open_db(DB_PATH)
         export_latest(conn, OUT_PATH)
         logger.info("export_job: wrote %s", OUT_PATH)
-        push_latest(REPO_PATH)
+        push_data(REPO_PATH)
     except Exception:
         logger.exception("export_job failed")
 

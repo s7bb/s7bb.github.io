@@ -1,4 +1,4 @@
-"""Push data/latest.json to git remote via fine-grained GitHub PAT (HTTPS)."""
+"""Push data/latest.json and data/archive/*.json to git remote via fine-grained GitHub PAT (HTTPS)."""
 
 import logging
 import os
@@ -13,6 +13,7 @@ import git
 logger = logging.getLogger(__name__)
 
 _LATEST_JSON = "data/latest.json"
+_ARCHIVE_GLOB = "data/archive/*.json"
 _HTTPS_USER = "x-access-token"
 _PUSH_REFSPEC = "HEAD:refs/heads/main"
 
@@ -70,30 +71,36 @@ def _push_via_pat(repo: git.Repo, token: str) -> None:
             logger.warning("failed to unlink GIT_ASKPASS helper %s", helper_path)
 
 
-def push_latest(repo_path: Path) -> bool:
-    """Stage, commit, and push data/latest.json.
+def push_data(repo_path: Path) -> bool:
+    """Stage data/latest.json + data/archive/*.json, commit if changed, push.
 
     Returns True if a commit was made and pushed, False if nothing changed.
     Raises on git or push errors.
     """
     repo = git.Repo(str(repo_path))
 
-    target = repo_path / _LATEST_JSON
-    if not target.exists():
-        logger.warning("push_latest: %s not found, skipping", target)
+    paths: list[str] = []
+    if (repo_path / _LATEST_JSON).exists():
+        paths.append(_LATEST_JSON)
+    archive_files = sorted((repo_path / "data" / "archive").glob("*.json"))
+    for f in archive_files:
+        paths.append(f.relative_to(repo_path).as_posix())
+
+    if not paths:
+        logger.warning("push_data: no data files found, skipping")
         return False
 
-    repo.index.add([_LATEST_JSON])
+    repo.index.add(paths)
 
     if not repo.index.diff("HEAD"):
-        logger.info("push_latest: no changes, skipping commit")
+        logger.info("push_data: no changes, skipping commit")
         return False
 
     ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     author = _actor("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "s7bb-bot")
     committer = _actor("GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "s7bb-bot")
     repo.index.commit(
-        f"chore: update latest.json {ts}",
+        f"chore: update data {ts}",
         author=author,
         committer=committer,
     )
@@ -103,5 +110,5 @@ def push_latest(repo_path: Path) -> bool:
         raise RuntimeError("GITHUB_PAT not set; cannot push to GitHub")
 
     _push_via_pat(repo, token)
-    logger.info("push_latest: pushed to origin/main")
+    logger.info("push_data: pushed to origin/main (%d file(s))", len(paths))
     return True
