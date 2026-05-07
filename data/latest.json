@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-07T02:05:26.539447+00:00",
+  "generated_at": "2026-05-07T03:18:17.993627+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -2091,19 +2091,43 @@
       "delay_minutes": 17,
       "cancelled": false,
       "reason": null
+    },
+    {
+      "train_id": "7445422947788705273-2605070423-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-07T02:39:00+00:00",
+      "actual_time": "2026-05-07T02:39:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "7311243364191003536-2605070443-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-07T02:59:00+00:00",
+      "actual_time": "2026-05-07T02:59:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
     }
   ],
   "aggregates": {
     "today": {
-      "total": 0,
-      "on_time": 0,
+      "total": 2,
+      "on_time": 2,
       "late": 0,
       "cancelled": 0,
       "avg_delay_min": 0.0,
       "by_direction": {
         "muenchen": {
-          "total": 0,
-          "on_time": 0,
+          "total": 2,
+          "on_time": 2,
           "late": 0,
           "cancelled": 0,
           "avg_delay_min": 0.0,
@@ -2120,19 +2144,19 @@
       }
     },
     "last_7_days": {
-      "total": 174,
-      "on_time": 45,
+      "total": 176,
+      "on_time": 47,
       "late": 122,
       "cancelled": 7,
       "avg_delay_min": 2.5,
       "by_direction": {
         "muenchen": {
-          "total": 87,
-          "on_time": 24,
+          "total": 89,
+          "on_time": 26,
           "late": 60,
           "cancelled": 3,
           "avg_delay_min": 1.9,
-          "missing": 22
+          "missing": 32
         },
         "wolfratshausen": {
           "total": 87,
@@ -2147,7 +2171,10 @@
   },
   "expected_slots": {
     "today": {
-      "muenchen": [],
+      "muenchen": [
+        "2026-05-07T02:39:00+00:00",
+        "2026-05-07T02:59:00+00:00"
+      ],
       "wolfratshausen": []
     }
   }
