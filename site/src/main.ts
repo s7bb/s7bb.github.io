@@ -82,7 +82,7 @@ async function main() {
       content.innerHTML = "";
       switch (route.livePage) {
         case "heute":     renderToday(data, content); break;
-        case "woche":     renderWeek(data, content); break;
+        case "woche":     await renderWeek(data, content); break;
         case "statistik": renderStats(data, content); break;
         case "methodik":  renderMethodology(content); break;
       }
