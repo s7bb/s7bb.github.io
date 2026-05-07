@@ -168,6 +168,17 @@ def export_latest(conn: sqlite3.Connection, out_path: Path, window_days: int = 7
     _atomic_write_json(out_path, payload)
 
 
+def _daily_aggregates(rows: list[dict]) -> list[dict]:
+    by_date: dict[str, list[dict]] = {}
+    for r in rows:
+        date = r["scheduled_time"][:10]
+        by_date.setdefault(date, []).append(r)
+    return [
+        {"date": date, **_aggregate(day_rows)}
+        for date, day_rows in sorted(by_date.items())
+    ]
+
+
 def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_path: Path) -> None:
     """Export one calendar month of data to an archive JSON file."""
     start = f"{year:04d}-{month:02d}-01"
@@ -199,6 +210,12 @@ def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_
         },
     }
 
+    daily = _daily_aggregates(rows)
+    daily_by_direction = {
+        "muenchen":       _daily_aggregates([r for r in rows if r["direction_bucket"] == "muenchen"]),
+        "wolfratshausen": _daily_aggregates([r for r in rows if r["direction_bucket"] == "wolfratshausen"]),
+    }
+
     payload = {
         "generated_at": datetime.now(UTC).isoformat(),
         "station": "Baierbrunn",
@@ -206,5 +223,7 @@ def export_monthly_archive(conn: sqlite3.Connection, year: int, month: int, out_
         "period": f"{year:04d}-{month:02d}",
         "arrivals": rows,
         "aggregates": aggregates,
+        "daily": daily,
+        "daily_by_direction": daily_by_direction,
     }
     _atomic_write_json(out_path, payload)

@@ -128,6 +128,34 @@ def test_atomic_write_creates_parent_dirs(tmp_path):
     assert json.loads(target.read_text()) == {"k": 1}
 
 
+def test_monthly_archive_includes_daily_aggregates(tmp_path):
+    from s7bb_fetcher.exporter import export_monthly_archive
+
+    conn = open_db(tmp_path / "test.db")
+    records = [
+        _make_arrival("m1", "2026-04-01T08:00:00+00:00", "muenchen"),
+        _make_arrival("m2", "2026-04-01T08:20:00+00:00", "muenchen", delay_minutes=5),
+        _make_arrival("m3", "2026-04-02T08:00:00+00:00", "muenchen"),
+        _make_arrival("w1", "2026-04-01T08:13:00+00:00", "wolfratshausen"),
+        _make_arrival("w2", "2026-04-02T08:13:00+00:00", "wolfratshausen", cancelled=True),
+    ]
+    upsert_records(conn, records)
+    out = tmp_path / "2026-04.json"
+
+    export_monthly_archive(conn, 2026, 4, out)
+    data = json.loads(out.read_text())
+
+    daily = {d["date"]: d for d in data["daily"]}
+    assert "2026-04-01" in daily
+    assert daily["2026-04-01"]["total"] == 3
+    assert daily["2026-04-01"]["late"] == 1
+
+    by_dir = data["daily_by_direction"]
+    assert by_dir["muenchen"][0]["date"] == "2026-04-01"
+    by_dir_w_dates = [d["date"] for d in by_dir["wolfratshausen"]]
+    assert by_dir_w_dates == ["2026-04-01", "2026-04-02"]
+
+
 def test_monthly_archive_includes_by_direction(tmp_path):
     from s7bb_fetcher.exporter import export_monthly_archive
 
