@@ -234,3 +234,46 @@ def test_github_network_error():
     assert c.ok is False
     assert c.severity is Severity.SOFT
     assert "dns lookup failed" in c.message
+
+
+def test_run_returns_all_checks(tmp_path):
+    _init_repo(tmp_path)
+    db = tmp_path / "s7bb.db"
+    with patch("s7bb_fetcher.preflight._check_github",
+               return_value=Check("github", Severity.SOFT, True, "ok")):
+        results = preflight.run(
+            data_dir=tmp_path, repo_path=tmp_path, db_path=db,
+            github_slug="o/r", github_token="t",
+        )
+    names = [c.name for c in results]
+    assert names == ["data_writable", "repo_writable", "repo_ownership", "sqlite", "github"]
+
+
+def test_run_does_not_short_circuit(tmp_path):
+    bad = tmp_path / "missing"
+    with patch("s7bb_fetcher.preflight._check_github",
+               return_value=Check("github", Severity.SOFT, False, "n/a")):
+        results = preflight.run(
+            data_dir=bad, repo_path=bad, db_path=bad / "x.db",
+            github_slug=None, github_token=None,
+        )
+    assert len(results) == 5  # every check is attempted
+
+
+def test_run_resolves_slug_from_repo_when_unset(tmp_path):
+    repo = _init_repo(tmp_path)
+    repo.create_remote("origin", url="https://github.com/foo/bar.git")
+    db = tmp_path / "s7bb.db"
+    seen = {}
+
+    def fake_github(slug, token):
+        seen["slug"] = slug
+        seen["token"] = token
+        return Check("github", Severity.SOFT, True, "ok")
+
+    with patch("s7bb_fetcher.preflight._check_github", side_effect=fake_github):
+        preflight.run(
+            data_dir=tmp_path, repo_path=tmp_path, db_path=db,
+            github_slug=None, github_token="t",
+        )
+    assert seen["slug"] == "foo/bar"

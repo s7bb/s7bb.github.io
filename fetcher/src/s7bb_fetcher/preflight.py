@@ -196,6 +196,37 @@ def _check_github(slug: str | None, token: str | None) -> Check:
     )
 
 
-def run(*_args, **_kwargs) -> list[Check]:
-    """Placeholder; later tasks fill this in."""
-    return []
+def _resolve_slug(repo_path: Path) -> str | None:
+    """Return owner/repo from origin URL, or None if not parseable."""
+    from .pusher import _ORIGIN_RE  # reuse the regex used by pusher
+
+    try:
+        repo = git.Repo(str(repo_path))
+        url = repo.remotes["origin"].url
+    except (git.InvalidGitRepositoryError, git.NoSuchPathError, IndexError, KeyError):
+        return None
+    m = _ORIGIN_RE.match(url)
+    if not m:
+        return None
+    return f"{m['owner']}/{m['repo']}"
+
+
+def run(
+    *,
+    data_dir: Path,
+    repo_path: Path,
+    db_path: Path,
+    github_slug: str | None = None,
+    github_token: str | None = None,
+) -> list[Check]:
+    """Run all preflight checks. Never raises; returns one Check per probe."""
+    if not github_slug:
+        github_slug = _resolve_slug(repo_path)
+
+    return [
+        _check_data_writable(data_dir),
+        _check_repo_writable(repo_path),
+        _check_repo_ownership(repo_path),
+        _check_sqlite(db_path),
+        _check_github(github_slug, github_token),
+    ]
