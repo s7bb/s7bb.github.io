@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import git
+import requests
 
 from .storage import open_db
 
@@ -121,6 +122,78 @@ def _check_sqlite(db_path: Path) -> Check:
     finally:
         conn.close()
     return Check(name, Severity.HARD, True, f"{db_path} opens and integrity_check=ok")
+
+
+_GITHUB_TIMEOUT_SEC = 5.0
+
+
+def _check_github(slug: str | None, token: str | None) -> Check:
+    name = "github"
+    if not token:
+        return Check(
+            name,
+            Severity.SOFT,
+            False,
+            "GITHUB_PAT not set; push will fail at next export",
+        )
+    if not slug:
+        return Check(
+            name,
+            Severity.SOFT,
+            False,
+            "could not resolve repo slug (set GITHUB_REPO_SLUG or fix origin URL)",
+        )
+    try:
+        resp = requests.get(
+            f"https://api.github.com/repos/{slug}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+            },
+            timeout=_GITHUB_TIMEOUT_SEC,
+        )
+    except requests.exceptions.RequestException as e:
+        return Check(
+            name,
+            Severity.SOFT,
+            False,
+            f"network error reaching api.github.com: {e}",
+        )
+
+    if resp.status_code == 200:
+        return Check(
+            name,
+            Severity.SOFT,
+            True,
+            f"GitHub PAT can read repo {slug}",
+        )
+    if resp.status_code == 401:
+        return Check(
+            name,
+            Severity.SOFT,
+            False,
+            "bad or expired GITHUB_PAT (HTTP 401)",
+        )
+    if resp.status_code == 403:
+        return Check(
+            name,
+            Severity.SOFT,
+            False,
+            "GITHUB_PAT lacks required access (HTTP 403)",
+        )
+    if resp.status_code == 404:
+        return Check(
+            name,
+            Severity.SOFT,
+            False,
+            f"repo {slug} not found or PAT cannot see it (HTTP 404)",
+        )
+    return Check(
+        name,
+        Severity.SOFT,
+        False,
+        f"unexpected HTTP {resp.status_code} from api.github.com",
+    )
 
 
 def run(*_args, **_kwargs) -> list[Check]:

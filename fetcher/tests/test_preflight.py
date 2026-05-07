@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import git as _git_for_repo_writable_setup
 import pytest
+import requests
 
 from s7bb_fetcher import preflight
 from s7bb_fetcher.preflight import (
@@ -12,6 +13,7 @@ from s7bb_fetcher.preflight import (
     PreflightFailed,
     Severity,
     _check_data_writable,
+    _check_github,
     _check_repo_ownership,
     _check_repo_writable,
     _check_sqlite,
@@ -167,3 +169,68 @@ def test_sqlite_parent_unwritable(tmp_path):
         assert c.ok is False
     finally:
         parent.chmod(0o700)
+
+
+class _FakeResp:
+    def __init__(self, status_code, json_body=None):
+        self.status_code = status_code
+        self._json = json_body or {}
+
+    def json(self):
+        return self._json
+
+
+def test_github_no_token():
+    c = _check_github(slug="owner/repo", token=None)
+    assert c.ok is False
+    assert c.severity is Severity.SOFT
+    assert "GITHUB_PAT" in c.message
+
+
+def test_github_no_slug():
+    c = _check_github(slug=None, token="t")
+    assert c.ok is False
+    assert c.severity is Severity.SOFT
+    assert "slug" in c.message.lower() or "GITHUB_REPO_SLUG" in c.message
+
+
+def test_github_ok():
+    with patch("s7bb_fetcher.preflight.requests.get", return_value=_FakeResp(200)) as m:
+        c = _check_github(slug="o/r", token="ghp_123")
+    assert c.ok is True
+    assert c.severity is Severity.SOFT
+    headers = m.call_args.kwargs["headers"]
+    assert headers["Authorization"] == "Bearer ghp_123"
+    assert headers["Accept"] == "application/vnd.github+json"
+
+
+def test_github_401():
+    with patch("s7bb_fetcher.preflight.requests.get", return_value=_FakeResp(401)):
+        c = _check_github(slug="o/r", token="bad")
+    assert c.ok is False
+    assert "expired" in c.message.lower() or "bad" in c.message.lower()
+
+
+def test_github_403():
+    with patch("s7bb_fetcher.preflight.requests.get", return_value=_FakeResp(403)):
+        c = _check_github(slug="o/r", token="t")
+    assert c.ok is False
+    assert "access" in c.message.lower() or "scope" in c.message.lower()
+
+
+def test_github_404():
+    with patch("s7bb_fetcher.preflight.requests.get", return_value=_FakeResp(404)):
+        c = _check_github(slug="o/r", token="t")
+    assert c.ok is False
+    assert "not found" in c.message.lower()
+
+
+def test_github_network_error():
+    with patch(
+        "s7bb_fetcher.preflight.requests.get",
+        side_effect=requests.exceptions.ConnectionError("dns lookup failed"),
+    ):
+        c = _check_github(slug="o/r", token="t")
+    assert c.ok is False
+    assert c.severity is Severity.SOFT
+    assert "dns lookup failed" in c.message
