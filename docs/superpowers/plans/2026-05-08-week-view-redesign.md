@@ -1,6 +1,8 @@
 # Week View Redesign Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: **superpowers:subagent-driven-development** — execution mode chosen by user (Martin) on 2026-05-08, to be started in a fresh session. Dispatch one fresh subagent per task, run two-stage review between tasks. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **How to resume:** open a new session in this repo, say *"execute the plan at `docs/superpowers/plans/2026-05-08-week-view-redesign.md` using subagent-driven-development"*. The spec is at `docs/superpowers/specs/2026-05-08-week-view-redesign-design.md`.
 
 **Goal:** Replace the current `Letzte 7 Tage` page (two charts, each mixing minutes and cancellation counts on one y-axis) with a compact KPI strip plus two single-unit charts grouped by metric, each showing both directions side-by-side.
 
