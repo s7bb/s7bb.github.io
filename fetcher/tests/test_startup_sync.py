@@ -1,11 +1,20 @@
 """Tests for startup_sync.py."""
 
+import json
 from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from s7bb_fetcher import startup_sync
-from s7bb_fetcher.startup_sync import SyncResult
+from s7bb_fetcher.startup_sync import (
+    SyncResult,
+    _fetch_remote,
+    _pull,
+    _read_local_generated_at,
+)
 
 
 def test_module_exports_expected_symbols():
@@ -39,12 +48,6 @@ def test_sync_result_accepts_none_timestamps():
 # ---------------------------------------------------------------------------
 # Task 2: _read_local_generated_at
 # ---------------------------------------------------------------------------
-
-import json
-from datetime import timedelta
-from pathlib import Path
-
-from s7bb_fetcher.startup_sync import _read_local_generated_at
 
 
 def test_read_local_returns_none_when_file_missing(tmp_path: Path):
@@ -90,12 +93,6 @@ def test_read_local_raises_on_bad_iso(tmp_path: Path):
 # ---------------------------------------------------------------------------
 # Task 3: _fetch_remote
 # ---------------------------------------------------------------------------
-
-from unittest.mock import MagicMock, patch
-
-import requests
-
-from s7bb_fetcher.startup_sync import _fetch_remote
 
 
 def _mock_response(status_code: int, body: bytes = b"") -> MagicMock:
@@ -164,8 +161,6 @@ def test_fetch_remote_raises_on_missing_generated_at():
 # ---------------------------------------------------------------------------
 # Task 4: _pull atomic-write helper
 # ---------------------------------------------------------------------------
-
-from s7bb_fetcher.startup_sync import _pull
 
 
 def test_pull_writes_bytes_to_target(tmp_path: Path):
