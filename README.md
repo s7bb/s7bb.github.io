@@ -106,6 +106,8 @@ The container runs APScheduler with two cron jobs:
 
 Both cron expressions and the GitHub PAT (`GITHUB_PAT`) are configured via `.env`.
 
+**Startup sequence.** When `s7bb-service` starts, it runs preflight checks and then a startup sync against `origin/main`: if local `data/latest.json` is newer than the published copy, it is pushed immediately; if remote is newer, the remote bytes overwrite the local file. The scheduler does not start until both succeed — any error aborts startup so an operator notices the divergence.
+
 ### Diagnosing startup problems
 
 The fetcher runs a preflight check on startup. If the container exits immediately, run the same checks manually to see which one failed:
