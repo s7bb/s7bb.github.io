@@ -19,6 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+import requests
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +34,29 @@ class SyncResult:
 
 def startup_sync(*args, **kwargs) -> SyncResult:
     raise NotImplementedError
+
+
+_RAW_URL_TMPL = "https://raw.githubusercontent.com/{slug}/main/data/latest.json"
+
+
+def _fetch_remote(slug: str, timeout: float) -> tuple[bytes | None, datetime | None]:
+    """GET data/latest.json from origin/main via raw.githubusercontent.com.
+
+    Returns ``(body_bytes, generated_at)`` on 200, or ``(None, None)`` on 404.
+    Raises on any other HTTP error, network error, or unparseable response.
+    """
+    url = _RAW_URL_TMPL.format(slug=slug)
+    resp = requests.get(url, timeout=timeout)
+    if resp.status_code == 404:
+        return None, None
+    resp.raise_for_status()
+    body = resp.content
+    payload = json.loads(body)
+    raw = payload["generated_at"]
+    ts = datetime.fromisoformat(raw)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    return body, ts
 
 
 def _read_local_generated_at(path: Path) -> datetime | None:
