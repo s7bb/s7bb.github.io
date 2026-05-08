@@ -66,8 +66,11 @@ def startup_sync(
         return _result("push", local_ts, remote_ts, "remote 404 — pushed local")
 
     if local_ts is None and remote_ts is not None:
-        # bootstrap local from remote — implemented in Task 7
-        raise NotImplementedError("pull branch not yet implemented")
+        _pull(data_path, remote_body)
+        return _result(
+            "pull", local_ts, remote_ts,
+            "no local file — pulled remote",
+        )
 
     # both present
     delta = (local_ts - remote_ts).total_seconds()
@@ -82,8 +85,12 @@ def startup_sync(
             "push", local_ts, remote_ts,
             f"local newer by {delta:.0f}s — pushed",
         )
-    # delta < 0 — pull (Task 7)
-    raise NotImplementedError("pull branch not yet implemented")
+    # delta < 0 — remote newer, pull
+    _pull(data_path, remote_body)
+    return _result(
+        "pull", local_ts, remote_ts,
+        f"remote newer by {-delta:.0f}s — pulled",
+    )
 
 
 def _result(

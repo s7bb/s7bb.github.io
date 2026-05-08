@@ -281,3 +281,39 @@ def test_sync_push_clean_tree_warns_no_raise(tmp_path: Path, caplog):
             result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
     assert result.action == "push"
     assert any("matches HEAD" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Task 7: pull branches
+# ---------------------------------------------------------------------------
+
+
+def test_sync_pulls_when_remote_newer(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    local_ts = datetime(2026, 5, 8, 9, 0, 0, tzinfo=UTC)
+    remote_ts = datetime(2026, 5, 8, 11, 0, 0, tzinfo=UTC)
+    _write_latest(data_path, local_ts)
+    remote_body = json.dumps({
+        "generated_at": remote_ts.isoformat(),
+        "marker": "from-remote",
+    }).encode()
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(remote_body, remote_ts)), \
+         patch("s7bb_fetcher.startup_sync.pusher.push_data") as push:
+        result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+    push.assert_not_called()
+    assert result.action == "pull"
+    assert data_path.read_bytes() == remote_body
+
+
+def test_sync_pulls_when_no_local_remote_present(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    remote_ts = datetime(2026, 5, 8, 11, 0, 0, tzinfo=UTC)
+    remote_body = json.dumps({"generated_at": remote_ts.isoformat()}).encode()
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(remote_body, remote_ts)), \
+         patch("s7bb_fetcher.startup_sync.pusher.push_data") as push:
+        result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+    push.assert_not_called()
+    assert result.action == "pull"
+    assert data_path.read_bytes() == remote_body
