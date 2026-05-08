@@ -25,6 +25,9 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_TIMEOUT_SEC = 10.0
+_DEFAULT_TOLERANCE_SEC = 60.0
+
 
 @dataclass(frozen=True)
 class SyncResult:
@@ -34,8 +37,52 @@ class SyncResult:
     message: str
 
 
-def startup_sync(*args, **kwargs) -> SyncResult:
-    raise NotImplementedError
+def startup_sync(
+    repo_path: Path,
+    data_path: Path,
+    slug: str,
+    *,
+    timeout: float = _DEFAULT_TIMEOUT_SEC,
+    tolerance_seconds: float = _DEFAULT_TOLERANCE_SEC,
+) -> SyncResult:
+    """Reconcile local data/latest.json with origin/main before scheduler starts.
+
+    Raises on any failure that prevents reconciliation. Caller should treat a
+    raise as a hard startup failure.
+    """
+    logger.info("startup_sync: checking drift against origin/main (%s)", slug)
+
+    local_ts = _read_local_generated_at(data_path)
+    remote_body, remote_ts = _fetch_remote(slug, timeout)
+
+    if local_ts is None and remote_ts is None:
+        return _result("noop", local_ts, remote_ts, "no local file, remote 404 — nothing to sync")
+
+    if local_ts is not None and remote_ts is not None:
+        delta = (local_ts - remote_ts).total_seconds()
+        if abs(delta) <= tolerance_seconds:
+            return _result(
+                "noop", local_ts, remote_ts,
+                f"in sync (Δ={delta:+.0f}s, tolerance={tolerance_seconds:.0f}s)",
+            )
+        # push/pull branches added in next task
+        raise NotImplementedError("push/pull branches not yet implemented")
+
+    raise NotImplementedError("one-sided cases not yet implemented")
+
+
+def _result(
+    action: Literal["push", "pull", "noop"],
+    local_ts: datetime | None,
+    remote_ts: datetime | None,
+    message: str,
+) -> SyncResult:
+    logger.info(
+        "startup_sync: action=%s local=%s remote=%s — %s",
+        action, local_ts, remote_ts, message,
+    )
+    return SyncResult(action=action, local_generated_at=local_ts,
+                      remote_generated_at=remote_ts, message=message)
 
 
 def _pull(data_path: Path, raw_bytes: bytes) -> None:

@@ -187,3 +187,46 @@ def test_pull_leaves_no_tmp_files_on_success(tmp_path: Path):
     _pull(target, b"{}")
     leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(".")]
     assert leftovers == []
+
+
+# ---------------------------------------------------------------------------
+# Task 5: orchestration — noop branches
+# ---------------------------------------------------------------------------
+
+
+def _write_latest(path: Path, generated_at: datetime) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"generated_at": generated_at.isoformat()}))
+
+
+def test_sync_noop_when_no_local_no_remote(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(None, None)):
+        result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+    assert result.action == "noop"
+    assert result.local_generated_at is None
+    assert result.remote_generated_at is None
+
+
+def test_sync_noop_when_equal_timestamps(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)
+    _write_latest(data_path, ts)
+    body = json.dumps({"generated_at": ts.isoformat()}).encode()
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(body, ts)):
+        result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+    assert result.action == "noop"
+
+
+def test_sync_noop_when_within_tolerance(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    local_ts = datetime(2026, 5, 8, 10, 0, 30, tzinfo=UTC)  # +30 s
+    remote_ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)
+    _write_latest(data_path, local_ts)
+    body = json.dumps({"generated_at": remote_ts.isoformat()}).encode()
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(body, remote_ts)):
+        result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+    assert result.action == "noop"
