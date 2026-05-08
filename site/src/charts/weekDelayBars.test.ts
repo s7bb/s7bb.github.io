@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { Chart } from "chart.js";
 import {
   buildDelayChartConfig,
   PUNCTUALITY_THRESHOLD_MIN,
@@ -63,5 +64,104 @@ describe("punctualityBandPlugin", () => {
 
   it("defines beforeDatasetsDraw", () => {
     expect(typeof punctualityBandPlugin.beforeDatasetsDraw).toBe("function");
+  });
+});
+
+describe("punctualityBandPlugin > beforeDatasetsDraw", () => {
+  type Call = { type: string; args: unknown[] };
+
+  function stubCtx(): { ctx: CanvasRenderingContext2D; calls: Call[] } {
+    const calls: Call[] = [];
+    let currentFill = "";
+    const ctx = {
+      save: () => calls.push({ type: "save", args: [] }),
+      restore: () => calls.push({ type: "restore", args: [] }),
+      fillRect: (...args: number[]) =>
+        calls.push({ type: "fillRect", args: [...args, currentFill] }),
+      set fillStyle(v: string) {
+        currentFill = v;
+        calls.push({ type: "fillStyle", args: [v] });
+      },
+      get fillStyle() {
+        return currentFill;
+      },
+    };
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+  }
+
+  function stubChart(yMax: number): { chart: unknown; calls: Call[] } {
+    const { ctx, calls } = stubCtx();
+    const chart = {
+      ctx,
+      chartArea: { left: 0, right: 100, top: 0, bottom: 200 },
+      scales: {
+        y: {
+          max: yMax,
+          getPixelForValue: (v: number) => 200 - (v / yMax) * 200,
+        },
+      },
+    };
+    return { chart, calls };
+  }
+
+  function invoke(yMax: number): Call[] {
+    const { chart, calls } = stubChart(yMax);
+    punctualityBandPlugin.beforeDatasetsDraw!(
+      chart as unknown as Chart<"bar">,
+      { mode: "default", cancelable: true } as unknown as Parameters<
+        NonNullable<typeof punctualityBandPlugin.beforeDatasetsDraw>
+      >[1],
+      {} as unknown as Parameters<
+        NonNullable<typeof punctualityBandPlugin.beforeDatasetsDraw>
+      >[2],
+    );
+    return calls;
+  }
+
+  it("draws only a green rect when yScale.max is below threshold (yMax=3)", () => {
+    const calls = invoke(3);
+
+    const fillRects = calls.filter(c => c.type === "fillRect");
+    expect(fillRects).toHaveLength(1);
+
+    const fillStyles = calls.filter(c => c.type === "fillStyle");
+    expect(fillStyles).toHaveLength(1);
+    expect(fillStyles[0].args).toEqual(["rgba(34,197,94,0.10)"]);
+
+    // Green rect should cover full plot area (thresholdY=0, bottom=200).
+    expect(fillRects[0].args).toEqual([0, 0, 100, 200, "rgba(34,197,94,0.10)"]);
+  });
+
+  it("draws green and red rects when yScale.max is above threshold (yMax=10)", () => {
+    const calls = invoke(10);
+
+    const fillRects = calls.filter(c => c.type === "fillRect");
+    expect(fillRects).toHaveLength(2);
+
+    const fillStyles = calls.filter(c => c.type === "fillStyle");
+    expect(fillStyles).toHaveLength(2);
+    expect(fillStyles[0].args).toEqual(["rgba(34,197,94,0.10)"]);
+    expect(fillStyles[1].args).toEqual(["rgba(239,68,68,0.08)"]);
+
+    // thresholdY = 200 - (6/10)*200 = 80
+    // Green: from thresholdY (80) down to bottom (200), height 120
+    expect(fillRects[0].args).toEqual([0, 80, 100, 120, "rgba(34,197,94,0.10)"]);
+    // Red: from top (0) down to thresholdY (80), height 80
+    expect(fillRects[1].args).toEqual([0, 0, 100, 80, "rgba(239,68,68,0.08)"]);
+  });
+
+  it("draws only green at the boundary (yMax === threshold), uses strict >", () => {
+    const calls = invoke(PUNCTUALITY_THRESHOLD_MIN);
+
+    const fillRects = calls.filter(c => c.type === "fillRect");
+    expect(fillRects).toHaveLength(1);
+
+    const fillStyles = calls.filter(c => c.type === "fillStyle");
+    expect(fillStyles).toHaveLength(1);
+    expect(fillStyles[0].args).toEqual(["rgba(34,197,94,0.10)"]);
+    // No red color was ever set.
+    expect(
+      fillStyles.some(c => c.args[0] === "rgba(239,68,68,0.08)"),
+    ).toBe(false);
   });
 });
