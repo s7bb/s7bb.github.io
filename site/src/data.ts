@@ -114,3 +114,53 @@ export function last7DaysByDay(
       cancelled,
     }));
 }
+
+export interface DayDirStats {
+  avg_delay: number;
+  cancelled: number;
+  scheduled: number;
+}
+
+export interface DayDirRow {
+  date: string;
+  muenchen: DayDirStats;
+  wolfratshausen: DayDirStats;
+}
+
+export function last7DaysByDayBothDirections(data: S7Data): DayDirRow[] {
+  type Bucket = "muenchen" | "wolfratshausen";
+  const acc = new Map<string, Record<Bucket, { delays: number[]; cancelled: number; scheduled: number }>>();
+
+  for (const a of data.arrivals) {
+    if (a.direction_bucket !== "muenchen" && a.direction_bucket !== "wolfratshausen") continue;
+    const bucket: Bucket = a.direction_bucket;
+    const date = a.scheduled_time.slice(0, 10);
+    if (!acc.has(date)) {
+      acc.set(date, {
+        muenchen:       { delays: [], cancelled: 0, scheduled: 0 },
+        wolfratshausen: { delays: [], cancelled: 0, scheduled: 0 },
+      });
+    }
+    const day = acc.get(date)!;
+    day[bucket].scheduled++;
+    if (a.cancelled) {
+      day[bucket].cancelled++;
+    } else if (a.delay_minutes !== null) {
+      day[bucket].delays.push(a.delay_minutes);
+    }
+  }
+
+  const toStats = (b: { delays: number[]; cancelled: number; scheduled: number }): DayDirStats => ({
+    avg_delay: b.delays.length ? b.delays.reduce((s, d) => s + d, 0) / b.delays.length : 0,
+    cancelled: b.cancelled,
+    scheduled: b.scheduled,
+  });
+
+  return [...acc.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { muenchen, wolfratshausen }]) => ({
+      date,
+      muenchen: toStats(muenchen),
+      wolfratshausen: toStats(wolfratshausen),
+    }));
+}
