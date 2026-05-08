@@ -53,7 +53,20 @@ def startup_sync(
     raise as a hard startup failure.
     """
     logger.info("startup_sync: checking drift against origin/main (%s)", slug)
+    try:
+        return _run(repo_path, data_path, slug, timeout, tolerance_seconds)
+    except Exception as exc:
+        logger.error("startup_sync failed: %s", exc, exc_info=True)
+        raise
 
+
+def _run(
+    repo_path: Path,
+    data_path: Path,
+    slug: str,
+    timeout: float,
+    tolerance_seconds: float,
+) -> SyncResult:
     local_ts = _read_local_generated_at(data_path)
     remote_body, remote_ts = _fetch_remote(slug, timeout)
 

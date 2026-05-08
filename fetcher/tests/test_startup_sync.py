@@ -372,3 +372,34 @@ def test_sync_propagates_pull_write_failure(tmp_path: Path, monkeypatch):
         monkeypatch.setattr("s7bb_fetcher.startup_sync._pull", boom)
         with pytest.raises(OSError, match="disk full"):
             startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+
+
+def test_sync_pushes_just_outside_tolerance(tmp_path: Path):
+    """Δ = 90 s (> 60 s tolerance) → push."""
+    data_path = tmp_path / "data" / "latest.json"
+    local_ts = datetime(2026, 5, 8, 10, 1, 30, tzinfo=UTC)
+    remote_ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)  # 90 s older
+    _write_latest(data_path, local_ts)
+    body = json.dumps({"generated_at": remote_ts.isoformat()}).encode()
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(body, remote_ts)), \
+         patch("s7bb_fetcher.startup_sync.pusher.push_data",
+               return_value=True) as push:
+        result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+    push.assert_called_once_with(tmp_path)
+    assert result.action == "push"
+
+
+def test_sync_logs_error_before_raising(tmp_path: Path, caplog):
+    import logging as _logging
+    data_path = tmp_path / "data" / "latest.json"
+    _write_latest(data_path, datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC))
+    with patch("s7bb_fetcher.startup_sync.requests.get",
+               return_value=_mock_response(500)), \
+         caplog.at_level(_logging.ERROR, logger="s7bb_fetcher.startup_sync"), \
+         pytest.raises(requests.exceptions.HTTPError):
+        startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+    assert any(
+        r.levelno == _logging.ERROR and "startup_sync failed" in r.message
+        for r in caplog.records
+    )
