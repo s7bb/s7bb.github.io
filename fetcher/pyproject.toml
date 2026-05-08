@@ -11,9 +11,10 @@ dependencies = [
 ]
 
 [project.scripts]
-s7bb-fetch   = "s7bb_fetcher.cli:fetch"
-s7bb-export  = "s7bb_fetcher.cli:export"
-s7bb-service = "s7bb_fetcher.service:main"
+s7bb-fetch     = "s7bb_fetcher.cli:fetch"
+s7bb-export    = "s7bb_fetcher.cli:export"
+s7bb-preflight = "s7bb_fetcher.cli:preflight"
+s7bb-service   = "s7bb_fetcher.service:main"
 
 [build-system]
 requires = ["hatchling"]

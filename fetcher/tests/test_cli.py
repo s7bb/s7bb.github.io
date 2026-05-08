@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
+
+from s7bb_fetcher import cli, preflight
 from s7bb_fetcher.cli import export
+from s7bb_fetcher.preflight import Check, Severity
 
 
 def _seed_db(db_path: Path) -> None:
@@ -57,3 +62,46 @@ def test_cli_archive_index_requires_dir(tmp_path):
 
     export(["--db", str(db), "--archive-index", "--out-dir", str(archive_dir)])
     assert (archive_dir / "index.json").exists()
+
+
+def _checks(*pairs):
+    return [Check(name=n, severity=s, ok=ok, message=m) for n, s, ok, m in pairs]
+
+
+def test_cli_preflight_exits_zero_when_all_ok(capsys):
+    fake = _checks(
+        ("data_writable", Severity.HARD, True, "ok"),
+        ("github", Severity.SOFT, True, "ok"),
+    )
+    with patch.object(preflight, "run", return_value=fake):
+        with pytest.raises(SystemExit) as ei:
+            cli.preflight([])
+    assert ei.value.code == 0
+
+
+def test_cli_preflight_exits_one_on_hard_fail(capsys):
+    fake = _checks(
+        ("data_writable", Severity.HARD, False, "denied"),
+        ("github", Severity.SOFT, True, "ok"),
+    )
+    with patch.object(preflight, "run", return_value=fake):
+        with pytest.raises(SystemExit) as ei:
+            cli.preflight([])
+    assert ei.value.code == 1
+    out = capsys.readouterr().out
+    assert "data_writable" in out
+    assert "denied" in out
+
+
+def test_cli_preflight_soft_fail_still_zero(capsys):
+    fake = _checks(
+        ("data_writable", Severity.HARD, True, "ok"),
+        ("github", Severity.SOFT, False, "no token"),
+    )
+    with patch.object(preflight, "run", return_value=fake):
+        with pytest.raises(SystemExit) as ei:
+            cli.preflight([])
+    assert ei.value.code == 0
+    out = capsys.readouterr().out
+    assert "github" in out
+    assert "no token" in out

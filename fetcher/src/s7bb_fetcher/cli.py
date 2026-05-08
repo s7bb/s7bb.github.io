@@ -1,6 +1,7 @@
 """CLI entry points: s7bb-fetch and s7bb-export."""
 
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -74,3 +75,40 @@ def export(argv: list[str] | None = None) -> None:
 
     export_latest(conn, Path(args.out), args.window_days)
     print(f"latest.json written → {args.out}")
+
+
+def preflight(argv: list[str] | None = None) -> None:
+    from . import preflight as preflight_mod
+    from .preflight import Severity
+
+    parser = argparse.ArgumentParser(description="Run s7bb-fetcher preflight checks")
+    parser.add_argument("--data-dir", default=os.environ.get("DATA_DIR", "/data"))
+    parser.add_argument("--repo-path", default=os.environ.get("REPO_PATH", "/repo"))
+    parser.add_argument("--db", default=None,
+                        help="SQLite DB path; defaults to <data-dir>/s7bb.db")
+    args = parser.parse_args(argv)
+
+    data_dir = Path(args.data_dir)
+    repo_path = Path(args.repo_path)
+    db_path = Path(args.db) if args.db else data_dir / "s7bb.db"
+
+    results = preflight_mod.run(
+        data_dir=data_dir,
+        repo_path=repo_path,
+        db_path=db_path,
+        github_slug=os.environ.get("GITHUB_REPO_SLUG") or None,
+        github_token=os.environ.get("GITHUB_PAT") or None,
+    )
+
+    hard_fail = False
+    print(f"preflight: {len(results)} checks")
+    for c in results:
+        if c.ok:
+            mark = "[OK]"
+        else:
+            mark = "[FAIL]" if c.severity is Severity.HARD else "[WARN]"
+            if c.severity is Severity.HARD:
+                hard_fail = True
+        print(f"  {mark:6} {c.name:18} {c.message}")
+
+    sys.exit(1 if hard_fail else 0)

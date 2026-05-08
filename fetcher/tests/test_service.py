@@ -1,10 +1,13 @@
 """Tests for service._export_job orchestration."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from freezegun import freeze_time
+
+from s7bb_fetcher import preflight, service
+from s7bb_fetcher.preflight import Check, PreflightFailed, Severity
 
 
 def _patch_service(monkeypatch, tmp_path: Path):
@@ -119,3 +122,67 @@ def test_export_job_continues_after_latest_failure(mocks):
     assert mocks["export_monthly"].call_count == 1
     assert mocks["export_index"].call_count == 1
     assert mocks["push_data"].call_count == 1
+
+
+def test_service_runs_preflight_before_scheduler(monkeypatch):
+    calls = []
+
+    def fake_preflight(**kwargs):
+        calls.append("preflight")
+        return [Check("data_writable", Severity.HARD, True, "ok")]
+
+    class DummyScheduler:
+        def __init__(self):
+            calls.append("scheduler.init")
+        def add_job(self, *a, **kw):
+            calls.append("scheduler.add_job")
+        def start(self):
+            calls.append("scheduler.start")
+            raise SystemExit(0)
+        def shutdown(self, wait=False):
+            pass
+
+    with patch.object(preflight, "run", side_effect=fake_preflight), \
+         patch("s7bb_fetcher.service.BlockingScheduler", DummyScheduler):
+        with pytest.raises(SystemExit):
+            service.main()
+
+    # preflight must run before any scheduler interaction
+    assert calls.index("preflight") < calls.index("scheduler.init")
+    assert "scheduler.start" in calls
+
+
+def test_service_aborts_on_hard_failure():
+    fake = [Check("data_writable", Severity.HARD, False, "denied")]
+
+    class NeverScheduler:
+        def __init__(self):
+            raise AssertionError("scheduler must not be constructed on hard fail")
+
+    with patch.object(preflight, "run", return_value=fake), \
+         patch("s7bb_fetcher.service.BlockingScheduler", NeverScheduler):
+        with pytest.raises(PreflightFailed):
+            service.main()
+
+
+def test_service_continues_on_soft_failure():
+    fake = [
+        Check("data_writable", Severity.HARD, True, "ok"),
+        Check("github", Severity.SOFT, False, "no token"),
+    ]
+    started = {"flag": False}
+
+    class DummyScheduler:
+        def add_job(self, *a, **kw):
+            pass
+        def start(self):
+            started["flag"] = True
+            raise SystemExit(0)
+        def shutdown(self, wait=False):
+            pass
+
+    with patch.object(preflight, "run", return_value=fake), \
+         patch("s7bb_fetcher.service.BlockingScheduler", DummyScheduler):
+        with pytest.raises(SystemExit):
+            service.main()
+    assert started["flag"] is True

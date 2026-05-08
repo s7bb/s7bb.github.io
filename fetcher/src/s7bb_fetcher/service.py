@@ -10,6 +10,9 @@ from pathlib import Path
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from . import preflight
+from .preflight import PreflightFailed, Severity
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -87,6 +90,26 @@ def _export_job() -> None:
 def main() -> None:
     fetch_cron  = os.environ.get("FETCH_CRON",  "*/5 * * * *")
     export_cron = os.environ.get("EXPORT_CRON", "0 * * * *")
+
+    results = preflight.run(
+        data_dir=DATA_DIR,
+        repo_path=REPO_PATH,
+        db_path=DB_PATH,
+        github_slug=os.environ.get("GITHUB_REPO_SLUG") or None,
+        github_token=os.environ.get("GITHUB_PAT") or None,
+    )
+    hard_failed = False
+    logger.info("preflight: %d checks", len(results))
+    for c in results:
+        if c.ok:
+            logger.info("preflight ✓ %s: %s", c.name, c.message)
+        elif c.severity is Severity.SOFT:
+            logger.warning("preflight ! %s: %s", c.name, c.message)
+        else:
+            logger.error("preflight ✗ %s: %s", c.name, c.message)
+            hard_failed = True
+    if hard_failed:
+        raise PreflightFailed("one or more hard preflight checks failed; aborting startup")
 
     scheduler = BlockingScheduler()
     scheduler.add_job(
