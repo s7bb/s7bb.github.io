@@ -88,3 +88,5 @@ npm run lint     # eslint
 
 **Release:** bump version in `pyproject.toml` + rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` + commit `chore(release): X.Y.Z` + tag `vX.Y.Z`.
 
+**Post-merge release trigger:** After a PR with semver impact (any `feat`, `fix`, or breaking change) is merged into `main`, cut a release immediately: pull `main`, run the Release procedure above, push the tag. PATCH for `fix`, MINOR for `feat`, MAJOR for `feat!` / `BREAKING CHANGE`. Pure `docs`/`chore`/`refactor`/`test`/`style` PRs do not trigger a release.
+
