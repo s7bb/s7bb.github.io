@@ -23,6 +23,8 @@ from typing import Literal
 
 import requests
 
+from . import pusher
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_SEC = 10.0
@@ -58,17 +60,30 @@ def startup_sync(
     if local_ts is None and remote_ts is None:
         return _result("noop", local_ts, remote_ts, "no local file, remote 404 — nothing to sync")
 
-    if local_ts is not None and remote_ts is not None:
-        delta = (local_ts - remote_ts).total_seconds()
-        if abs(delta) <= tolerance_seconds:
-            return _result(
-                "noop", local_ts, remote_ts,
-                f"in sync (Δ={delta:+.0f}s, tolerance={tolerance_seconds:.0f}s)",
-            )
-        # push/pull branches added in next task
-        raise NotImplementedError("push/pull branches not yet implemented")
+    if local_ts is not None and remote_ts is None:
+        # remote missing — push local
+        _push(repo_path)
+        return _result("push", local_ts, remote_ts, "remote 404 — pushed local")
 
-    raise NotImplementedError("one-sided cases not yet implemented")
+    if local_ts is None and remote_ts is not None:
+        # bootstrap local from remote — implemented in Task 7
+        raise NotImplementedError("pull branch not yet implemented")
+
+    # both present
+    delta = (local_ts - remote_ts).total_seconds()
+    if abs(delta) <= tolerance_seconds:
+        return _result(
+            "noop", local_ts, remote_ts,
+            f"in sync (Δ={delta:+.0f}s, tolerance={tolerance_seconds:.0f}s)",
+        )
+    if delta > 0:
+        _push(repo_path)
+        return _result(
+            "push", local_ts, remote_ts,
+            f"local newer by {delta:.0f}s — pushed",
+        )
+    # delta < 0 — pull (Task 7)
+    raise NotImplementedError("pull branch not yet implemented")
 
 
 def _result(
@@ -83,6 +98,15 @@ def _result(
     )
     return SyncResult(action=action, local_generated_at=local_ts,
                       remote_generated_at=remote_ts, message=message)
+
+
+def _push(repo_path: Path) -> None:
+    pushed = pusher.push_data(repo_path)
+    if not pushed:
+        logger.warning(
+            "startup_sync: local generated_at is newer but git working tree "
+            "matches HEAD; nothing to commit"
+        )
 
 
 def _pull(data_path: Path, raw_bytes: bytes) -> None:
