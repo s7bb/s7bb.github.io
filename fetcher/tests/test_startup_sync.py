@@ -317,3 +317,58 @@ def test_sync_pulls_when_no_local_remote_present(tmp_path: Path):
     push.assert_not_called()
     assert result.action == "pull"
     assert data_path.read_bytes() == remote_body
+
+
+# ---------------------------------------------------------------------------
+# Task 8: error-propagation paths
+# ---------------------------------------------------------------------------
+
+
+def test_sync_propagates_remote_500(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    _write_latest(data_path, datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC))
+    with patch("s7bb_fetcher.startup_sync.requests.get",
+               return_value=_mock_response(500)):
+        with pytest.raises(requests.exceptions.HTTPError):
+            startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+
+
+def test_sync_propagates_local_garbage(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    data_path.parent.mkdir()
+    data_path.write_text("not json")
+    # _read_local_generated_at runs before _fetch_remote, so we don't even
+    # need to mock the remote; the exception fires first.
+    with pytest.raises(json.JSONDecodeError):
+        startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+
+
+def test_sync_propagates_push_failure(tmp_path: Path):
+    data_path = tmp_path / "data" / "latest.json"
+    local_ts = datetime(2026, 5, 8, 11, 0, 0, tzinfo=UTC)
+    remote_ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)
+    _write_latest(data_path, local_ts)
+    body = json.dumps({"generated_at": remote_ts.isoformat()}).encode()
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(body, remote_ts)), \
+         patch("s7bb_fetcher.startup_sync.pusher.push_data",
+               side_effect=RuntimeError("auth failed")):
+        with pytest.raises(RuntimeError, match="auth failed"):
+            startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+
+
+def test_sync_propagates_pull_write_failure(tmp_path: Path, monkeypatch):
+    data_path = tmp_path / "data" / "latest.json"
+    local_ts = datetime(2026, 5, 8, 9, 0, 0, tzinfo=UTC)
+    remote_ts = datetime(2026, 5, 8, 11, 0, 0, tzinfo=UTC)
+    _write_latest(data_path, local_ts)
+    body = json.dumps({"generated_at": remote_ts.isoformat()}).encode()
+
+    def boom(*a, **kw):
+        raise OSError("disk full")
+
+    with patch("s7bb_fetcher.startup_sync._fetch_remote",
+               return_value=(body, remote_ts)):
+        monkeypatch.setattr("s7bb_fetcher.startup_sync._pull", boom)
+        with pytest.raises(OSError, match="disk full"):
+            startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
