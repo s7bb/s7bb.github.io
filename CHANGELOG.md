@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Today page footer now shows the expected time of the next data refresh ("Nächstes Update: HH:MM") next to the existing "Stand" timestamp.
 - Startup preflight check in `s7bb-fetcher` validating volume permissions, git repo writability, "dubious ownership", SQLite integrity, and GitHub PAT/repo access. Hard failures abort startup; soft failures (e.g. GitHub reach) log a warning. New `s7bb-preflight` CLI runs the same checks on demand.
 
+### Changed
+- Letzte-7-Tage view: Verspätung und Ausfälle in getrennte Diagramme aufgeteilt; Ø-Verspätung mit grünem Pünktlichkeitsband (0–6 min); kompakter KPI-Streifen pro Richtung; konsistente Farben für Richtung München (blau) und Wolfratshausen (lila).
+
 ## [0.2.0] - 2026-05-07
 
 ### Added
