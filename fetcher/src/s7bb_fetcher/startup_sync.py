@@ -28,13 +28,5 @@ class SyncResult:
     message: str
 
 
-def startup_sync() -> SyncResult:
-    """Reconcile local and remote data/latest.json at startup.
-
-    Returns:
-        SyncResult describing the action taken (push, pull, or noop).
-
-    Raises:
-        Various exceptions on network or I/O failure.
-    """
+def startup_sync(*args, **kwargs) -> SyncResult:
     raise NotImplementedError
