@@ -111,6 +111,18 @@ def main() -> None:
     if hard_failed:
         raise PreflightFailed("one or more hard preflight checks failed; aborting startup")
 
+    import git
+
+    from . import pusher
+    from . import startup_sync as _startup_sync
+
+    slug = pusher._resolve_slug(git.Repo(str(REPO_PATH)))
+    sync_result = _startup_sync.startup_sync(REPO_PATH, OUT_PATH, slug)
+    logger.info(
+        "startup_sync done: action=%s message=%s",
+        sync_result.action, sync_result.message,
+    )
+
     scheduler = BlockingScheduler()
     scheduler.add_job(
         _fetch_job,
