@@ -142,8 +142,12 @@ def test_service_runs_preflight_before_scheduler(monkeypatch):
         def shutdown(self, wait=False):
             pass
 
+    _noop_sync = MagicMock(return_value=MagicMock(action="noop", message="ok"))
     with patch.object(preflight, "run", side_effect=fake_preflight), \
-         patch("s7bb_fetcher.service.BlockingScheduler", DummyScheduler):
+         patch("s7bb_fetcher.service.BlockingScheduler", DummyScheduler), \
+         patch("s7bb_fetcher.startup_sync.startup_sync", _noop_sync), \
+         patch("s7bb_fetcher.pusher._resolve_slug", return_value="owner/repo"), \
+         patch("git.Repo", MagicMock(return_value=MagicMock())):
         with pytest.raises(SystemExit):
             service.main()
 
@@ -181,8 +185,74 @@ def test_service_continues_on_soft_failure():
         def shutdown(self, wait=False):
             pass
 
+    _noop_sync = MagicMock(return_value=MagicMock(action="noop", message="ok"))
     with patch.object(preflight, "run", return_value=fake), \
-         patch("s7bb_fetcher.service.BlockingScheduler", DummyScheduler):
+         patch("s7bb_fetcher.service.BlockingScheduler", DummyScheduler), \
+         patch("s7bb_fetcher.startup_sync.startup_sync", _noop_sync), \
+         patch("s7bb_fetcher.pusher._resolve_slug", return_value="owner/repo"), \
+         patch("git.Repo", MagicMock(return_value=MagicMock())):
         with pytest.raises(SystemExit):
             service.main()
     assert started["flag"] is True
+
+
+def test_main_calls_startup_sync_after_preflight(monkeypatch, tmp_path):
+    """service.main() must call startup_sync.startup_sync after preflight
+    succeeds and before scheduler.start()."""
+    _patch_service(monkeypatch, tmp_path)
+
+    monkeypatch.setattr(
+        preflight, "run",
+        lambda **kw: [Check(name="ok", severity=Severity.HARD, ok=True, message="")],
+    )
+
+    order = []
+
+    def _ok_sync(*a, **kw):
+        order.append("sync")
+        return MagicMock(action="noop", message="ok")
+
+    mock_sync = MagicMock(side_effect=_ok_sync)
+    mock_scheduler_cls = MagicMock()
+    mock_scheduler = mock_scheduler_cls.return_value
+    mock_scheduler.start.side_effect = lambda: order.append("start")
+
+    monkeypatch.setattr("s7bb_fetcher.startup_sync.startup_sync", mock_sync)
+    monkeypatch.setattr("s7bb_fetcher.service.BlockingScheduler", mock_scheduler_cls)
+    monkeypatch.setattr(
+        "s7bb_fetcher.pusher._resolve_slug",
+        lambda repo: "owner/repo",
+    )
+    monkeypatch.setattr("git.Repo", MagicMock(return_value=MagicMock()))
+
+    from s7bb_fetcher.service import main
+    main()
+
+    assert mock_sync.call_count == 1
+    assert order == ["sync", "start"]
+
+
+def test_main_aborts_when_startup_sync_raises(monkeypatch, tmp_path):
+    _patch_service(monkeypatch, tmp_path)
+
+    monkeypatch.setattr(
+        preflight, "run",
+        lambda **kw: [Check(name="ok", severity=Severity.HARD, ok=True, message="")],
+    )
+
+    mock_scheduler_cls = MagicMock()
+    monkeypatch.setattr("s7bb_fetcher.service.BlockingScheduler", mock_scheduler_cls)
+    monkeypatch.setattr(
+        "s7bb_fetcher.pusher._resolve_slug",
+        lambda repo: "owner/repo",
+    )
+    monkeypatch.setattr(
+        "s7bb_fetcher.startup_sync.startup_sync",
+        MagicMock(side_effect=RuntimeError("network down")),
+    )
+    monkeypatch.setattr("git.Repo", MagicMock(return_value=MagicMock()))
+
+    from s7bb_fetcher.service import main
+    with pytest.raises(RuntimeError, match="network down"):
+        main()
+    mock_scheduler_cls.return_value.start.assert_not_called()

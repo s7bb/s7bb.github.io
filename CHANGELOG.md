@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Today page footer now shows the expected time of the next data refresh ("Nächstes Update: HH:MM") next to the existing "Stand" timestamp.
 - Startup preflight check in `s7bb-fetcher` validating volume permissions, git repo writability, "dubious ownership", SQLite integrity, and GitHub PAT/repo access. Hard failures abort startup; soft failures (e.g. GitHub reach) log a warning. New `s7bb-preflight` CLI runs the same checks on demand.
+- Startup sync check in `s7bb-fetcher`: after preflight and before the scheduler runs, reconcile local `data/latest.json` with the copy on `origin/main`. Pushes the local file when its `generated_at` is newer (no need to wait up to an hour for the next hourly export); overwrites the local file with the remote bytes when remote is newer (handles VM rollback). Hard-fails startup on network, parse, or push errors.
 
 ### Changed
 - Letzte-7-Tage view: Verspätung und Ausfälle in getrennte Diagramme aufgeteilt; Ø-Verspätung mit grünem Pünktlichkeitsband (0–6 min); kompakter KPI-Streifen pro Richtung; konsistente Farben für Richtung München (blau) und Wolfratshausen (lila).
