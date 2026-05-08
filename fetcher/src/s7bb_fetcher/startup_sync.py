@@ -12,9 +12,11 @@ failure.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Literal
 
 logger = logging.getLogger(__name__)
@@ -30,3 +32,17 @@ class SyncResult:
 
 def startup_sync(*args, **kwargs) -> SyncResult:
     raise NotImplementedError
+
+
+def _read_local_generated_at(path: Path) -> datetime | None:
+    """Return ``generated_at`` from ``path`` as a tz-aware datetime, or None
+    if the file does not exist. Raises if the file is unreadable, not JSON,
+    missing the ``generated_at`` key, or has an unparseable ISO timestamp."""
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_bytes())
+    raw = payload["generated_at"]
+    ts = datetime.fromisoformat(raw)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    return ts
