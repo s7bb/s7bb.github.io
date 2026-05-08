@@ -159,3 +159,36 @@ def test_fetch_remote_raises_on_missing_generated_at():
                return_value=_mock_response(200, body)):
         with pytest.raises(KeyError):
             _fetch_remote("owner/repo", timeout=5.0)
+
+
+# ---------------------------------------------------------------------------
+# Task 4: _pull atomic-write helper
+# ---------------------------------------------------------------------------
+
+from s7bb_fetcher.startup_sync import _pull
+
+
+def test_pull_writes_bytes_to_target(tmp_path: Path):
+    target = tmp_path / "data" / "latest.json"
+    _pull(target, b'{"hello":"world"}')
+    assert target.read_bytes() == b'{"hello":"world"}'
+
+
+def test_pull_creates_parent_directory(tmp_path: Path):
+    target = tmp_path / "deep" / "nested" / "latest.json"
+    _pull(target, b"{}")
+    assert target.exists()
+
+
+def test_pull_overwrites_existing_file(tmp_path: Path):
+    target = tmp_path / "latest.json"
+    target.write_bytes(b"old")
+    _pull(target, b"new")
+    assert target.read_bytes() == b"new"
+
+
+def test_pull_leaves_no_tmp_files_on_success(tmp_path: Path):
+    target = tmp_path / "latest.json"
+    _pull(target, b"{}")
+    leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(".")]
+    assert leftovers == []

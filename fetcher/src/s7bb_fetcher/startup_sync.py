@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,6 +36,28 @@ class SyncResult:
 
 def startup_sync(*args, **kwargs) -> SyncResult:
     raise NotImplementedError
+
+
+def _pull(data_path: Path, raw_bytes: bytes) -> None:
+    """Atomically replace ``data_path`` with ``raw_bytes``.
+
+    The temp file lives in the same directory so ``os.replace`` is atomic on
+    POSIX. Cleans up the temp file if writing fails.
+    """
+    data_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{data_path.name}.", suffix=".tmp", dir=str(data_path.parent)
+    )
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(raw_bytes)
+        os.replace(tmp, data_path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 _RAW_URL_TMPL = "https://raw.githubusercontent.com/{slug}/main/data/latest.json"
