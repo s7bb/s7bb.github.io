@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-09T00:00:00.044340+00:00",
+  "generated_at": "2026-05-09T01:00:00.041485+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -4911,15 +4911,27 @@
       "delay_minutes": 2,
       "cancelled": false,
       "reason": null
+    },
+    {
+      "train_id": "-106823809611389433-2605090234-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-09T00:59:00+00:00",
+      "actual_time": "2026-05-09T01:02:00+00:00",
+      "delay_minutes": 3,
+      "cancelled": false,
+      "reason": null
     }
   ],
   "aggregates": {
     "today": {
-      "total": 0,
+      "total": 1,
       "on_time": 0,
-      "late": 0,
+      "late": 1,
       "cancelled": 0,
-      "avg_delay_min": 0.0,
+      "avg_delay_min": 3.0,
       "by_direction": {
         "muenchen": {
           "total": 0,
@@ -4930,19 +4942,19 @@
           "missing": 0
         },
         "wolfratshausen": {
-          "total": 0,
+          "total": 1,
           "on_time": 0,
-          "late": 0,
+          "late": 1,
           "cancelled": 0,
-          "avg_delay_min": 0.0,
+          "avg_delay_min": 3.0,
           "missing": 0
         }
       }
     },
     "last_7_days": {
-      "total": 409,
+      "total": 410,
       "on_time": 127,
-      "late": 264,
+      "late": 265,
       "cancelled": 18,
       "avg_delay_min": 2.0,
       "by_direction": {
@@ -4955,12 +4967,12 @@
           "missing": 50
         },
         "wolfratshausen": {
-          "total": 203,
+          "total": 204,
           "on_time": 59,
-          "late": 135,
+          "late": 136,
           "cancelled": 9,
           "avg_delay_min": 2.2,
-          "missing": 53
+          "missing": 55
         }
       }
     }
@@ -4968,7 +4980,9 @@
   "expected_slots": {
     "today": {
       "muenchen": [],
-      "wolfratshausen": []
+      "wolfratshausen": [
+        "2026-05-09T00:59:00+00:00"
+      ]
     }
   }
 }
