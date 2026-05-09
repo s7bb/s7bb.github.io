@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-09T18:00:00.046107+00:00",
+  "generated_at": "2026-05-09T19:00:00.058203+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -5931,56 +5931,104 @@
       "delay_minutes": 0,
       "cancelled": false,
       "reason": null
+    },
+    {
+      "train_id": "-8969098992745335979-2605092003-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-09T18:19:00+00:00",
+      "actual_time": "2026-05-09T18:19:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-273127268417641730-2605091954-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-09T18:19:00+00:00",
+      "actual_time": "2026-05-09T18:19:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-2421501507036224917-2605092023-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-09T18:39:00+00:00",
+      "actual_time": "2026-05-09T18:39:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-4495279047168127617-2605092014-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-09T18:39:00+00:00",
+      "actual_time": "2026-05-09T18:39:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
     }
   ],
   "aggregates": {
     "today": {
-      "total": 85,
-      "on_time": 60,
+      "total": 89,
+      "on_time": 64,
       "late": 24,
       "cancelled": 1,
       "avg_delay_min": 0.8,
       "by_direction": {
         "muenchen": {
-          "total": 43,
-          "on_time": 32,
+          "total": 45,
+          "on_time": 34,
           "late": 10,
           "cancelled": 1,
-          "avg_delay_min": 0.5,
-          "missing": 1
+          "avg_delay_min": 0.4,
+          "missing": 2
         },
         "wolfratshausen": {
-          "total": 42,
-          "on_time": 28,
+          "total": 44,
+          "on_time": 30,
           "late": 14,
           "cancelled": 0,
           "avg_delay_min": 1.1,
-          "missing": 9
+          "missing": 10
         }
       }
     },
     "last_7_days": {
-      "total": 494,
-      "on_time": 187,
+      "total": 498,
+      "on_time": 191,
       "late": 288,
       "cancelled": 19,
-      "avg_delay_min": 1.8,
+      "avg_delay_min": 1.7,
       "by_direction": {
         "muenchen": {
-          "total": 249,
-          "on_time": 100,
+          "total": 251,
+          "on_time": 102,
           "late": 139,
           "cancelled": 10,
           "avg_delay_min": 1.5,
-          "missing": 60
+          "missing": 61
         },
         "wolfratshausen": {
-          "total": 245,
-          "on_time": 87,
+          "total": 247,
+          "on_time": 89,
           "late": 149,
           "cancelled": 9,
           "avg_delay_min": 2.0,
-          "missing": 64
+          "missing": 65
         }
       }
     }
@@ -6031,7 +6079,10 @@
         "2026-05-09T16:39:00+00:00",
         "2026-05-09T16:59:00+00:00",
         "2026-05-09T17:19:00+00:00",
-        "2026-05-09T17:39:00+00:00"
+        "2026-05-09T17:39:00+00:00",
+        "2026-05-09T17:59:00+00:00",
+        "2026-05-09T18:19:00+00:00",
+        "2026-05-09T18:39:00+00:00"
       ],
       "wolfratshausen": [
         "2026-05-09T00:59:00+00:00",
@@ -6084,7 +6135,10 @@
         "2026-05-09T16:39:00+00:00",
         "2026-05-09T16:59:00+00:00",
         "2026-05-09T17:19:00+00:00",
-        "2026-05-09T17:39:00+00:00"
+        "2026-05-09T17:39:00+00:00",
+        "2026-05-09T17:59:00+00:00",
+        "2026-05-09T18:19:00+00:00",
+        "2026-05-09T18:39:00+00:00"
       ]
     }
   }
