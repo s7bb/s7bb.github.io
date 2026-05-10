@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fetcher Docker image now ships the `scripts/` directory, so one-shot maintenance scripts (e.g. `python -m scripts.migrate_shift_public_times`) are runnable inside the container. Without this the 0.4.2 DB migration failed with `ModuleNotFoundError: No module named 'scripts'` when invoked via `docker compose run`.
+
 ## [0.4.2] - 2026-05-10
 
 ### Fixed
