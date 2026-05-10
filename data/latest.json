@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-10T00:00:00.048096+00:00",
+  "generated_at": "2026-05-10T01:00:00.057860+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -6191,19 +6191,31 @@
       "direction": "Wolfratshausen",
       "direction_bucket": "wolfratshausen",
       "scheduled_time": "2026-05-09T23:59:00+00:00",
-      "actual_time": "2026-05-10T00:09:00+00:00",
-      "delay_minutes": 10,
+      "actual_time": "2026-05-10T00:27:00+00:00",
+      "delay_minutes": 28,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-106823809611389433-2605100234-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-10T00:59:00+00:00",
+      "actual_time": "2026-05-10T01:01:00+00:00",
+      "delay_minutes": 2,
       "cancelled": false,
       "reason": null
     }
   ],
   "aggregates": {
     "today": {
-      "total": 0,
+      "total": 1,
       "on_time": 0,
-      "late": 0,
+      "late": 1,
       "cancelled": 0,
-      "avg_delay_min": 0.0,
+      "avg_delay_min": 2.0,
       "by_direction": {
         "muenchen": {
           "total": 0,
@@ -6214,19 +6226,19 @@
           "missing": 0
         },
         "wolfratshausen": {
-          "total": 0,
+          "total": 1,
           "on_time": 0,
-          "late": 0,
+          "late": 1,
           "cancelled": 0,
-          "avg_delay_min": 0.0,
+          "avg_delay_min": 2.0,
           "missing": 0
         }
       }
     },
     "last_7_days": {
-      "total": 516,
+      "total": 517,
       "on_time": 197,
-      "late": 300,
+      "late": 301,
       "cancelled": 19,
       "avg_delay_min": 1.9,
       "by_direction": {
@@ -6239,12 +6251,12 @@
           "missing": 68
         },
         "wolfratshausen": {
-          "total": 256,
+          "total": 257,
           "on_time": 90,
-          "late": 157,
+          "late": 158,
           "cancelled": 9,
-          "avg_delay_min": 2.1,
-          "missing": 72
+          "avg_delay_min": 2.2,
+          "missing": 74
         }
       }
     }
@@ -6252,7 +6264,9 @@
   "expected_slots": {
     "today": {
       "muenchen": [],
-      "wolfratshausen": []
+      "wolfratshausen": [
+        "2026-05-10T00:59:00+00:00"
+      ]
     }
   }
 }
