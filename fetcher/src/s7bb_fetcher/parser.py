@@ -1,17 +1,12 @@
 """Parse DB Timetables XML into ArrivalRecord dataclasses."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from lxml import etree
 
 _DE_TZ = ZoneInfo("Europe/Berlin")
-
-# DB Timetables emits the internal track-side timestamp on <dp pt=...> /
-# <dp ct=...>, which is one minute before the published S7 timetable at
-# Baierbrunn. Shift here so consumers see the time on the public board.
-_PUBLIC_OFFSET = timedelta(minutes=1)
 
 
 @dataclass
@@ -29,9 +24,9 @@ class ArrivalRecord:
 
 
 def _parse_db_time(raw: str) -> datetime:
-    """DB time format: YYMMDDHHMM (Europe/Berlin local) → public-time UTC datetime."""
+    """DB time format: YYMMDDHHMM (Europe/Berlin local) → UTC datetime."""
     local = datetime.strptime(raw, "%y%m%d%H%M").replace(tzinfo=_DE_TZ)
-    return (local + _PUBLIC_OFFSET).astimezone(UTC)
+    return local.astimezone(UTC)
 
 
 def _iso(dt: datetime | None) -> str | None:

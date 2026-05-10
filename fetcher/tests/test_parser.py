@@ -73,24 +73,22 @@ def test_records_have_direction_bucket():
         assert r.direction_bucket in {"muenchen", "wolfratshausen", "unknown"}
 
 
-def test_scheduled_time_is_public_departure():
-    """DB internal `dp pt` is one minute before the public timetable.
+def test_scheduled_time_matches_db_pt():
+    """`dp pt` is the public planned departure time; parser surfaces it as-is.
 
-    Real-world `<dp pt="2605051259">` (Berlin local) corresponds to the
-    public 13:00 Berlin departure. Parser must surface 13:00 (UTC 11:00),
-    not 12:59 (UTC 10:59).
+    `<dp pt="2605051259">` (Berlin local 12:59) → UTC 10:59. No shift.
     """
     records = parse_timetable(_load("plan_real.xml"), _load("changes_real.xml"))
     rec = next(r for r in records if r.train_id == "trip-S7-real-001")
-    assert rec.scheduled_time == "2026-05-05T11:00:00+00:00"
+    assert rec.scheduled_time == "2026-05-05T10:59:00+00:00"
 
 
-def test_actual_time_is_public_departure():
-    """ct=`2605051300` (internal 13:00) is one minute late vs public 13:00.
+def test_actual_time_matches_db_ct():
+    """`dp ct="2605051300"` (Berlin local 13:00) → UTC 11:00.
 
-    Public departure shifts to 13:01 → UTC 11:01; delay is +1 minute.
+    One minute after the planned 12:59 → delay 1 minute.
     """
     records = parse_timetable(_load("plan_real.xml"), _load("changes_real.xml"))
     rec = next(r for r in records if r.train_id == "trip-S7-real-001")
-    assert rec.actual_time == "2026-05-05T11:01:00+00:00"
+    assert rec.actual_time == "2026-05-05T11:00:00+00:00"
     assert rec.delay_minutes == 1
