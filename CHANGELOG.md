@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Heute view: scheduled times in the row list now display in the user's local time zone correctly. Previously the slot keys had their timezone suffix sliced off before being passed to `new Date()`, which JavaScript then interpreted as the *browser's* local time — shifting every shown time by the browser's UTC offset (e.g. an early-morning train at `00:19` Berlin appeared as `22:19` because the underlying UTC instant `2026-05-09T22:19+00:00` was re-parsed as local).
+
 ## [0.4.0] - 2026-05-10
 
 ### Added
