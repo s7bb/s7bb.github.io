@@ -109,6 +109,16 @@ function nowForFiltering(): Date {
   return override ? new Date(override) : new Date();
 }
 
+// Canonical UTC ISO key. Different sources emit the same instant in
+// different formats (e.g. "2026-05-09T22:19:00+00:00" vs ".000Z"); a
+// canonical key lets Set/Map dedupe them. Critically, do NOT slice off
+// the timezone — `new Date("...T22:19:00")` (no TZ) is parsed as the
+// browser's *local* time, which would shift the displayed value by the
+// browser's UTC offset.
+function isoKey(iso: string): string {
+  return new Date(iso).toISOString();
+}
+
 export function arrivalsByDirection(data: S7Data, bucket: "muenchen" | "wolfratshausen"): SlotRow[] {
   const now = nowForFiltering();
   const today = berlinDate(now);
@@ -123,10 +133,10 @@ export function arrivalsByDirection(data: S7Data, bucket: "muenchen" | "wolfrats
   // Drops stale slots from previous days and avoids "keine Daten" for future trains.
   const slots = (data.expected_slots?.today?.[bucket] ?? [])
     .filter((s) => berlinDate(s) === today && new Date(s) <= now)
-    .map((s) => s.slice(0, 19));
+    .map(isoKey);
 
-  const allSlots = new Set([...slots, ...observed.map((a) => a.scheduled_time.slice(0, 19))]);
-  const recordByTime = new Map(observed.map((a) => [a.scheduled_time.slice(0, 19), a]));
+  const allSlots = new Set([...slots, ...observed.map((a) => isoKey(a.scheduled_time))]);
+  const recordByTime = new Map(observed.map((a) => [isoKey(a.scheduled_time), a]));
 
   return [...allSlots]
     .sort()
