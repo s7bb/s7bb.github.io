@@ -24,6 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     fi
 
 COPY src/ src/
+COPY scripts/ scripts/
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -f uv.lock ]; then \
         uv sync --no-dev --frozen; \
