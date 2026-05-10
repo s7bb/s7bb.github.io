@@ -1,5 +1,5 @@
-import type { S7Data } from "../data.js";
-import { arrivalsByDirection, directionLabel, escapeHtml } from "../data.js";
+import type { S7Data, UnifiedSlotRow, DirectionAggregate } from "../data.js";
+import { unifiedTodayRows, escapeHtml } from "../data.js";
 import type { Arrival } from "../data.js";
 
 function formatTime(iso: string): string {
@@ -19,57 +19,61 @@ function statusBadge(a: Arrival): string {
   return `<span class="badge badge--ok">pünktlich</span>`;
 }
 
-function renderDirectionColumn(data: S7Data, bucket: "muenchen" | "wolfratshausen"): string {
-  const rows = arrivalsByDirection(data, bucket);
-  const agg = data.aggregates.today.by_direction[bucket];
-  const label = directionLabel(bucket);
-
-  const summaryItems = [
+function summaryBar(agg: DirectionAggregate): string {
+  return [
     `<span class="summary-item summary-item--ok">✓ ${agg.on_time} pünktlich</span>`,
     `<span class="summary-item summary-item--late">⏱ ${agg.late} verspätet</span>`,
     `<span class="summary-item summary-item--cancelled">✕ ${agg.cancelled} ausgefallen</span>`,
     agg.missing > 0 ? `<span class="summary-item summary-item--missing">? ${agg.missing} keine Daten</span>` : "",
   ].filter(Boolean).join("");
+}
 
-  const rowsHtml = rows.map(({ slot, record }) => {
-    if (!record) {
-      return `
-        <div class="arrival-row arrival-row--missing">
-          <span class="arrival-time">${formatTime(slot)}</span>
-          <span class="arrival-line">S7</span>
-          <span class="arrival-direction">—</span>
-          <span class="badge badge--missing">keine Daten</span>
-        </div>`;
-    }
+function rowFor(slot: string, a: Arrival | null): string {
+  const time = formatTime(slot);
+  if (!a) {
     return `
-      <div class="arrival-row ${record.cancelled ? "arrival-row--cancelled" : ""}">
-        <span class="arrival-time">${formatTime(record.scheduled_time)}</span>
-        <span class="arrival-line">S7</span>
-        <span class="arrival-direction">${escapeHtml(record.direction)}</span>
-        ${statusBadge(record)}
-        ${record.reason ? `<span class="arrival-reason">${escapeHtml(record.reason)}</span>` : ""}
+      <div class="arrival-row arrival-row--empty">
+        <span class="arrival-time">${time}</span>
+        <span class="arrival-empty">—</span>
       </div>`;
-  }).join("");
-
+  }
+  const cancelledCls = a.cancelled ? " arrival-row--cancelled" : "";
   return `
-    <section class="direction-col">
-      <h3>Richtung ${label}</h3>
-      <div class="summary-bar">${summaryItems}</div>
-      <div class="arrival-list">
-        ${rows.length ? rowsHtml : "<p>Keine Daten für heute.</p>"}
-      </div>
-    </section>`;
+    <div class="arrival-row${cancelledCls}">
+      <span class="arrival-time">${time}</span>
+      <span class="arrival-direction">${escapeHtml(a.direction)}</span>
+      ${statusBadge(a)}
+      ${a.reason ? `<span class="arrival-reason">${escapeHtml(a.reason)}</span>` : ""}
+    </div>`;
+}
+
+function renderRows(rows: UnifiedSlotRow[]): string {
+  // Two cells per slot in row-major order so the outer 2-col grid pairs
+  // München (left) and Wolfratshausen (right) at the same vertical row.
+  return rows
+    .map((r) => rowFor(r.slot, r.muenchen) + rowFor(r.slot, r.wolfratshausen))
+    .join("");
 }
 
 export function renderToday(data: S7Data, container: HTMLElement): void {
   const agg = data.aggregates.today;
+  const rows = unifiedTodayRows(data);
 
   container.innerHTML = `
     <h2>Heute — S7 Baierbrunn</h2>
     <div class="today-grid">
-      ${renderDirectionColumn(data, "muenchen")}
-      ${renderDirectionColumn(data, "wolfratshausen")}
+      <div class="direction-col">
+        <h3>Richtung München</h3>
+        <div class="summary-bar">${summaryBar(agg.by_direction.muenchen)}</div>
+      </div>
+      <div class="direction-col">
+        <h3>Richtung Wolfratshausen</h3>
+        <div class="summary-bar">${summaryBar(agg.by_direction.wolfratshausen)}</div>
+      </div>
     </div>
+    ${rows.length
+      ? `<div class="today-rows">${renderRows(rows)}</div>`
+      : `<p>Keine Daten für heute.</p>`}
     <details class="today-combined">
       <summary>Gesamt heute: ${agg.total} Züge · Ø ${agg.avg_delay_min} min Verspätung</summary>
     </details>

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `s7bb-site-dev` service in `docker-compose.yml` (under the `dev` profile) runs the Vite dev server inside a container at <http://localhost:5173>. An entrypoint script copies `data/latest.json` into the container, shifts every time +1 minute (so the bundled pre-fix data file matches the new departure-time semantics), and exports `VITE_DEV_NOW` from the file's `generated_at` so the today-page filters treat the bundled data as live. Run with `docker compose --profile dev up s7bb-site-dev`.
+
+### Changed
+- Heute view now renders both directions side-by-side aligned by scheduled time. Each row shows the same time on a single line, with München on the left and Wolfratshausen on the right; gaps in one direction (e.g. an early-morning train that only runs toward Wolfratshausen) are rendered as an empty placeholder so the rest of the day stays aligned.
+
+### Fixed
+- Scheduled times now match the public S7 timetable (x:00, x:20, x:40) instead of being one minute earlier (x:19, x:39, x:59). The fetcher previously stored the planned arrival time at Baierbrunn; it now stores the planned departure time, which is what passengers see on the Bahn schedule. Delays are still computed against the same time, so values remain accurate.
+- Heute view no longer shows "keine Daten" rows for non-operational hours or for stale data from a previous day. The expected-slot list is now constrained to the viewer's current Europe/Berlin date and to slots whose scheduled time has already passed.
+- Today's aggregate now uses the Europe/Berlin local date, so trains running just before midnight or shortly after are bucketed into the correct day (previously the UTC date boundary mis-bucketed late-evening trains).
+
 ## [0.3.0] - 2026-05-08
 
 ### Added

@@ -73,26 +73,23 @@ def parse_timetable(
     for stop in plan_xml.findall(".//s"):
         sid = stop.get("id", "")
 
-        ar = stop.find("ar")
-        if ar is None:
-            continue  # departure-only stop, skip
+        dp = stop.find("dp")
+        if dp is None:
+            continue  # terminus / arrival-only stop, skip (no public departure time)
 
-        line = (ar.get("l") or "").strip()
-        if line != "S7":
+        line = (dp.get("l") or "").strip()
+        ar = stop.find("ar")
+        if line != "S7" and (ar is None or (ar.get("l") or "").strip() != "S7"):
             continue
 
-        pt_raw = ar.get("pt")
+        pt_raw = dp.get("pt")
         if not pt_raw:
             continue
 
         scheduled_dt = _parse_db_time(pt_raw)
 
-        dp = stop.find("dp")
-        direction = "unbekannt"
-        dp_ppth = ""
-        if dp is not None:
-            dp_ppth = dp.get("ppth", "")
-            direction = _last_stop(dp_ppth) if dp_ppth else direction
+        dp_ppth = dp.get("ppth", "")
+        direction = _last_stop(dp_ppth) if dp_ppth else "unbekannt"
         if direction == "unbekannt" and ar is not None:
             ppth = ar.get("ppth", "")
             if ppth:
@@ -107,13 +104,19 @@ def parse_timetable(
 
         change_stop = change_index.get(sid)
         if change_stop is not None:
+            cdp = change_stop.find("dp")
             car = change_stop.find("ar")
-            if car is not None:
-                cs = car.get("cs", "")
-                cancelled = cs == "c"
-                ct_raw = car.get("ct")
-                if ct_raw and not cancelled:
-                    actual_dt = _parse_db_time(ct_raw)
+            # Cancellation: either ar or dp can carry cs="c"
+            if (cdp is not None and cdp.get("cs", "") == "c") or (
+                car is not None and car.get("cs", "") == "c"
+            ):
+                cancelled = True
+            ct_raw = cdp.get("ct") if cdp is not None else None
+            if ct_raw and not cancelled:
+                actual_dt = _parse_db_time(ct_raw)
+            if cdp is not None:
+                reason = cdp.get("m") or cdp.get("msc")
+            if reason is None and car is not None:
                 reason = car.get("m") or car.get("msc")
 
         delay_minutes: int | None = None

@@ -67,27 +67,70 @@ export interface SlotRow {
   record: Arrival | null;  // null = missing / no data
 }
 
-export function arrivalsByDirection(data: S7Data, bucket: "muenchen" | "wolfratshausen"): SlotRow[] {
-  const today = new Date().toISOString().slice(0, 10);
-  const observed = data.arrivals.filter(
-    (a) => a.direction_bucket === bucket && a.scheduled_time.startsWith(today),
-  );
-  const observedTimes = new Set(observed.map((a) => a.scheduled_time.slice(0, 19)));
+export interface UnifiedSlotRow {
+  slot: string;
+  muenchen: Arrival | null;
+  wolfratshausen: Arrival | null;
+}
 
-  const slots = (data.expected_slots?.today?.[bucket] ?? []).map((s) => s.slice(0, 19));
+/** Time-keyed union of both directions: rows align on shared scheduled time;
+ *  a direction with no train at a slot gets a null cell (rendered as empty). */
+export function unifiedTodayRows(data: S7Data): UnifiedSlotRow[] {
+  const m = arrivalsByDirection(data, "muenchen");
+  const w = arrivalsByDirection(data, "wolfratshausen");
+  const byTime = new Map<string, UnifiedSlotRow>();
+  const ensure = (slot: string) => {
+    let r = byTime.get(slot);
+    if (!r) {
+      r = { slot, muenchen: null, wolfratshausen: null };
+      byTime.set(slot, r);
+    }
+    return r;
+  };
+  for (const r of m) ensure(r.slot).muenchen = r.record;
+  for (const r of w) ensure(r.slot).wolfratshausen = r.record;
+  return [...byTime.values()].sort((a, b) => a.slot.localeCompare(b.slot));
+}
+
+function berlinDate(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
+
+// Dev override: when VITE_DEV_NOW is set (only in dev), pretend it's that
+// instant. Lets the docker-compose dev container exercise the today page
+// against the latest.json checked into the repo, even when its dates are
+// in the past relative to wall-clock now.
+function nowForFiltering(): Date {
+  const override = import.meta.env.VITE_DEV_NOW as string | undefined;
+  return override ? new Date(override) : new Date();
+}
+
+export function arrivalsByDirection(data: S7Data, bucket: "muenchen" | "wolfratshausen"): SlotRow[] {
+  const now = nowForFiltering();
+  const today = berlinDate(now);
+
+  const observed = data.arrivals.filter(
+    (a) =>
+      a.direction_bucket === bucket &&
+      berlinDate(a.scheduled_time) === today,
+  );
+
+  // Only include slots whose scheduled time is on Berlin "today" AND already past.
+  // Drops stale slots from previous days and avoids "keine Daten" for future trains.
+  const slots = (data.expected_slots?.today?.[bucket] ?? [])
+    .filter((s) => berlinDate(s) === today && new Date(s) <= now)
+    .map((s) => s.slice(0, 19));
+
   const allSlots = new Set([...slots, ...observed.map((a) => a.scheduled_time.slice(0, 19))]);
   const recordByTime = new Map(observed.map((a) => [a.scheduled_time.slice(0, 19), a]));
 
   return [...allSlots]
     .sort()
-    .map((slot) => ({
-      slot,
-      record: recordByTime.get(slot) ?? (observedTimes.has(slot) ? null : null),
-    }))
-    .map((row) => ({
-      slot: row.slot,
-      record: recordByTime.get(row.slot) ?? null,
-    }));
+    .map((slot) => ({ slot, record: recordByTime.get(slot) ?? null }));
 }
 
 export function last7DaysByDay(
