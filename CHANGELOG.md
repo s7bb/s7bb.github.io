@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-10
+
 ### Added
 - `s7bb-site-dev` service in `docker-compose.yml` (under the `dev` profile) runs the Vite dev server inside a container at <http://localhost:5173>. An entrypoint script copies `data/latest.json` into the container, shifts every time +1 minute (so the bundled pre-fix data file matches the new departure-time semantics), and exports `VITE_DEV_NOW` from the file's `generated_at` so the today-page filters treat the bundled data as live. Run with `docker compose --profile dev up s7bb-site-dev`.
 
