@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-10T18:00:00.031738+00:00",
+  "generated_at": "2026-05-10T19:00:00.035215+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -4503,28 +4503,76 @@
       "delay_minutes": 1,
       "cancelled": false,
       "reason": null
+    },
+    {
+      "train_id": "-273127268417641730-2605101954-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-10T18:21:00+00:00",
+      "actual_time": "2026-05-10T18:21:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-8969098992745335979-2605102003-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-10T18:21:00+00:00",
+      "actual_time": "2026-05-10T18:22:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-4495279047168127617-2605102014-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-10T18:41:00+00:00",
+      "actual_time": "2026-05-10T18:43:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-2421501507036224917-2605102023-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-10T18:41:00+00:00",
+      "actual_time": "2026-05-10T18:41:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
     }
   ],
   "aggregates": {
     "today": {
-      "total": 48,
-      "on_time": 26,
-      "late": 20,
+      "total": 52,
+      "on_time": 28,
+      "late": 22,
       "cancelled": 2,
       "avg_delay_min": 0.7,
       "by_direction": {
         "muenchen": {
-          "total": 24,
-          "on_time": 14,
-          "late": 9,
+          "total": 26,
+          "on_time": 15,
+          "late": 10,
           "cancelled": 1,
-          "avg_delay_min": 0.7,
+          "avg_delay_min": 0.6,
           "missing": 0
         },
         "wolfratshausen": {
-          "total": 24,
-          "on_time": 12,
-          "late": 11,
+          "total": 26,
+          "on_time": 13,
+          "late": 12,
           "cancelled": 1,
           "avg_delay_min": 0.7,
           "missing": 0
@@ -4532,24 +4580,24 @@
       }
     },
     "last_7_days": {
-      "total": 375,
-      "on_time": 116,
-      "late": 239,
+      "total": 379,
+      "on_time": 118,
+      "late": 241,
       "cancelled": 20,
       "avg_delay_min": 2.0,
       "by_direction": {
         "muenchen": {
-          "total": 189,
-          "on_time": 64,
-          "late": 115,
+          "total": 191,
+          "on_time": 65,
+          "late": 116,
           "cancelled": 10,
           "avg_delay_min": 1.8,
           "missing": 0
         },
         "wolfratshausen": {
-          "total": 186,
-          "on_time": 52,
-          "late": 124,
+          "total": 188,
+          "on_time": 53,
+          "late": 125,
           "cancelled": 10,
           "avg_delay_min": 2.3,
           "missing": 0
@@ -4583,7 +4631,9 @@
         "2026-05-10T16:41:00+00:00",
         "2026-05-10T17:01:00+00:00",
         "2026-05-10T17:21:00+00:00",
-        "2026-05-10T17:41:00+00:00"
+        "2026-05-10T17:41:00+00:00",
+        "2026-05-10T18:21:00+00:00",
+        "2026-05-10T18:41:00+00:00"
       ],
       "wolfratshausen": [
         "2026-05-10T10:01:00+00:00",
@@ -4609,7 +4659,9 @@
         "2026-05-10T16:41:00+00:00",
         "2026-05-10T17:01:00+00:00",
         "2026-05-10T17:21:00+00:00",
-        "2026-05-10T17:41:00+00:00"
+        "2026-05-10T17:41:00+00:00",
+        "2026-05-10T18:21:00+00:00",
+        "2026-05-10T18:41:00+00:00"
       ]
     }
   }
