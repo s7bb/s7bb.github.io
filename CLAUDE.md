@@ -86,7 +86,7 @@ npm run lint     # eslint
 
 **Changelog:** [Keep a Changelog](https://keepachangelog.com) format. Every user-facing change goes in `CHANGELOG.md` under `[Unreleased]` before merging. Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`. Entries describe user-visible effect, not code paths.
 
-**Release:** bump version in `pyproject.toml` + rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` + commit `chore(release): X.Y.Z` + tag `vX.Y.Z`.
+**Release:** bump version in `pyproject.toml` + sync `fetcher/uv.lock` (run `uv sync --no-dev` in `fetcher/`) + rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` + commit `chore(release): X.Y.Z` + tag `vX.Y.Z` + push tag + create GitHub Release at <https://github.com/s7bb/s7bb.github.io/releases> with `gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <(awk '/^## \[X.Y.Z\]/,/^## \[/' CHANGELOG.md | sed '$d')` (or `--notes-from-tag` if the tag was annotated). For the latest release, add `--latest`. The Releases page is the canonical user-visible changelog and must stay in sync with `CHANGELOG.md`.
 
-**Post-merge release trigger:** After a PR with semver impact (any `feat`, `fix`, or breaking change) is merged into `main`, cut a release immediately: pull `main`, run the Release procedure above, push the tag. PATCH for `fix`, MINOR for `feat`, MAJOR for `feat!` / `BREAKING CHANGE`. Pure `docs`/`chore`/`refactor`/`test`/`style` PRs do not trigger a release.
+**Post-merge release trigger:** After a PR with semver impact (any `feat`, `fix`, or breaking change) is merged into `main`, cut a release immediately: pull `main`, run the full Release procedure above (including the GitHub Release on the Releases page). PATCH for `fix`, MINOR for `feat`, MAJOR for `feat!` / `BREAKING CHANGE`. Pure `docs`/`chore`/`refactor`/`test`/`style` PRs do not trigger a release.
 
