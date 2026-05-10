@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-10
+
+### Fixed
+
+- Parser now shifts DB Timetables internal departure timestamp by +1 minute so `scheduled_time` and `actual_time` reflect the public S7 board (`:00 / :20 / :40` instead of `:59 / :19 / :39`). Prior backfill of `latest.json` was being overwritten on every hourly export.
+- Exporter no longer infers a 20-minute cadence grid between first/last observed train, eliminating the phantom "keine Daten" rows in the today view that appeared outside actual service hours and in operational gaps. Per-direction `missing` counter is consequently always `0`.
+- One-shot `scripts/migrate_shift_public_times.py` corrects historical SQLite rows so they match the new public-time convention.
+
 ## [0.4.1] - 2026-05-10
 
 ### Fixed
