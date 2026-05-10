@@ -71,3 +71,26 @@ def test_records_have_direction_bucket():
     records = parse_timetable(_load("plan.xml"), _load("changes_empty.xml"))
     for r in records:
         assert r.direction_bucket in {"muenchen", "wolfratshausen", "unknown"}
+
+
+def test_scheduled_time_is_public_departure():
+    """DB internal `dp pt` is one minute before the public timetable.
+
+    Real-world `<dp pt="2605051259">` (Berlin local) corresponds to the
+    public 13:00 Berlin departure. Parser must surface 13:00 (UTC 11:00),
+    not 12:59 (UTC 10:59).
+    """
+    records = parse_timetable(_load("plan_real.xml"), _load("changes_real.xml"))
+    rec = next(r for r in records if r.train_id == "trip-S7-real-001")
+    assert rec.scheduled_time == "2026-05-05T11:00:00+00:00"
+
+
+def test_actual_time_is_public_departure():
+    """ct=`2605051300` (internal 13:00) is one minute late vs public 13:00.
+
+    Public departure shifts to 13:01 → UTC 11:01; delay is +1 minute.
+    """
+    records = parse_timetable(_load("plan_real.xml"), _load("changes_real.xml"))
+    rec = next(r for r in records if r.train_id == "trip-S7-real-001")
+    assert rec.actual_time == "2026-05-05T11:01:00+00:00"
+    assert rec.delay_minutes == 1

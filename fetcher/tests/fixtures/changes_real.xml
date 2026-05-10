@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<timetable station="Baierbrunn" eva="8000781">
+  <s id="trip-S7-real-001">
+    <dp ct="2605051300" cs="p"/>
+  </s>
+</timetable>

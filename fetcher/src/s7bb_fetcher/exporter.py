@@ -5,7 +5,6 @@ import os
 import re
 import sqlite3
 import tempfile
-from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -73,41 +72,16 @@ def _aggregate(rows: list[dict]) -> dict:
 
 
 def _expected_slots(rows: list[dict]) -> list[str]:
-    """Infer expected 20-min slots from observed scheduled_times.
+    """Return observed `scheduled_time` values, deduped and sorted.
 
-    Uses the most common minute-offset within a 20-min cycle to anchor the grid,
-    then generates one slot per 20 min between first and last observed time.
+    Earlier versions inferred a 20-min cadence grid between first/last
+    observation. That produced phantom slots in operational gaps and
+    outside service hours, surfacing as "keine Daten" rows in the today
+    view (see PR8bb4ea7). The site now treats every emitted slot as a
+    real expected train and unions them with the observed set, so we
+    must only emit slots that correspond to a real arrival.
     """
-    if not rows:
-        return []
-
-    times = sorted(
-        datetime.fromisoformat(r["scheduled_time"])
-        for r in rows
-    )
-    if len(times) < 2:
-        return [t.isoformat() for t in times]
-
-    # Most common minute mod 20 = cadence anchor
-    offsets = Counter(t.minute % 20 for t in times)
-    anchor_offset = offsets.most_common(1)[0][0]
-
-    # Find first slot >= min time with correct offset
-    first = times[0]
-    start_minute = (first.minute // 20) * 20 + anchor_offset
-    if start_minute > first.minute:
-        start_minute -= 20
-    start = first.replace(minute=start_minute % 60, second=0, microsecond=0)
-    if start_minute >= 60:
-        start += timedelta(hours=1)
-
-    last = times[-1]
-    slots = []
-    current = start
-    while current <= last + timedelta(minutes=1):
-        slots.append(current.isoformat())
-        current += timedelta(minutes=20)
-    return slots
+    return sorted({r["scheduled_time"] for r in rows})
 
 
 def _direction_aggregate(rows: list[dict], bucket: str, expected_slots: list[str]) -> dict:

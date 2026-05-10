@@ -52,14 +52,21 @@ def test_per_direction_aggregates(populated_db, tmp_path):
     assert w["total"] == 2
 
 
-def test_missing_slot_detected(populated_db, tmp_path):
+def test_no_phantom_missing_slots(populated_db, tmp_path):
+    """expected_slots is observed-only — `missing` is always 0.
+
+    The previous cadence-inferred grid produced phantom "keine Daten" rows
+    in operational gaps and outside service hours. PR8bb4ea7 patched data
+    after-the-fact; this test locks the code-level behaviour in.
+    """
     out = tmp_path / "latest.json"
     export_latest(populated_db, out)
     data = json.loads(out.read_text())
 
     w = data["aggregates"]["today"]["by_direction"]["wolfratshausen"]
-    # 3 expected slots (10:13, 10:33, 10:53) but only 2 records → 1 missing
-    assert w["missing"] >= 1
+    m = data["aggregates"]["today"]["by_direction"]["muenchen"]
+    assert w["missing"] == 0
+    assert m["missing"] == 0
 
 
 def test_no_missing_when_all_present(populated_db, tmp_path):
@@ -82,18 +89,33 @@ def test_expected_slots_in_output(populated_db, tmp_path):
     assert "wolfratshausen" in data["expected_slots"]["today"]
 
 
-def test_expected_slots_cadence():
+def test_expected_slots_observed_only():
+    """_expected_slots returns each observed scheduled_time exactly once, sorted."""
     rows = [
+        {"scheduled_time": "2026-05-05T10:40:00+00:00"},
         {"scheduled_time": "2026-05-05T10:00:00+00:00"},
         {"scheduled_time": "2026-05-05T10:20:00+00:00"},
-        {"scheduled_time": "2026-05-05T10:40:00+00:00"},
+        {"scheduled_time": "2026-05-05T10:00:00+00:00"},  # duplicate
     ]
     slots = _expected_slots(rows)
-    assert len(slots) == 3
-    # Each slot 20 min apart
-    times = [datetime.fromisoformat(s) for s in slots]
-    gaps = [(times[i+1] - times[i]).seconds // 60 for i in range(len(times)-1)]
-    assert all(g == 20 for g in gaps)
+    assert slots == [
+        "2026-05-05T10:00:00+00:00",
+        "2026-05-05T10:20:00+00:00",
+        "2026-05-05T10:40:00+00:00",
+    ]
+
+
+def test_expected_slots_skips_phantom_gap_outside_window():
+    """A 4-hour gap between observations does not produce phantom slots."""
+    rows = [
+        {"scheduled_time": "2026-05-05T05:00:00+00:00"},
+        {"scheduled_time": "2026-05-05T09:00:00+00:00"},
+    ]
+    slots = _expected_slots(rows)
+    assert slots == [
+        "2026-05-05T05:00:00+00:00",
+        "2026-05-05T09:00:00+00:00",
+    ]
 
 
 def test_direction_bucket_in_arrivals(populated_db, tmp_path):
