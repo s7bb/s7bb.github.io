@@ -8,6 +8,9 @@ import tempfile
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+_DE_TZ = ZoneInfo("Europe/Berlin")
 
 _PERIOD_RE = re.compile(r"^(\d{4})-(\d{2})$")
 
@@ -115,8 +118,14 @@ def _direction_aggregate(rows: list[dict], bucket: str, expected_slots: list[str
 
 
 def _today_rows(rows: list[dict]) -> list[dict]:
-    today = datetime.now(UTC).date().isoformat()
-    return [r for r in rows if r["scheduled_time"].startswith(today)]
+    """Today = current Europe/Berlin local date (S7 runs on local clock)."""
+    today = datetime.now(_DE_TZ).date()
+    out = []
+    for r in rows:
+        local = datetime.fromisoformat(r["scheduled_time"]).astimezone(_DE_TZ).date()
+        if local == today:
+            out.append(r)
+    return out
 
 
 def _build_aggregates(rows: list[dict], today_rows: list[dict]) -> tuple[dict, dict, dict]:

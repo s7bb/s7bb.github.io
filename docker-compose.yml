@@ -25,3 +25,26 @@ services:
       - ./data:/data:ro
     profiles:
       - dev
+
+  s7bb-site-dev:
+    image: node:20-alpine
+    working_dir: /repo/site
+    # Entrypoint derives VITE_DEV_NOW from data/latest.json's generated_at so
+    # the today page treats the bundled data as "now" (it's filtered to the
+    # viewer's current Europe/Berlin date in production).
+    command: ["sh", "/repo/site/dev-entrypoint.sh"]
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/repo
+      # Anonymous volume overlays the bind mount so the entrypoint can
+      # write a transformed latest.json into /repo/site/data without
+      # leaking back into the host's site/ tree. Vite serves it under
+      # /data/ (which is what fetch("../data/latest.json") resolves to).
+      - /repo/site/data
+      - s7bb-site-node-modules:/repo/site/node_modules
+    profiles:
+      - dev
+
+volumes:
+  s7bb-site-node-modules:

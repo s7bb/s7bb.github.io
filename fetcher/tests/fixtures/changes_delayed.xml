@@ -2,8 +2,10 @@
 <timetable station="Baierbrunn" eva="8004073">
   <s id="trip-S7-001-2605051200">
     <ar ct="2605051207" cs="d"/>
+    <dp ct="2605051208" cs="d"/>
   </s>
   <s id="trip-S7-003-2605051300">
     <ar cs="c"/>
+    <dp cs="c"/>
   </s>
 </timetable>
