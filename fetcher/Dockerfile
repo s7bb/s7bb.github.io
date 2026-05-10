@@ -2,7 +2,9 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 # git binary required at runtime: GitPython shells out to it. Push uses
 # HTTPS with a fine-grained PAT delivered via GIT_ASKPASS; no SSH client needed.
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+# sqlite3 binary required for ad-hoc DB inspection / one-shot maintenance
+# (e.g. `docker compose exec s7bb-fetcher sqlite3 /data/s7bb.db ...`).
+RUN apt-get update && apt-get install -y --no-install-recommends git sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV UV_COMPILE_BYTECODE=1 \
