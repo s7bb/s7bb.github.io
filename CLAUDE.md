@@ -90,3 +90,5 @@ npm run lint     # eslint
 
 **Post-merge release trigger:** After a PR with semver impact (any `feat`, `fix`, or breaking change) is merged into `main`, cut a release immediately: pull `main`, run the full Release procedure above (including the GitHub Release on the Releases page). PATCH for `fix`, MINOR for `feat`, MAJOR for `feat!` / `BREAKING CHANGE`. Pure `docs`/`chore`/`refactor`/`test`/`style` PRs do not trigger a release.
 
+**Plan files:** Plans written to `docs/superpowers/plans/YYYY-MM-DD-*.md` (output of the brainstorming / writing-plans skills) are the durable record of intent + scope behind a change. Always commit them — bundle into the implementation PR, or follow up with a `docs:` PR if the implementation PR is already open. Never leave plan files untracked, do not delete them after execution, do not gitignore the directory.
+
