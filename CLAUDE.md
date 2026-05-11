@@ -80,11 +80,7 @@ npm run lint     # eslint
 
 **Dependency pinning:** all deps use `=X.Y.Z` exact versions. Match this style when adding deps.
 
-**Versioning:** [Semantic Versioning](https://semver.org) — `MAJOR.MINOR.PATCH`. Breaking API/data-schema changes bump MAJOR; new features bump MINOR; bug fixes bump PATCH.
-
-**Commit format:** [Conventional Commits](https://www.conventionalcommits.org) required. Allowed types: `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `style`, `revert`. Breaking changes: append `!` and add `BREAKING CHANGE:` footer.
-
-**Changelog:** [Keep a Changelog](https://keepachangelog.com) format. Every user-facing change goes in `CHANGELOG.md` under `[Unreleased]` before merging. Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`. Entries describe user-visible effect, not code paths.
+**Commits, versioning, changelog:** Follow `.claude/skills/release-hygiene/SKILL.md` — enforces Conventional Commits (types: `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `style`, `revert`), Semantic Versioning, and Keep a Changelog. Project-specific extensions below override the skill where they conflict.
 
 **Release:** bump version in `pyproject.toml` + sync `fetcher/uv.lock` (run `uv sync --no-dev` in `fetcher/`) + rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` + commit `chore(release): X.Y.Z` + tag `vX.Y.Z` + push tag + create GitHub Release at <https://github.com/s7bb/s7bb.github.io/releases> with `gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <(awk '/^## \[X.Y.Z\]/,/^## \[/' CHANGELOG.md | sed '$d')` (or `--notes-from-tag` if the tag was annotated). For the latest release, add `--latest`. The Releases page is the canonical user-visible changelog and must stay in sync with `CHANGELOG.md`.
 
