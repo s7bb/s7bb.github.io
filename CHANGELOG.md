@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-05-11
+
 ### Fixed
 
 - Parser no longer shifts `dp pt` / `dp ct` by +1 minute. The 0.4.2 shift was based on a wrong premise: DB Timetables `pt` is already the public planned departure time. Empirically (production DB, week of 2026-05-05 to 2026-05-10), raw `dp pt` matches the public S7 board, so the +1 shift made every `scheduled_time` and `actual_time` one minute too late. Reverts `_PUBLIC_OFFSET` in `parser.py` and the two parser tests that asserted the shift. The SQLite migration `scripts/migrate_shift_public_times.py` is removed — it never ran on production (`PRAGMA user_version = 0`), so historical rows are untouched and no rollback is needed. The Docker image no longer copies the `scripts/` directory.
