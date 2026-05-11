@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-11T06:00:00.065108+00:00",
+  "generated_at": "2026-05-11T07:00:00.126875+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "period": "2026-05",
@@ -4980,8 +4980,8 @@
       "direction": "Wolfratshausen",
       "direction_bucket": "wolfratshausen",
       "scheduled_time": "2026-05-11T06:01:00+00:00",
-      "actual_time": "2026-05-11T06:02:00+00:00",
-      "delay_minutes": 1,
+      "actual_time": "2026-05-11T06:01:00+00:00",
+      "delay_minutes": 0,
       "cancelled": false,
       "reason": null
     },
@@ -4996,26 +4996,98 @@
       "delay_minutes": 1,
       "cancelled": false,
       "reason": null
+    },
+    {
+      "train_id": "-462482004856478147-2605110803-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T06:21:00+00:00",
+      "actual_time": "2026-05-11T06:21:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-34468815575526487-2605110754-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-11T06:21:00+00:00",
+      "actual_time": "2026-05-11T06:22:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "3861807399568359958-2605110823-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T06:41:00+00:00",
+      "actual_time": "2026-05-11T06:43:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "9090198400883812687-2605110814-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-11T06:41:00+00:00",
+      "actual_time": "2026-05-11T06:44:00+00:00",
+      "delay_minutes": 3,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "6318948055097961584-2605110834-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-11T07:01:00+00:00",
+      "actual_time": "2026-05-11T07:03:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "1352425303510344583-2605110843-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T07:01:00+00:00",
+      "actual_time": "2026-05-11T07:04:00+00:00",
+      "delay_minutes": 3,
+      "cancelled": false,
+      "reason": null
     }
   ],
   "aggregates": {
-    "total": 416,
-    "on_time": 128,
-    "late": 266,
+    "total": 422,
+    "on_time": 130,
+    "late": 270,
     "cancelled": 22,
     "avg_delay_min": 2.2,
     "by_direction": {
       "muenchen": {
-        "total": 210,
-        "on_time": 71,
-        "late": 128,
+        "total": 213,
+        "on_time": 72,
+        "late": 130,
         "cancelled": 11,
         "avg_delay_min": 1.8
       },
       "wolfratshausen": {
-        "total": 206,
-        "on_time": 57,
-        "late": 138,
+        "total": 209,
+        "on_time": 58,
+        "late": 140,
         "cancelled": 11,
         "avg_delay_min": 2.5
       }
@@ -5064,11 +5136,11 @@
     },
     {
       "date": "2026-05-11",
-      "total": 21,
-      "on_time": 1,
-      "late": 18,
+      "total": 27,
+      "on_time": 3,
+      "late": 22,
       "cancelled": 2,
-      "avg_delay_min": 3.7
+      "avg_delay_min": 3.2
     }
   ],
   "daily_by_direction": {
@@ -5115,9 +5187,9 @@
       },
       {
         "date": "2026-05-11",
-        "total": 11,
-        "on_time": 1,
-        "late": 9,
+        "total": 14,
+        "on_time": 2,
+        "late": 11,
         "cancelled": 1,
         "avg_delay_min": 1.5
       }
@@ -5165,11 +5237,11 @@
       },
       {
         "date": "2026-05-11",
-        "total": 10,
-        "on_time": 0,
-        "late": 9,
+        "total": 13,
+        "on_time": 1,
+        "late": 11,
         "cancelled": 1,
-        "avg_delay_min": 6.2
+        "avg_delay_min": 5.1
       }
     ]
   }
