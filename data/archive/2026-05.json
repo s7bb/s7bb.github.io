@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-11T02:00:00.071490+00:00",
+  "generated_at": "2026-05-11T03:00:00.069667+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "period": "2026-05",
@@ -4756,21 +4756,45 @@
       "delay_minutes": 20,
       "cancelled": false,
       "reason": null
+    },
+    {
+      "train_id": "7445422947788705273-2605110423-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T02:41:00+00:00",
+      "actual_time": "2026-05-11T02:42:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "7311243364191003536-2605110443-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T03:01:00+00:00",
+      "actual_time": "2026-05-11T03:03:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
     }
   ],
   "aggregates": {
-    "total": 396,
+    "total": 398,
     "on_time": 127,
-    "late": 249,
+    "late": 251,
     "cancelled": 20,
     "avg_delay_min": 2.1,
     "by_direction": {
       "muenchen": {
-        "total": 199,
+        "total": 201,
         "on_time": 70,
-        "late": 119,
+        "late": 121,
         "cancelled": 10,
-        "avg_delay_min": 1.9
+        "avg_delay_min": 1.8
       },
       "wolfratshausen": {
         "total": 197,
@@ -4824,11 +4848,11 @@
     },
     {
       "date": "2026-05-11",
-      "total": 1,
+      "total": 3,
       "on_time": 0,
-      "late": 1,
+      "late": 3,
       "cancelled": 0,
-      "avg_delay_min": 20.0
+      "avg_delay_min": 7.7
     }
   ],
   "daily_by_direction": {
@@ -4872,6 +4896,14 @@
         "late": 13,
         "cancelled": 1,
         "avg_delay_min": 1.2
+      },
+      {
+        "date": "2026-05-11",
+        "total": 2,
+        "on_time": 0,
+        "late": 2,
+        "cancelled": 0,
+        "avg_delay_min": 1.5
       }
     ],
     "wolfratshausen": [
