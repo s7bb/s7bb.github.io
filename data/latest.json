@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-11T19:00:00.031441+00:00",
+  "generated_at": "2026-05-11T20:00:00.055054+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "window_days": 7,
@@ -6011,8 +6011,8 @@
       "direction": "Wolfratshausen",
       "direction_bucket": "wolfratshausen",
       "scheduled_time": "2026-05-11T19:00:00+00:00",
-      "actual_time": "2026-05-11T19:01:00+00:00",
-      "delay_minutes": 1,
+      "actual_time": "2026-05-11T19:00:00+00:00",
+      "delay_minutes": 0,
       "cancelled": false,
       "reason": null
     },
@@ -6023,7 +6023,79 @@
       "direction": "München Hbf Gl.27-36",
       "direction_bucket": "muenchen",
       "scheduled_time": "2026-05-11T19:00:00+00:00",
-      "actual_time": "2026-05-11T19:01:00+00:00",
+      "actual_time": "2026-05-11T19:00:00+00:00",
+      "delay_minutes": 0,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "7122913042011361940-2605112054-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-11T19:20:00+00:00",
+      "actual_time": "2026-05-11T19:22:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-5267604623018475166-2605112103-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T19:20:00+00:00",
+      "actual_time": "2026-05-11T19:21:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "4881154761191742201-2605112114-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-11T19:40:00+00:00",
+      "actual_time": "2026-05-11T19:42:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "3481522577527076268-2605112123-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T19:40:00+00:00",
+      "actual_time": "2026-05-11T19:42:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "2366926134223715483-2605112143-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-11T20:00:00+00:00",
+      "actual_time": "2026-05-11T20:02:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "2196123371045216207-2605112134-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-11T20:00:00+00:00",
+      "actual_time": "2026-05-11T20:01:00+00:00",
       "delay_minutes": 1,
       "cancelled": false,
       "reason": null
@@ -6031,49 +6103,49 @@
   ],
   "aggregates": {
     "today": {
-      "total": 111,
-      "on_time": 16,
-      "late": 93,
+      "total": 117,
+      "on_time": 18,
+      "late": 97,
       "cancelled": 2,
       "avg_delay_min": 2.5,
       "by_direction": {
         "muenchen": {
-          "total": 56,
-          "on_time": 9,
-          "late": 46,
+          "total": 59,
+          "on_time": 10,
+          "late": 48,
           "cancelled": 1,
-          "avg_delay_min": 2.1,
+          "avg_delay_min": 2.0,
           "missing": 0
         },
         "wolfratshausen": {
-          "total": 55,
-          "on_time": 7,
-          "late": 47,
+          "total": 58,
+          "on_time": 8,
+          "late": 49,
           "cancelled": 1,
-          "avg_delay_min": 3.0,
+          "avg_delay_min": 2.9,
           "missing": 0
         }
       }
     },
     "last_7_days": {
-      "total": 502,
-      "on_time": 141,
-      "late": 339,
+      "total": 508,
+      "on_time": 143,
+      "late": 343,
       "cancelled": 22,
       "avg_delay_min": 2.1,
       "by_direction": {
         "muenchen": {
-          "total": 253,
-          "on_time": 78,
-          "late": 164,
+          "total": 256,
+          "on_time": 79,
+          "late": 166,
           "cancelled": 11,
           "avg_delay_min": 1.8,
           "missing": 0
         },
         "wolfratshausen": {
-          "total": 249,
-          "on_time": 63,
-          "late": 175,
+          "total": 252,
+          "on_time": 64,
+          "late": 177,
           "cancelled": 11,
           "avg_delay_min": 2.4,
           "missing": 0
@@ -6139,7 +6211,10 @@
         "2026-05-11T18:00:00+00:00",
         "2026-05-11T18:20:00+00:00",
         "2026-05-11T18:40:00+00:00",
-        "2026-05-11T19:00:00+00:00"
+        "2026-05-11T19:00:00+00:00",
+        "2026-05-11T19:20:00+00:00",
+        "2026-05-11T19:40:00+00:00",
+        "2026-05-11T20:00:00+00:00"
       ],
       "wolfratshausen": [
         "2026-05-10T22:21:00+00:00",
@@ -6196,7 +6271,10 @@
         "2026-05-11T18:00:00+00:00",
         "2026-05-11T18:20:00+00:00",
         "2026-05-11T18:40:00+00:00",
-        "2026-05-11T19:00:00+00:00"
+        "2026-05-11T19:00:00+00:00",
+        "2026-05-11T19:20:00+00:00",
+        "2026-05-11T19:40:00+00:00",
+        "2026-05-11T20:00:00+00:00"
       ]
     }
   }
