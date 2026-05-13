@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T23:00:00.147821+00:00",
+  "generated_at": "2026-05-13T00:00:00.101548+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "period": "2026-05",
@@ -7680,8 +7680,8 @@
       "direction": "Wolfratshausen",
       "direction_bucket": "wolfratshausen",
       "scheduled_time": "2026-05-12T23:00:00+00:00",
-      "actual_time": "2026-05-12T23:02:00+00:00",
-      "delay_minutes": 2,
+      "actual_time": "2026-05-12T23:01:00+00:00",
+      "delay_minutes": 1,
       "cancelled": false,
       "reason": null
     },
@@ -7692,16 +7692,28 @@
       "direction": "München Hbf Gl.27-36",
       "direction_bucket": "muenchen",
       "scheduled_time": "2026-05-12T23:00:00+00:00",
-      "actual_time": "2026-05-12T23:01:00+00:00",
+      "actual_time": "2026-05-12T23:02:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "3896499363414029360-2605130134-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-13T00:00:00+00:00",
+      "actual_time": "2026-05-13T00:01:00+00:00",
       "delay_minutes": 1,
       "cancelled": false,
       "reason": null
     }
   ],
   "aggregates": {
-    "total": 641,
+    "total": 642,
     "on_time": 163,
-    "late": 456,
+    "late": 457,
     "cancelled": 22,
     "avg_delay_min": 2.2,
     "by_direction": {
@@ -7713,9 +7725,9 @@
         "avg_delay_min": 1.9
       },
       "wolfratshausen": {
-        "total": 318,
+        "total": 319,
         "on_time": 74,
-        "late": 233,
+        "late": 234,
         "cancelled": 11,
         "avg_delay_min": 2.5
       }
@@ -7777,6 +7789,14 @@
       "late": 105,
       "cancelled": 0,
       "avg_delay_min": 2.8
+    },
+    {
+      "date": "2026-05-13",
+      "total": 1,
+      "on_time": 0,
+      "late": 1,
+      "cancelled": 0,
+      "avg_delay_min": 1.0
     }
   ],
   "daily_by_direction": {
@@ -7894,6 +7914,14 @@
         "late": 53,
         "cancelled": 0,
         "avg_delay_min": 3.4
+      },
+      {
+        "date": "2026-05-13",
+        "total": 1,
+        "on_time": 0,
+        "late": 1,
+        "cancelled": 0,
+        "avg_delay_min": 1.0
       }
     ]
   }
