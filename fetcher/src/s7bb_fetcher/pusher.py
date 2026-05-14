@@ -1,5 +1,6 @@
 """Push data/latest.json + data/archive/*.json to git via GitHub PAT (HTTPS)."""
 
+import enum
 import logging
 import os
 import re
@@ -9,6 +10,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import git
+
+
+class PushOutcome(enum.Enum):
+    """Result of a `push_data` call.
+
+    - COMMITTED_AND_PUSHED: staged file changes -> new commit -> pushed.
+    - PUSHED_EXISTING: nothing new to commit, but local HEAD was ahead of
+      origin/main, so existing commits were pushed.
+    - NOOP: nothing new to commit AND local HEAD already matches origin/main.
+    """
+
+    COMMITTED_AND_PUSHED = "committed_and_pushed"
+    PUSHED_EXISTING = "pushed_existing"
+    NOOP = "noop"
 
 logger = logging.getLogger(__name__)
 

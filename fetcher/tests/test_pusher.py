@@ -255,3 +255,11 @@ def test_push_data_single_commit_for_combined_changes(monkeypatch, dirty_latest)
 
     assert head_after != head_before
     assert head_after.parents[0] == head_before
+
+
+def test_push_outcome_enum_values():
+    from s7bb_fetcher.pusher import PushOutcome
+
+    assert PushOutcome.COMMITTED_AND_PUSHED.value == "committed_and_pushed"
+    assert PushOutcome.PUSHED_EXISTING.value == "pushed_existing"
+    assert PushOutcome.NOOP.value == "noop"
