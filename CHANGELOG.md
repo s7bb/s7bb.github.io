@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-05-14
+
 ### Fixed
 
 - Pusher now pushes pre-existing unpushed local commits even when no new
