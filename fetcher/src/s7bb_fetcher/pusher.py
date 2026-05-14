@@ -86,6 +86,20 @@ def _push_via_pat(repo: git.Repo, token: str) -> None:
             logger.warning("failed to unlink GIT_ASKPASS helper %s", helper_path)
 
 
+def _is_ahead_of_origin(repo: git.Repo) -> bool:
+    """Return True iff local HEAD has commits that origin/main does not.
+
+    Uses the local `origin/main` ref as-is — caller is responsible for
+    refreshing it (e.g. via `origin.fetch()`) when freshness matters.
+    """
+    try:
+        ahead = list(repo.iter_commits("origin/main..HEAD", max_count=1))
+    except git.GitCommandError:
+        # origin/main ref missing — treat as "nothing to compare against".
+        return False
+    return bool(ahead)
+
+
 def push_data(repo_path: Path) -> bool:
     """Stage data/latest.json + data/archive/*.json, commit if changed, push.
 

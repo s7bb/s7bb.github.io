@@ -26,8 +26,6 @@ def working_repo(tmp_path: Path) -> git.Repo:
     bare_path = tmp_path / "remote.git"
     git.Repo.init(bare_path, bare=True, initial_branch="main")
     work = git.Repo.clone_from(str(bare_path), tmp_path / "work")
-    # Force HTTPS-style remote so slug parsing has something deterministic by default.
-    work.remotes["origin"].set_url("https://github.com/owner/s7bb.git")
 
     data_dir = Path(work.working_tree_dir) / "data"
     data_dir.mkdir()
@@ -40,6 +38,10 @@ def working_repo(tmp_path: Path) -> git.Repo:
     )
     if work.active_branch.name != "main":
         work.git.branch("-M", "main")
+    # Push seed commit to bare upstream so origin/main ref exists locally.
+    work.git.push("origin", "main")
+    # Force HTTPS-style remote so slug parsing has something deterministic by default.
+    work.remotes["origin"].set_url("https://github.com/owner/s7bb.git")
     return work
 
 
@@ -263,3 +265,27 @@ def test_push_outcome_enum_values():
     assert PushOutcome.COMMITTED_AND_PUSHED.value == "committed_and_pushed"
     assert PushOutcome.PUSHED_EXISTING.value == "pushed_existing"
     assert PushOutcome.NOOP.value == "noop"
+
+
+def test_is_ahead_of_origin_true_when_local_has_extra_commits(working_repo):
+    from s7bb_fetcher.pusher import _is_ahead_of_origin
+
+    # Add an extra local commit not on origin/main.
+    target = Path(working_repo.working_tree_dir) / "data" / "latest.json"
+    target.write_text('{"v":2}\n')
+    working_repo.index.add(["data/latest.json"])
+    working_repo.index.commit(
+        "extra",
+        author=git.Actor("a", "a@local"),
+        committer=git.Actor("a", "a@local"),
+    )
+
+    assert _is_ahead_of_origin(working_repo) is True
+
+
+def test_is_ahead_of_origin_false_when_in_sync(working_repo, tmp_path):
+    from s7bb_fetcher.pusher import _is_ahead_of_origin
+
+    # working_repo fixture pushes seed commit to the local bare upstream, so
+    # origin/main already points at the same commit as HEAD — no network fetch needed.
+    assert _is_ahead_of_origin(working_repo) is False
