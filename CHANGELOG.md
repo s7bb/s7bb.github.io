@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Pusher now pushes pre-existing unpushed local commits even when no new
+  data file changes were staged. Previously commits could accumulate
+  locally for hours while logs reported success.
+- `startup_sync` log message reflects whether `push_data` actually pushed.
+  No more `action=push ... — pushed` when nothing was pushed.
+- Hourly push failures now log at ERROR with a `PUSH_FAILED` prefix and a
+  consecutive-failure counter, instead of being buried among generic
+  `export_job step push failed` lines.
+
 ## [0.4.4] - 2026-05-11
 
 ### Fixed
