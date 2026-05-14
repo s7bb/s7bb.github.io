@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T14:00:00.157400+00:00",
+  "generated_at": "2026-05-14T15:00:00.201216+00:00",
   "station": "Baierbrunn",
   "months": [
     {
@@ -30,24 +30,24 @@
     {
       "period": "2026-05",
       "finalized": false,
-      "total": 820,
-      "on_time": 214,
-      "late": 582,
-      "cancelled": 24,
+      "total": 826,
+      "on_time": 215,
+      "late": 585,
+      "cancelled": 26,
       "avg_delay_min": 2.2,
       "by_direction": {
         "muenchen": {
-          "total": 413,
-          "on_time": 119,
-          "late": 282,
-          "cancelled": 12,
+          "total": 416,
+          "on_time": 120,
+          "late": 283,
+          "cancelled": 13,
           "avg_delay_min": 1.9
         },
         "wolfratshausen": {
-          "total": 407,
+          "total": 410,
           "on_time": 95,
-          "late": 300,
-          "cancelled": 12,
+          "late": 302,
+          "cancelled": 13,
           "avg_delay_min": 2.5
         }
       }
