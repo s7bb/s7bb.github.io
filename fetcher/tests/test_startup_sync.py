@@ -238,6 +238,7 @@ def test_sync_noop_when_within_tolerance(tmp_path: Path):
 
 
 def test_sync_pushes_when_local_newer(tmp_path: Path):
+    from s7bb_fetcher import pusher
     data_path = tmp_path / "data" / "latest.json"
     local_ts = datetime(2026, 5, 8, 11, 0, 0, tzinfo=UTC)
     remote_ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)  # 1 h older
@@ -246,7 +247,7 @@ def test_sync_pushes_when_local_newer(tmp_path: Path):
     with patch("s7bb_fetcher.startup_sync._fetch_remote",
                return_value=(body, remote_ts)), \
          patch("s7bb_fetcher.startup_sync.pusher.push_data",
-               return_value=True) as push:
+               return_value=pusher.PushOutcome.COMMITTED_AND_PUSHED) as push:
         result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
     push.assert_called_once_with(tmp_path)
     assert result.action == "push"
@@ -254,20 +255,21 @@ def test_sync_pushes_when_local_newer(tmp_path: Path):
 
 
 def test_sync_pushes_when_remote_404_and_local_present(tmp_path: Path):
+    from s7bb_fetcher import pusher
     data_path = tmp_path / "data" / "latest.json"
     local_ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)
     _write_latest(data_path, local_ts)
     with patch("s7bb_fetcher.startup_sync._fetch_remote",
                return_value=(None, None)), \
          patch("s7bb_fetcher.startup_sync.pusher.push_data",
-               return_value=True) as push:
+               return_value=pusher.PushOutcome.COMMITTED_AND_PUSHED) as push:
         result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
     push.assert_called_once_with(tmp_path)
     assert result.action == "push"
 
 
-def test_sync_push_clean_tree_warns_no_raise(tmp_path: Path, caplog):
-    import logging as _logging
+def test_sync_push_noop_when_clean_tree(tmp_path: Path):
+    from s7bb_fetcher import pusher
     data_path = tmp_path / "data" / "latest.json"
     local_ts = datetime(2026, 5, 8, 11, 0, 0, tzinfo=UTC)
     remote_ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)
@@ -276,11 +278,10 @@ def test_sync_push_clean_tree_warns_no_raise(tmp_path: Path, caplog):
     with patch("s7bb_fetcher.startup_sync._fetch_remote",
                return_value=(body, remote_ts)), \
          patch("s7bb_fetcher.startup_sync.pusher.push_data",
-               return_value=False):
-        with caplog.at_level(_logging.WARNING, logger="s7bb_fetcher.startup_sync"):
-            result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+               return_value=pusher.PushOutcome.NOOP):
+        result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
     assert result.action == "push"
-    assert any("matches HEAD" in r.message for r in caplog.records)
+    assert "nothing pushed" in result.message.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +377,7 @@ def test_sync_propagates_pull_write_failure(tmp_path: Path, monkeypatch):
 
 def test_sync_pushes_just_outside_tolerance(tmp_path: Path):
     """Δ = 90 s (> 60 s tolerance) → push."""
+    from s7bb_fetcher import pusher
     data_path = tmp_path / "data" / "latest.json"
     local_ts = datetime(2026, 5, 8, 10, 1, 30, tzinfo=UTC)
     remote_ts = datetime(2026, 5, 8, 10, 0, 0, tzinfo=UTC)  # 90 s older
@@ -384,7 +386,7 @@ def test_sync_pushes_just_outside_tolerance(tmp_path: Path):
     with patch("s7bb_fetcher.startup_sync._fetch_remote",
                return_value=(body, remote_ts)), \
          patch("s7bb_fetcher.startup_sync.pusher.push_data",
-               return_value=True) as push:
+               return_value=pusher.PushOutcome.COMMITTED_AND_PUSHED) as push:
         result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
     push.assert_called_once_with(tmp_path)
     assert result.action == "push"
@@ -403,3 +405,64 @@ def test_sync_logs_error_before_raising(tmp_path: Path, caplog):
         r.levelno == _logging.ERROR and "startup_sync failed" in r.message
         for r in caplog.records
     )
+
+
+def test_startup_sync_message_reports_pushed_existing(tmp_path, monkeypatch):
+    """When push_data returns PUSHED_EXISTING, message must say so, not 'pushed'."""
+    import json
+    from datetime import UTC, datetime
+    from unittest.mock import MagicMock
+
+    from s7bb_fetcher import startup_sync
+    from s7bb_fetcher.pusher import PushOutcome
+
+    data_path = tmp_path / "latest.json"
+    data_path.write_text(json.dumps({"generated_at": "2026-05-14T17:00:00+00:00"}))
+
+    # Remote is older.
+    remote_body = json.dumps({"generated_at": "2026-05-13T14:00:00+00:00"}).encode()
+    remote_ts = datetime(2026, 5, 13, 14, 0, 0, tzinfo=UTC)
+    monkeypatch.setattr(
+        startup_sync, "_fetch_remote",
+        MagicMock(return_value=(remote_body, remote_ts)),
+    )
+
+    fake_push = MagicMock(return_value=PushOutcome.PUSHED_EXISTING)
+    monkeypatch.setattr("s7bb_fetcher.pusher.push_data", fake_push)
+
+    result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+
+    assert result.action == "push"
+    assert "pushed existing commits" in result.message
+    assert "pushed\n" not in result.message  # explicit anti-regression
+
+
+def test_startup_sync_message_reports_noop_when_push_data_noop(tmp_path, monkeypatch):
+    """Local newer but pusher says NOOP (e.g. no data files) -> message says so."""
+    import json
+    from datetime import UTC, datetime
+    from unittest.mock import MagicMock
+
+    from s7bb_fetcher import startup_sync
+    from s7bb_fetcher.pusher import PushOutcome
+
+    data_path = tmp_path / "latest.json"
+    data_path.write_text(json.dumps({"generated_at": "2026-05-14T17:00:00+00:00"}))
+
+    remote_body = json.dumps({"generated_at": "2026-05-13T14:00:00+00:00"}).encode()
+    remote_ts = datetime(2026, 5, 13, 14, 0, 0, tzinfo=UTC)
+    monkeypatch.setattr(
+        startup_sync, "_fetch_remote",
+        MagicMock(return_value=(remote_body, remote_ts)),
+    )
+
+    monkeypatch.setattr(
+        "s7bb_fetcher.pusher.push_data",
+        MagicMock(return_value=PushOutcome.NOOP),
+    )
+
+    result = startup_sync.startup_sync(tmp_path, data_path, "owner/repo")
+
+    # Logical action is still "push attempted" but message must not lie.
+    assert result.action == "push"
+    assert "nothing pushed" in result.message.lower()

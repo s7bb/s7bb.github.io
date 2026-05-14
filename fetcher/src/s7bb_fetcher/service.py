@@ -26,6 +26,8 @@ OUT_PATH  = DATA_DIR / "latest.json"
 ARCHIVE_DIR = DATA_DIR / "archive"
 INDEX_PATH  = ARCHIVE_DIR / "index.json"
 
+_consecutive_push_failures = 0
+
 
 def _prev_year_month(year: int, month: int) -> tuple[int, int]:
     return (year - 1, 12) if month == 1 else (year, month - 1)
@@ -53,8 +55,38 @@ def _fetch_job() -> None:
         logger.exception("fetch_job failed")
 
 
+def _run_push_step() -> None:
+    """Push step for the hourly export job — loud failures, fetch first.
+
+    Logs at ERROR with the `PUSH_FAILED` prefix and a consecutive-failure
+    counter so the metric is visible in `docker logs | grep PUSH_FAILED`.
+    Does not raise — the scheduler must keep running so the next hour gets
+    another shot.
+    """
+    global _consecutive_push_failures
+
+    import git
+
+    from . import pusher
+
+    try:
+        repo = git.Repo(str(REPO_PATH))
+        repo.remotes["origin"].fetch()
+        pusher.push_data(REPO_PATH)
+    except Exception:
+        _consecutive_push_failures += 1
+        logger.exception(
+            "PUSH_FAILED consecutive_failures=%d — commits will accumulate "
+            "locally until next successful push",
+            _consecutive_push_failures,
+        )
+        return
+
+    _consecutive_push_failures = 0
+
+
 def _export_job() -> None:
-    from . import exporter, pusher, storage
+    from . import exporter, storage
 
     now = datetime.now(UTC)
     conn = None
@@ -84,7 +116,7 @@ def _export_job() -> None:
 
     _safe("archive_index", exporter.export_archive_index, ARCHIVE_DIR, INDEX_PATH)
 
-    _safe("push", pusher.push_data, REPO_PATH)
+    _run_push_step()
 
 
 def main() -> None:

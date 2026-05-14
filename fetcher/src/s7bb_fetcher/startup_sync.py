@@ -74,9 +74,11 @@ def _run(
         return _result("noop", local_ts, remote_ts, "no local file, remote 404 — nothing to sync")
 
     if local_ts is not None and remote_ts is None:
-        # remote missing — push local
-        _push(repo_path)
-        return _result("push", local_ts, remote_ts, "remote 404 — pushed local")
+        outcome = _push(repo_path)
+        return _result(
+            "push", local_ts, remote_ts,
+            f"remote 404 — {_push_suffix(outcome, None)}",
+        )
 
     if local_ts is None and remote_ts is not None:
         _pull(data_path, remote_body)
@@ -93,10 +95,11 @@ def _run(
             f"in sync (Δ={delta:+.0f}s, tolerance={tolerance_seconds:.0f}s)",
         )
     if delta > 0:
-        _push(repo_path)
+        outcome = _push(repo_path)
+        suffix = _push_suffix(outcome, delta)
         return _result(
             "push", local_ts, remote_ts,
-            f"local newer by {delta:.0f}s — pushed",
+            f"local newer by {delta:.0f}s — {suffix}",
         )
     # delta < 0 — remote newer, pull
     _pull(data_path, remote_body)
@@ -120,13 +123,18 @@ def _result(
                       remote_generated_at=remote_ts, message=message)
 
 
-def _push(repo_path: Path) -> None:
-    pushed = pusher.push_data(repo_path)
-    if not pushed:
-        logger.warning(
-            "startup_sync: local generated_at is newer but git working tree "
-            "matches HEAD; nothing to commit"
-        )
+def _push(repo_path: Path) -> pusher.PushOutcome:
+    return pusher.push_data(repo_path)
+
+
+def _push_suffix(outcome: pusher.PushOutcome, delta: float | None) -> str:
+    from . import pusher as _pusher
+
+    if outcome is _pusher.PushOutcome.COMMITTED_AND_PUSHED:
+        return "committed and pushed"
+    if outcome is _pusher.PushOutcome.PUSHED_EXISTING:
+        return "pushed existing commits"
+    return "nothing pushed (working tree clean and local in sync with origin/main)"
 
 
 def _pull(data_path: Path, raw_bytes: bytes) -> None:
