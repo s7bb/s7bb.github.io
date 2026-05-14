@@ -31,18 +31,21 @@ def mocks(monkeypatch, tmp_path):
     mock_export_monthly = MagicMock()
     mock_export_index = MagicMock()
     mock_push_data = MagicMock(return_value=True)
+    mock_repo = MagicMock(return_value=MagicMock(remotes={"origin": MagicMock()}))
 
     monkeypatch.setattr("s7bb_fetcher.storage.open_db", mock_open_db)
     monkeypatch.setattr("s7bb_fetcher.exporter.export_latest", mock_export_latest)
     monkeypatch.setattr("s7bb_fetcher.exporter.export_monthly_archive", mock_export_monthly)
     monkeypatch.setattr("s7bb_fetcher.exporter.export_archive_index", mock_export_index)
     monkeypatch.setattr("s7bb_fetcher.pusher.push_data", mock_push_data)
+    monkeypatch.setattr("git.Repo", mock_repo)
 
     return {
         "export_latest": mock_export_latest,
         "export_monthly": mock_export_monthly,
         "export_index": mock_export_index,
         "push_data": mock_push_data,
+        "git_repo": mock_repo,
     }
 
 
@@ -256,3 +259,50 @@ def test_main_aborts_when_startup_sync_raises(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="network down"):
         main()
     mock_scheduler_cls.return_value.start.assert_not_called()
+
+
+def test_run_push_step_logs_push_failed_on_exception(mocks, caplog, monkeypatch):
+    from s7bb_fetcher import service
+
+    service._consecutive_push_failures = 0
+    mocks["push_data"].side_effect = RuntimeError("simulated push failure")
+
+    with caplog.at_level("ERROR"):
+        service._run_push_step()
+
+    matches = [r for r in caplog.records if "PUSH_FAILED" in r.message]
+    assert len(matches) == 1
+    assert "consecutive_failures=1" in matches[0].message
+    assert "RuntimeError" in matches[0].message or matches[0].exc_info is not None
+
+
+def test_run_push_step_resets_counter_on_success(mocks, monkeypatch):
+    from s7bb_fetcher import pusher, service
+
+    service._consecutive_push_failures = 0
+    mocks["push_data"].side_effect = [
+        RuntimeError("boom"),
+        pusher.PushOutcome.COMMITTED_AND_PUSHED,
+    ]
+
+    service._run_push_step()
+    service._run_push_step()
+
+    assert service._consecutive_push_failures == 0
+
+
+def test_run_push_step_fetches_origin_before_pushing(mocks, monkeypatch):
+    from unittest.mock import MagicMock
+
+    from s7bb_fetcher import pusher, service
+
+    fake_remote = MagicMock()
+    fake_remote.fetch = MagicMock()
+    fake_repo = MagicMock(remotes={"origin": fake_remote})
+    monkeypatch.setattr("git.Repo", MagicMock(return_value=fake_repo))
+    service._consecutive_push_failures = 0
+    mocks["push_data"].return_value = pusher.PushOutcome.NOOP
+
+    service._run_push_step()
+
+    fake_remote.fetch.assert_called_once()
