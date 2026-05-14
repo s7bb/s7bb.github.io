@@ -138,14 +138,78 @@ The fine-grained PAT used by the VM is re-scoped to `Contents: read/write` on th
 
 ### 8. Local development
 
-`site/src/data.ts` and `site/src/archive.ts` read `../data/latest.json` in dev mode. After migration, `main` no longer contains `data/`, so a fresh clone has no file there.
+`site/src/data.ts` and `site/src/archive.ts` read `../data/latest.json` in dev mode. After migration, `main` no longer contains `data/`, so a fresh clone has no file there. `site/dev-entrypoint.sh` also reads `/repo/data/latest.json`, applies a +1 min time shift, and writes the result to a `/repo/site/data/` anonymous overlay that Vite serves.
 
-Two compatible options for dev:
+The dev experience materializes the `data` branch into a known location inside the dev container so both reads work unchanged.
 
-1. The existing `s7bb-site-dev` compose service already transforms `latest.json` into an anonymous overlay. Update `site/dev-entrypoint.sh` to fetch `https://raw.githubusercontent.com/{slug}/data/latest.json` on startup when no local copy exists, writing it into the overlay. (Preferred — keeps the dev experience one-command.)
-2. Developers who run the fetcher locally see `/data/latest.json` populated as before; a small symlink `site/public/data -> ../../data` can be added so Vite serves it during dev. (Fallback for offline work.)
+#### Approach: init container clones `data` branch into a named volume
 
-The CLAUDE.md mention of `npm run dev` continues to work.
+A new `s7bb-data-init` compose service (one-shot, profile `dev`) clones the `data` branch shallowly into a named volume. The existing `s7bb-site-dev` service depends on it and mounts the same volume at `/repo/data`.
+
+```yaml
+services:
+  s7bb-data-init:
+    image: alpine/git:latest
+    profiles: [dev]
+    environment:
+      DATA_BRANCH_URL: https://github.com/s7bb/s7bb.github.io.git
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ ! -d /data-checkout/.git ]; then
+          git clone --branch data --single-branch --depth=1 \
+            "$$DATA_BRANCH_URL" /data-checkout
+        else
+          git -C /data-checkout fetch --depth=1 origin data
+          git -C /data-checkout reset --hard FETCH_HEAD
+        fi
+    volumes:
+      - s7bb-data-checkout:/data-checkout
+
+  s7bb-site-dev:
+    # ... existing fields ...
+    depends_on:
+      s7bb-data-init:
+        condition: service_completed_successfully
+    volumes:
+      - .:/repo
+      - s7bb-data-checkout:/repo/data:ro          # NEW: data branch tip mounted read-only
+      - /repo/site/data                           # existing anonymous overlay (transform output)
+      - s7bb-site-node-modules:/repo/site/node_modules
+
+volumes:
+  s7bb-site-node-modules:
+  s7bb-data-checkout:                              # NEW
+```
+
+Branch layout is flat, so the volume root contains `latest.json` and `archive/`. Mounting the volume at `/repo/data` makes the existing entrypoint path `/repo/data/latest.json` resolve without script changes. Vite's `server.fs.allow` may need to be widened to include `..` (verify in `vite.config.ts`; expand if missing).
+
+#### Refresh
+
+To pick up a newer `data` tip, re-run only the init service:
+
+```
+docker compose --profile dev run --rm s7bb-data-init
+```
+
+The site container keeps the same volume mounted and sees the updated files immediately. Document the command in `site/README.md`.
+
+#### Alternative (offline / inspection): host `git worktree`
+
+For developers who want the data branch files on the host (e.g., to read in their editor):
+
+```
+git worktree add ./.data-checkout data
+```
+
+Then point the compose volume at the worktree by bind-mounting `./.data-checkout:/repo/data:ro` instead of using the named volume. `.gitignore` excludes `/.data-checkout/`. Refresh via `git -C .data-checkout pull --ff-only`.
+
+#### Fallback for offline development
+
+If both options fail (no network on first run, no prior checkout), the dev-entrypoint already logs `dev-entrypoint: $SRC not readable; skipping data prep` and the site renders its error path. Acceptable — dev mode without data was never offline-friendly.
+
+The CLAUDE.md mention of `npm run dev` and the README §Local development section need a one-line update pointing to `docker compose --profile dev up` as the primary entry point.
 
 ## Data flow (after migration)
 
@@ -195,6 +259,7 @@ DB Timetables API → s7bb-fetch     → /data/s7bb.db          (host bind-mount
    - Update `exporter.py` SQL queries in `export_latest` and `export_monthly_archive` to `ORDER BY scheduled_time, train_id` for stable row ordering (improves git delta compression on hourly archive rewrites).
    - Update `service.py` if any path constants reference `data/` inside `/repo`.
    - Add `site/src/freshness.ts` (state computation + thresholds), corresponding `freshness.test.ts`, CSS rules in `site/src/style.css`, and wire badge into `today.ts`, `week.ts`, `stats.ts`, and archive list page.
+   - Add `s7bb-data-init` service to `docker-compose.yml` and the `s7bb-data-checkout` named volume; wire `s7bb-site-dev` to depend on it and mount `/repo/data:ro`. Add `/.data-checkout/` to `.gitignore` for the host-worktree alternative. Verify `site/vite.config.ts` `server.fs.allow` permits `..`.
    - Update `README.md` §VM Setup and §GitHub Pages Setup sections.
    - Update `CLAUDE.md` architecture diagram.
    - Add release notes in `CHANGELOG.md` under `[Unreleased]`:
