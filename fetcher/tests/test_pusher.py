@@ -16,7 +16,7 @@ import git
 import pytest
 
 from s7bb_fetcher import pusher
-from s7bb_fetcher.pusher import push_data
+from s7bb_fetcher.pusher import PushOutcome, push_data
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ def test_pat_push_happy_path(monkeypatch, dirty_latest):
     _install_fake_push(monkeypatch, fake_push)
     result = push_data(Path(dirty_latest.working_tree_dir))
 
-    assert result is True
+    assert result is PushOutcome.COMMITTED_AND_PUSHED
     assert captured["args"][0] == "https://x-access-token@github.com/owner/s7bb.git"
     assert captured["args"][1] == "HEAD:refs/heads/main"
     assert captured["env"]["GITHUB_PAT"] == "ghp_fake"
@@ -220,7 +220,7 @@ def test_push_data_stages_archive_and_latest(monkeypatch, dirty_latest):
     _install_fake_push(monkeypatch, fake_push)
     result = push_data(work)
 
-    assert result is True
+    assert result is PushOutcome.COMMITTED_AND_PUSHED
     last = dirty_latest.head.commit
     files = set(last.stats.files.keys())
     assert "data/latest.json" in files
@@ -239,7 +239,7 @@ def test_push_data_skips_when_no_diff(monkeypatch, working_repo):
 
     _install_fake_push(monkeypatch, fake_push)
     result = push_data(Path(working_repo.working_tree_dir))
-    assert result is False
+    assert result is PushOutcome.NOOP
     assert called == []
 
 
@@ -289,3 +289,75 @@ def test_is_ahead_of_origin_false_when_in_sync(working_repo, tmp_path):
     # working_repo fixture pushes seed commit to the local bare upstream, so
     # origin/main already points at the same commit as HEAD — no network fetch needed.
     assert _is_ahead_of_origin(working_repo) is False
+
+
+def test_push_data_pushes_existing_unpushed_commits(monkeypatch, working_repo):
+    """Local HEAD is ahead of origin/main but working tree matches HEAD.
+
+    Old behaviour: returned False ("no changes, skipping commit") — silent
+    failure mode that allowed commits to accumulate on the VM for 29h on
+    2026-05-14. New behaviour: returns PushOutcome.PUSHED_EXISTING and
+    calls git.cmd.Git.push.
+    """
+    from s7bb_fetcher.pusher import PushOutcome, push_data
+
+    monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
+
+    # Make a local commit that origin/main does not yet have.
+    target = Path(working_repo.working_tree_dir) / "data" / "latest.json"
+    target.write_text('{"v":99}\n')
+    working_repo.index.add(["data/latest.json"])
+    working_repo.index.commit(
+        "local-only commit",
+        author=git.Actor("a", "a@local"),
+        committer=git.Actor("a", "a@local"),
+    )
+    # Working tree now matches HEAD; nothing new to commit.
+
+    push_calls = []
+
+    def fake_push(self, *args, **kwargs):
+        push_calls.append((args, kwargs.get("env", {}).copy()))
+
+    _install_fake_push(monkeypatch, fake_push)
+
+    result = push_data(Path(working_repo.working_tree_dir))
+
+    assert result is PushOutcome.PUSHED_EXISTING
+    assert len(push_calls) == 1
+
+
+def test_push_data_noop_when_in_sync(monkeypatch, working_repo):
+    from s7bb_fetcher.pusher import PushOutcome, push_data
+
+    monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
+
+    push_calls = []
+
+    def fake_push(self, *args, **kwargs):
+        push_calls.append(args)
+
+    _install_fake_push(monkeypatch, fake_push)
+
+    result = push_data(Path(working_repo.working_tree_dir))
+
+    assert result is PushOutcome.NOOP
+    assert push_calls == []
+
+
+def test_push_data_commits_and_pushes_new_changes(monkeypatch, dirty_latest):
+    from s7bb_fetcher.pusher import PushOutcome, push_data
+
+    monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
+
+    push_calls = []
+
+    def fake_push(self, *args, **kwargs):
+        push_calls.append(args)
+
+    _install_fake_push(monkeypatch, fake_push)
+
+    result = push_data(Path(dirty_latest.working_tree_dir))
+
+    assert result is PushOutcome.COMMITTED_AND_PUSHED
+    assert len(push_calls) == 1
