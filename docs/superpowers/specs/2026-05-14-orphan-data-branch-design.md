@@ -194,9 +194,12 @@ DB Timetables API → s7bb-fetch     → /data/s7bb.db          (host bind-mount
    - Update `pusher.py` (refspec + flat paths) and `startup_sync.py` (raw URL).
    - Update `exporter.py` SQL queries in `export_latest` and `export_monthly_archive` to `ORDER BY scheduled_time, train_id` for stable row ordering (improves git delta compression on hourly archive rewrites).
    - Update `service.py` if any path constants reference `data/` inside `/repo`.
+   - Add `site/src/freshness.ts` (state computation + thresholds), corresponding `freshness.test.ts`, CSS rules in `site/src/style.css`, and wire badge into `today.ts`, `week.ts`, `stats.ts`, and archive list page.
    - Update `README.md` §VM Setup and §GitHub Pages Setup sections.
    - Update `CLAUDE.md` architecture diagram.
-   - Add release note in `CHANGELOG.md` under `[Unreleased]`: `feat: decouple data pushes via orphan data branch (resolves push collisions with main)`.
+   - Add release notes in `CHANGELOG.md` under `[Unreleased]`:
+     - `feat: decouple data pushes via orphan data branch (resolves push collisions with main)`
+     - `feat(site): freshness badge (frisch/verzögert/veraltet) on data-driven pages`
 2. **One-time setup on GitHub** (manual, by maintainer):
    - Create orphan `data` branch from current `data/` directory contents (flat layout). Push.
    - Add `data` ruleset.
@@ -264,9 +267,67 @@ Procedure (manual, by maintainer; not automated):
 
 Site is unaffected: gh-pages workflow trigger is on branch name, not on commit history. The site keeps serving the previous deploy artifact until the next workflow run.
 
+## Freshness badge
+
+A visual indicator on the site that surfaces stale data immediately. The 2026-05-13 incident left the site silently serving 24-hour-old data with no warning beyond a static "Stand:" timestamp that the user had to read and compare to wall-clock time. A coloured badge makes the staleness obvious at a glance.
+
+### Computation
+
+Client-side only. `freshnessState(generatedAt: string, now: Date): "frisch" | "verzoegert" | "veraltet"` in a new `site/src/freshness.ts`:
+
+| State        | Age window         | Reason for threshold                                                       |
+| ------------ | ------------------ | -------------------------------------------------------------------------- |
+| `frisch`     | `< 75 min`         | Healthy steady state: hourly export + ≤15 min CI/deploy + small clock skew |
+| `verzoegert` | `75 min – 180 min` | One missed hourly cycle, may self-recover                                  |
+| `veraltet`   | `> 180 min`        | Three missed cycles — clear push/CI/fetcher failure                        |
+
+Thresholds exported as named constants so tests assert against them rather than literals.
+
+### Display
+
+Extend the existing `.data-age` line on the today page (`site/src/pages/today.ts`) and add the same component to `stats.ts`, `week.ts`, and the archive list page. Component renders:
+
+```html
+<span class="freshness freshness--frisch">●&nbsp;aktuell</span>
+<span class="freshness freshness--verzoegert">●&nbsp;verzögert</span>
+<span class="freshness freshness--veraltet">●&nbsp;veraltet — Daten nicht aktuell</span>
+```
+
+Colours (high-contrast, accessibility-safe):
+- `frisch` → green (`#16a34a`)
+- `verzoegert` → amber (`#d97706`)
+- `veraltet` → red (`#dc2626`)
+
+Badge is prepended to the existing "Stand: …" line so the timestamp still appears beside it.
+
+### Live transition
+
+Recompute state every 60 s with `setInterval` so a page left open transitions `frisch → verzoegert → veraltet` without reload. Cleared on route change. Small DOM update only (swap class + label); no refetch.
+
+### Error path
+
+The existing fetch-error branch in `main.ts` (`<p class="error">Fehler beim Laden der Daten…</p>`) handles network failure / 404. The freshness badge is rendered only when `latest.json` was successfully loaded — it complements, not replaces, the error path.
+
+### Tests
+
+New `site/src/freshness.test.ts` covers:
+- exact boundaries (74, 75, 179, 180 min)
+- timezone-independent (always UTC arithmetic on `generated_at`)
+- handles trailing `+00:00` vs `Z` ISO suffixes
+
+### Scope note
+
+The badge is added as part of this migration even though it is conceptually independent of the orphan-branch change. Bundling makes sense because:
+
+1. Both changes are responses to the same incident.
+2. Both ship in the same release.
+3. The site code is touched once for both (the existing `.data-age` line is the natural anchor).
+
+Pure CSS additions and one new module — risk is low.
+
 ## Open questions
 
-- Do we want a small "freshness" badge on the site that warns when `latest.json`'s `generated_at` is older than, say, 90 minutes? Out of scope for this design; tracked as a follow-up. The current incident would have surfaced visibly with such a badge.
+(none)
 
 ## Trade-offs
 
