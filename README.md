@@ -66,21 +66,23 @@ Endpoints used:
 ### 1. Clone and configure
 
 Clone this code repo (it carries `docker-compose.yml` and the fetcher
-image source) and the **data repo** over HTTPS into the path the
-container bind-mounts as `/repo`:
+image source). The data-repo working tree at `/repo` is **provisioned
+automatically** — `docker compose` runs a one-shot `s7bb-repo-init`
+service that clones `s7bb/s7bb-data` into the `s7bb-repo` named volume
+before `s7bb-fetcher` starts. You do **not** clone the data repo by hand.
 
 ```bash
 git clone <repo-url> /opt/s7bb
-git clone --depth=1 https://github.com/s7bb/s7bb-data.git /path/to/repo
 cd /opt/s7bb
 cp .env.example .env
 ```
 
-`REPO_PATH=/repo` points at the data-repo clone. The DB and generated
-JSON live under `/data` (host bind-mount, untracked). Each hourly cycle
-the exporter writes `/data/{latest.json,archive/*.json}`, the service
-copies them into `/repo` (flat, at the root), commits, and pushes to
-`s7bb/s7bb-data` `main`.
+`REPO_PATH=/repo` is the auto-provisioned s7bb-data clone (named volume
+`s7bb-repo`). The DB and generated JSON live under `/data` (host
+bind-mount, untracked). Each hourly cycle the exporter writes
+`/data/{latest.json,archive/*.json}`, the service copies them into
+`/repo` (flat, at the root), commits, and pushes to `s7bb/s7bb-data`
+`main`.
 
 Edit `.env` and fill in your credentials:
 
@@ -117,7 +119,16 @@ The container runs APScheduler with two cron jobs:
 
 Both cron expressions and the GitHub PAT (`GITHUB_PAT`) are configured via `.env`.
 
-**Startup sequence.** When `s7bb-service` starts, it runs preflight checks and then a startup sync against `origin/main`: if local `data/latest.json` is newer than the published copy, it is pushed immediately; if remote is newer, the remote bytes overwrite the local file. The scheduler does not start until both succeed — any error aborts startup so an operator notices the divergence.
+**Startup sequence.** `s7bb-repo-init` runs first (clone, or `git fetch`
++ `reset --hard origin/main`) and must exit 0 before `s7bb-fetcher`
+starts. A container restart discards any local bot commits that never
+pushed — they are regenerated from the persistent SQLite DB on the next
+export (single writer, so the remote is authoritative). `s7bb-service`
+then runs preflight checks and a startup sync against the s7bb-data
+`main`: if local `latest.json` is newer than the published copy it is
+pushed immediately; if remote is newer, the remote bytes overwrite the
+local file. The scheduler does not start until all succeed — any error
+aborts startup so an operator notices the divergence.
 
 ### Diagnosing startup problems
 
@@ -147,11 +158,11 @@ The fallback `schedule:` cron runs at `:10` so it picks up the VM's
 
 ### 5. GitHub credentials for push from VM
 
-The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)** scoped to a single repository, layered with a server-side **push ruleset** that restricts which paths the bot is allowed to write. Even if the PAT leaks, the ruleset still rejects any change outside `data/latest.json` and `data/archive/**`.
+The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)** scoped to `s7bb/s7bb-data` only, layered with a server-side **push ruleset** that restricts which paths the bot is allowed to write. Even if the PAT leaks, the ruleset still rejects any change outside `latest.json` and `archive/**`.
 
 #### 5a. Add the push ruleset (do this first)
 
-1. Repo **Settings → Rules → Rulesets → New branch ruleset**.
+1. Open **`s7bb/s7bb-data`** → **Settings → Rules → Rulesets → New branch ruleset**.
 2. **Name:** `protect-main-from-bot-scope-creep`. **Status:** Active. **Bypass list:** empty.
 3. **Target branches:** include the default branch (`main`).
 4. **Branch rules:**
@@ -159,8 +170,8 @@ The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)
    - Block force pushes
    - Require linear history
    - **Restrict file paths** → allow-list:
-     - `data/latest.json`
-     - `data/archive/**`
+     - `latest.json`
+     - `archive/**`
 5. **Create.**
 
 #### 5b. Create the fine-grained PAT
@@ -169,7 +180,7 @@ The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)
 2. **Token name:** `s7bb-fetcher push`.
 3. **Resource owner:** the account that owns this repo.
 4. **Expiration:** 1 year (the maximum). GitHub emails the owner before expiry.
-5. **Repository access → Only select repositories →** select **only this repo**.
+5. **Repository access → Only select repositories →** select **only `s7bb/s7bb-data`**.
 6. **Permissions → Repository permissions:**
    - **Contents:** Read and write
    - **Metadata:** Read-only (auto-selected, cannot be deselected)
@@ -225,6 +236,11 @@ For editor inspection of the data outside Docker, clone it alongside the
 repo (the path is gitignored):
 
     git clone --depth=1 https://github.com/s7bb/s7bb-data.git ./.data-checkout
+
+Production uses a separate one-shot `s7bb-repo-init` → `s7bb-repo`
+volume, mounted **read-write** by `s7bb-fetcher` (it commits and
+pushes). The `dev` profile's `s7bb-data-init` → `s7bb-data-checkout` is
+**read-only** for the site container.
 
 ### Fetcher
 
