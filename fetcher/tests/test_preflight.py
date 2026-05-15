@@ -14,6 +14,7 @@ from s7bb_fetcher.preflight import (
     Severity,
     _check_data_writable,
     _check_github,
+    _check_repo_identity,
     _check_repo_ownership,
     _check_repo_writable,
     _check_sqlite,
@@ -236,7 +237,8 @@ def test_github_network_error():
     assert "dns lookup failed" in c.message
 
 
-def test_run_returns_all_checks(tmp_path):
+def test_run_returns_all_checks(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPO_SLUG", raising=False)
     _init_repo(tmp_path)
     db = tmp_path / "s7bb.db"
     with patch("s7bb_fetcher.preflight._check_github",
@@ -246,10 +248,14 @@ def test_run_returns_all_checks(tmp_path):
             github_slug="o/r", github_token="t",
         )
     names = [c.name for c in results]
-    assert names == ["data_writable", "repo_writable", "repo_ownership", "sqlite", "github"]
+    assert names == [
+        "data_writable", "repo_writable", "repo_ownership",
+        "repo_identity", "sqlite", "github",
+    ]
 
 
-def test_run_does_not_short_circuit(tmp_path):
+def test_run_does_not_short_circuit(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPO_SLUG", raising=False)
     bad = tmp_path / "missing"
     with patch("s7bb_fetcher.preflight._check_github",
                return_value=Check("github", Severity.SOFT, False, "n/a")):
@@ -257,7 +263,53 @@ def test_run_does_not_short_circuit(tmp_path):
             data_dir=bad, repo_path=bad, db_path=bad / "x.db",
             github_slug=None, github_token=None,
         )
-    assert len(results) == 5  # every check is attempted
+    assert len(results) == 6  # every check is attempted
+
+
+def test_repo_identity_ok_flat_repo(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPO_SLUG", raising=False)
+    _init_repo(tmp_path)
+    c = _check_repo_identity(tmp_path)
+    assert c.ok is True
+    assert c.name == "repo_identity"
+    assert c.severity is Severity.HARD
+
+
+def test_repo_identity_rejects_code_repo_fetcher(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPO_SLUG", raising=False)
+    _init_repo(tmp_path)
+    (tmp_path / "fetcher").mkdir()
+    c = _check_repo_identity(tmp_path)
+    assert c.ok is False
+    assert c.severity is Severity.HARD
+    assert "fetcher/" in c.message
+
+
+def test_repo_identity_rejects_code_repo_site(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_REPO_SLUG", raising=False)
+    _init_repo(tmp_path)
+    (tmp_path / "site").mkdir()
+    c = _check_repo_identity(tmp_path)
+    assert c.ok is False
+    assert "site/" in c.message
+
+
+def test_repo_identity_slug_mismatch(tmp_path, monkeypatch):
+    repo = _init_repo(tmp_path)
+    repo.create_remote("origin", url="https://github.com/s7bb/s7bb.github.io.git")
+    monkeypatch.setenv("GITHUB_REPO_SLUG", "s7bb/s7bb-data")
+    c = _check_repo_identity(tmp_path)
+    assert c.ok is False
+    assert "wrong repository" in c.message
+    assert "s7bb/s7bb.github.io" in c.message
+
+
+def test_repo_identity_slug_match(tmp_path, monkeypatch):
+    repo = _init_repo(tmp_path)
+    repo.create_remote("origin", url="https://github.com/s7bb/s7bb-data.git")
+    monkeypatch.setenv("GITHUB_REPO_SLUG", "s7bb/s7bb-data")
+    c = _check_repo_identity(tmp_path)
+    assert c.ok is True
 
 
 def test_run_resolves_slug_from_repo_when_unset(tmp_path):
