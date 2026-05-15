@@ -114,7 +114,7 @@ def test_fetch_remote_returns_body_and_timestamp_on_200():
                return_value=_mock_response(200, body)) as get:
         raw, ts = _fetch_remote("owner/repo", timeout=5.0)
     get.assert_called_once_with(
-        "https://raw.githubusercontent.com/owner/repo/main/data/latest.json",
+        "https://raw.githubusercontent.com/owner/repo/main/latest.json",
         timeout=5.0,
     )
     assert raw == body
@@ -466,3 +466,14 @@ def test_startup_sync_message_reports_noop_when_push_data_noop(tmp_path, monkeyp
     # Logical action is still "push attempted" but message must not lie.
     assert result.action == "push"
     assert "nothing pushed" in result.message.lower()
+
+
+def test_raw_url_template_targets_data_repo_root():
+    from s7bb_fetcher.startup_sync import _RAW_URL_TMPL
+
+    assert "/main/latest.json" in _RAW_URL_TMPL
+    assert "/data/" not in _RAW_URL_TMPL
+    assert (
+        _RAW_URL_TMPL.format(slug="s7bb/s7bb-data")
+        == "https://raw.githubusercontent.com/s7bb/s7bb-data/main/latest.json"
+    )

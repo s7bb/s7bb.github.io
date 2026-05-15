@@ -1,10 +1,10 @@
-"""Reconcile local data/latest.json with origin/main at service startup.
+"""Reconcile local latest.json with the s7bb-data repo at service startup.
 
 On startup, before the scheduler begins, this module compares the local
-``data/latest.json`` against the copy published on ``origin/main`` and
-either pushes the local file (if local is newer), overwrites local with
-the remote bytes (if remote is newer), or does nothing (if they are in
-sync within a small clock-skew tolerance).
+``latest.json`` against the copy published on the data repository's
+``main`` branch and either pushes the local file (if local is newer),
+overwrites local with the remote bytes (if remote is newer), or does
+nothing (if they are in sync within a small clock-skew tolerance).
 
 All failure modes raise. The caller treats any raise as a hard startup
 failure.
@@ -47,12 +47,12 @@ def startup_sync(
     timeout: float = _DEFAULT_TIMEOUT_SEC,
     tolerance_seconds: float = _DEFAULT_TOLERANCE_SEC,
 ) -> SyncResult:
-    """Reconcile local data/latest.json with origin/main before scheduler starts.
+    """Reconcile local latest.json with the s7bb-data repo before scheduler starts.
 
     Raises on any failure that prevents reconciliation. Caller should treat a
     raise as a hard startup failure.
     """
-    logger.info("startup_sync: checking drift against origin/main (%s)", slug)
+    logger.info("startup_sync: checking drift against s7bb-data main (%s)", slug)
     try:
         return _run(repo_path, data_path, slug, timeout, tolerance_seconds)
     except Exception as exc:
@@ -159,11 +159,11 @@ def _pull(data_path: Path, raw_bytes: bytes) -> None:
         raise
 
 
-_RAW_URL_TMPL = "https://raw.githubusercontent.com/{slug}/main/data/latest.json"
+_RAW_URL_TMPL = "https://raw.githubusercontent.com/{slug}/main/latest.json"
 
 
 def _fetch_remote(slug: str, timeout: float) -> tuple[bytes | None, datetime | None]:
-    """GET data/latest.json from origin/main via raw.githubusercontent.com.
+    """GET latest.json from the data repo's main branch via raw.githubusercontent.com.
 
     Returns ``(body_bytes, generated_at)`` on 200, or ``(None, None)`` on 404.
     Raises on any other HTTP error, network error, or unparseable response.
