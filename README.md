@@ -68,8 +68,9 @@ Endpoints used:
 Clone this code repo (it carries `docker-compose.yml` and the fetcher
 image source). The data-repo working tree at `/repo` is **provisioned
 automatically** — `docker compose` runs a one-shot `s7bb-repo-init`
-service that clones `s7bb/s7bb-data` into the `s7bb-repo` named volume
-before `s7bb-fetcher` starts. You do **not** clone the data repo by hand.
+service that clones `s7bb/s7bb-data` into the gitignored host directory
+`./data-repo` (bind-mounted; survives `docker volume prune`) before
+`s7bb-fetcher` starts. You do **not** clone the data repo by hand.
 
 ```bash
 git clone <repo-url> /opt/s7bb
@@ -77,9 +78,10 @@ cd /opt/s7bb
 cp .env.example .env
 ```
 
-`REPO_PATH=/repo` is the auto-provisioned s7bb-data clone (named volume
-`s7bb-repo`). The DB and generated JSON live under `/data` (host
-bind-mount, untracked). Each hourly cycle the exporter writes
+`REPO_PATH=/repo` is the auto-provisioned s7bb-data clone (host directory
+`./data-repo`, bind-mounted, gitignored — survives `docker volume
+prune`). The DB and generated JSON live under `/data` (host bind-mount,
+untracked). Each hourly cycle the exporter writes
 `/data/{latest.json,archive/*.json}`, the service copies them into
 `/repo` (flat, at the root), commits, and pushes to `s7bb/s7bb-data`
 `main`.
@@ -226,21 +228,30 @@ Primary dev entry point:
 
     docker compose --profile dev up
 
-`s7bb-data-init` clones the data repo into a named volume that
-`s7bb-site-dev` mounts read-only at `/repo/data`. To refresh the
-data-repo tip without restarting the site container:
+`s7bb-data-init` clones the data repo into the gitignored host directory
+`./.data-checkout` (bind-mounted) that `s7bb-site-dev` mounts read-only
+at `/repo/data`. To refresh the data-repo tip without restarting the
+site container:
 
     docker compose --profile dev run --rm s7bb-data-init
 
-For editor inspection of the data outside Docker, clone it alongside the
-repo (the path is gitignored):
+For editor inspection of the data outside Docker, the same
+`./.data-checkout` directory is already on the host (the path is
+gitignored), or clone it yourself:
 
     git clone --depth=1 https://github.com/s7bb/s7bb-data.git ./.data-checkout
 
-Production uses a separate one-shot `s7bb-repo-init` → `s7bb-repo`
-volume, mounted **read-write** by `s7bb-fetcher` (it commits and
-pushes). The `dev` profile's `s7bb-data-init` → `s7bb-data-checkout` is
+Production uses a separate one-shot `s7bb-repo-init` → `./data-repo`
+host directory, mounted **read-write** by `s7bb-fetcher` (it commits and
+pushes). The `dev` profile's `s7bb-data-init` → `./.data-checkout` is
 **read-only** for the site container.
+
+**One-time VM migration (0.5.1 → next):** after `git pull` and
+`docker compose up -d`, `s7bb-repo-init` re-clones `s7bb/s7bb-data` into
+`./data-repo` (remote is authoritative, SQLite in `./data` persists — no
+data risk). The orphaned old named volumes may then be removed:
+
+    docker volume rm s7bb-repo s7bb-data-checkout
 
 ### Fetcher
 

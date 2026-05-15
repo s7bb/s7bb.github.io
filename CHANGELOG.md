@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Production data-repo clone moved off the `s7bb-repo` Docker named
+  volume onto a gitignored host bind mount `./data-repo` (the dev
+  checkout likewise → `./.data-checkout`). A named volume is destroyed
+  by `docker volume prune`; a host bind mount is not. Recovery was
+  already automatic (remote `s7bb/s7bb-data` is authoritative, SQLite in
+  `./data` regenerates the JSON), but the clone is no longer needlessly
+  exposed and is now directly inspectable on the host. `s7bb-repo-init`
+  additionally logs a `WARN` when its `reset --hard origin/main`
+  discards unpushed local bot commits — observability only; the
+  deliberate reset is unchanged and the data is reconstructable from the
+  persistent `/data` on the next export / `startup_sync` push.
+
 ## [0.5.1] - 2026-05-15
 
 ### Fixed
