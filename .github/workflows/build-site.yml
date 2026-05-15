@@ -4,11 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "data/**"
       - "site/**"
       - ".github/workflows/build-site.yml"
   schedule:
-    - cron: "0 * * * *"  # hourly fallback rebuild
+    - cron: "10 * * * *"  # after the VM's :00 hourly data push
   workflow_dispatch:
 
 permissions:
@@ -24,7 +23,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code + site
+        uses: actions/checkout@v4
+
+      - name: Checkout data repo
+        uses: actions/checkout@v4
+        with:
+          repository: s7bb/s7bb-data
+          ref: main
+          path: data-src
 
       - uses: actions/setup-node@v4
         with:
@@ -42,11 +49,11 @@ jobs:
         env:
           GITHUB_PAGES: "1"
 
-      - name: Copy data into dist
+      - name: Stage data into dist
         run: |
           mkdir -p site/dist/data/archive
-          cp data/latest.json site/dist/data/latest.json || true
-          cp data/archive/*.json site/dist/data/archive/ 2>/dev/null || true
+          cp data-src/latest.json site/dist/data/latest.json || true
+          cp data-src/archive/*.json site/dist/data/archive/ 2>/dev/null || true
 
       - uses: actions/upload-pages-artifact@v3
         with:
