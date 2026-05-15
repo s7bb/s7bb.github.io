@@ -306,3 +306,45 @@ def test_run_push_step_fetches_origin_before_pushing(mocks, monkeypatch):
     service._run_push_step()
 
     fake_remote.fetch.assert_called_once()
+
+
+def test_export_job_stages_data_into_repo_before_push(tmp_path, monkeypatch):
+    """After the exporter writes /data, _export_job mirrors it into /repo
+    (flat) and then runs the push step."""
+    from s7bb_fetcher import exporter, service, storage
+
+    data_dir = tmp_path / "data"
+    repo_path = tmp_path / "repo"
+    (data_dir / "archive").mkdir(parents=True)
+    repo_path.mkdir()
+
+    monkeypatch.setattr(service, "DATA_DIR", data_dir)
+    monkeypatch.setattr(service, "REPO_PATH", repo_path)
+    monkeypatch.setattr(service, "DB_PATH", data_dir / "s7bb.db")
+    monkeypatch.setattr(service, "OUT_PATH", data_dir / "latest.json")
+    monkeypatch.setattr(service, "ARCHIVE_DIR", data_dir / "archive")
+    monkeypatch.setattr(service, "INDEX_PATH", data_dir / "archive" / "index.json")
+
+    monkeypatch.setattr(storage, "open_db", lambda _p: object())
+
+    def fake_latest(_conn, out_path):
+        out_path.write_text('{"v":1}')
+
+    def fake_monthly(_conn, _y, _m, out_path, **_kw):
+        out_path.write_text('{"period":"x"}')
+
+    def fake_index(_archive_dir, out_path):
+        out_path.write_text('{"months":[]}')
+
+    monkeypatch.setattr(exporter, "export_latest", fake_latest)
+    monkeypatch.setattr(exporter, "export_monthly_archive", fake_monthly)
+    monkeypatch.setattr(exporter, "export_archive_index", fake_index)
+
+    pushed = []
+    monkeypatch.setattr(service, "_run_push_step", lambda: pushed.append(True))
+
+    service._export_job()
+
+    assert (repo_path / "latest.json").read_text() == '{"v":1}'
+    assert (repo_path / "archive" / "index.json").read_text() == '{"months":[]}'
+    assert pushed == [True]

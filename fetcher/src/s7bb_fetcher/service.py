@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shutil
 import signal
 import sys
 from datetime import UTC, datetime
@@ -38,6 +39,25 @@ def _safe(label: str, fn, *args, **kwargs) -> None:
         fn(*args, **kwargs)
     except Exception:
         logger.exception("export_job step %s failed", label)
+
+
+def _stage_into_repo(data_dir: Path, repo_path: Path) -> None:
+    """Mirror exporter outputs from data_dir into the data-repo working tree.
+
+    Copies latest.json and archive/*.json to repo_path's root (flat layout).
+    Idempotent; overwrites destination files.
+    """
+    repo_archive = repo_path / "archive"
+    repo_archive.mkdir(parents=True, exist_ok=True)
+
+    latest = data_dir / "latest.json"
+    if latest.exists():
+        shutil.copy2(latest, repo_path / "latest.json")
+
+    src_archive = data_dir / "archive"
+    if src_archive.exists():
+        for f in src_archive.glob("*.json"):
+            shutil.copy2(f, repo_archive / f.name)
 
 
 def _fetch_job() -> None:
@@ -116,6 +136,7 @@ def _export_job() -> None:
 
     _safe("archive_index", exporter.export_archive_index, ARCHIVE_DIR, INDEX_PATH)
 
+    _safe("stage", _stage_into_repo, DATA_DIR, REPO_PATH)
     _run_push_step()
 
 
