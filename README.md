@@ -17,11 +17,11 @@ DB Timetables API (XML)
         ▼  every hour (APScheduler in container)
   s7bb-export → data/latest.json → git push
         │
-        ▼  GitHub Actions (triggered by push to data/**)
+        ▼  GitHub Actions (hourly cron :10, picks up VM's :00 push)
   Vite build  →  GitHub Pages
 ```
 
-The fetcher runs in a Docker container on a small VM and pushes `data/latest.json` hourly. GitHub Actions rebuilds and deploys the static site on every push.
+The fetcher runs in a Docker container on a small VM and pushes the schedule JSON hourly to `s7bb/s7bb-data`. GitHub Actions rebuilds and deploys the static site on an hourly schedule (and on site-code changes).
 
 ---
 
@@ -123,8 +123,8 @@ Both cron expressions and the GitHub PAT (`GITHUB_PAT`) are configured via `.env
 + `reset --hard origin/main`) and must exit 0 before `s7bb-fetcher`
 starts. A container restart discards any local bot commits that never
 pushed — they are regenerated from the persistent SQLite DB on the next
-export (single writer, so the remote is authoritative). `s7bb-service`
-then runs preflight checks and a startup sync against the s7bb-data
+export (single writer, so the remote is authoritative). The `s7bb-fetcher`
+container then runs preflight checks and a startup sync against the s7bb-data
 `main`: if local `latest.json` is newer than the published copy it is
 pushed immediately; if remote is newer, the remote bytes overwrite the
 local file. The scheduler does not start until all succeed — any error
