@@ -31,3 +31,9 @@ site/dist/
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+# Local data working dir (untracked here; s7bb-data repo is the source of truth)
+/data/
+
+# Optional host-side clone of the data repo for offline inspection
+/.data-checkout/
