@@ -78,9 +78,12 @@ npm run lint     # eslint
 
 ## VM Setup (production)
 
-1. Clone repo over HTTPS.
+1. Clone **this code repo** over HTTPS. The s7bb-data working tree at
+   `/repo` is auto-provisioned by the `s7bb-repo-init` compose service
+   (named volume `s7bb-repo`) — do not clone it by hand.
 2. Copy `.env.example` → `.env`, fill in API credentials, `GITHUB_PAT` (see README §5), UID/GID.
-3. `docker compose up -d s7bb-fetcher` — APScheduler runs fetch+export+push inside container.
+3. `docker compose up -d s7bb-fetcher` — `s7bb-repo-init` clones/refreshes
+   `s7bb/s7bb-data` first, then APScheduler runs fetch+export+push.
 
 ## GitHub Pages Setup
 
