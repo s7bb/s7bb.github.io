@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Production `docker-compose.yml` mounted the **code repo** at `/repo`
+  (`.:/repo`): the bot would have committed data into the code working
+  tree and pushed to the wrong remote, or failed every hourly push
+  under the `s7bb-data`-scoped PAT. A new one-shot `s7bb-repo-init`
+  service clones `s7bb/s7bb-data` into a named volume `s7bb-repo` that
+  `s7bb-fetcher` mounts at `/repo` (`depends_on` →
+  `service_completed_successfully`). The image still builds from
+  `fetcher/`; no manual VM cutover or host repoint is needed.
+- New HARD preflight `repo_identity` aborts startup if `/repo` contains
+  `fetcher/` or `site/` (code repo mounted), or if its origin disagrees
+  with `GITHUB_REPO_SLUG`. Previously this misconfiguration booted clean
+  and failed silently every hour.
+
 ## [0.5.0] - 2026-05-15
 
 ### Added
