@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Schedule JSON moved to a dedicated single-writer repository
+  `s7bb/s7bb-data`. The VM is its sole writer, so hourly data pushes no
+  longer compete with Dependabot/PR merges on `main` for fast-forward —
+  this removes the silent non-fast-forward push-rejection class that
+  left the site serving stale data after `main` activity. The bot PAT
+  is scoped to `s7bb/s7bb-data` only and cannot touch code.
+
+### Changed
+
+- Exporter SQL: `ORDER BY scheduled_time, train_id` (deterministic
+  tie-break) — byte-stable hourly archive rewrites, smaller git deltas.
+- Build workflow checks out both this repo and `s7bb/s7bb-data`;
+  fallback rebuild cron shifted to `:10`.
+- `docker-compose.yml`: new `s7bb-data-init` (profile `dev`) clones the
+  data repo into a named volume; `s7bb-site-dev` mounts it read-only at
+  `/repo/data`.
+- This repo no longer tracks `data/`; it is gitignored locally.
+
 ## [0.4.5] - 2026-05-14
 
 ### Fixed

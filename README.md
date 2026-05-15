@@ -65,11 +65,22 @@ Endpoints used:
 
 ### 1. Clone and configure
 
+Clone this code repo (it carries `docker-compose.yml` and the fetcher
+image source) and the **data repo** over HTTPS into the path the
+container bind-mounts as `/repo`:
+
 ```bash
 git clone <repo-url> /opt/s7bb
+git clone --depth=1 https://github.com/s7bb/s7bb-data.git /path/to/repo
 cd /opt/s7bb
 cp .env.example .env
 ```
+
+`REPO_PATH=/repo` points at the data-repo clone. The DB and generated
+JSON live under `/data` (host bind-mount, untracked). Each hourly cycle
+the exporter writes `/data/{latest.json,archive/*.json}`, the service
+copies them into `/repo` (flat, at the root), commits, and pushes to
+`s7bb/s7bb-data` `main`.
 
 Edit `.env` and fill in your credentials:
 
@@ -126,7 +137,13 @@ The CLI prints one line per check. `[OK]` is healthy, `[WARN]` is a soft failure
 
 1. Repo **Settings → Pages → Source → GitHub Actions**.
 2. No secrets needed — the deploy workflow uses OIDC (`id-token: write`).
-3. On the first push of `data/latest.json` from the VM, GitHub Actions will build and deploy the site automatically.
+3. On the next data push to `s7bb/s7bb-data` (or a manual `workflow_dispatch`), GitHub Actions will build and deploy the site automatically.
+
+The build workflow checks out **both** this repo (site code) and
+`s7bb/s7bb-data` (the JSON) and assembles them into the deployed
+artifact. `s7bb/s7bb-data` must stay public for the token-free checkout.
+The fallback `schedule:` cron runs at `:10` so it picks up the VM's
+`:00` hourly push.
 
 ### 5. GitHub credentials for push from VM
 
@@ -191,6 +208,23 @@ The token is delivered to `git push` via a per-push `GIT_ASKPASS` helper. It nev
 ---
 
 ## Development
+
+### Local (Docker)
+
+Primary dev entry point:
+
+    docker compose --profile dev up
+
+`s7bb-data-init` clones the data repo into a named volume that
+`s7bb-site-dev` mounts read-only at `/repo/data`. To refresh the
+data-repo tip without restarting the site container:
+
+    docker compose --profile dev run --rm s7bb-data-init
+
+For editor inspection of the data outside Docker, clone it alongside the
+repo (the path is gitignored):
+
+    git clone --depth=1 https://github.com/s7bb/s7bb-data.git ./.data-checkout
 
 ### Fetcher
 

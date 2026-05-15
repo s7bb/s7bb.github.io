@@ -8,23 +8,35 @@ Tracks Deutsche Bahn S7 S-Bahn schedule at Baierbrunn station (Munich) — on-ti
 
 ## Architecture
 
-```
-DB Timetables API (XML) → Python fetcher → SQLite (data/s7bb.db)
-                                                    ↓
-                                          hourly: s7bb-export → data/latest.json → git push
-                                                                                         ↓
-                                                                               GitHub Actions
-                                                                               Vite build → gh-pages
-```
+Two repositories:
 
-- **`fetcher/`** — Python package (`s7bb_fetcher`). Entry points: `s7bb-fetch` (5 min cron) and `s7bb-export` (hourly).
-- **`site/`** — Vanilla TypeScript + Vite + Chart.js static site. Reads `data/latest.json` at runtime.
-- **`data/`** — `latest.json` (7-day window, committed hourly by VM), `archive/YYYY-MM.json` (monthly dumps).
-- **`.github/workflows/`** — `ci.yml` (lint+test on PR), `build-site.yml` (deploy to gh-pages on push to `data/**`).
+- **`s7bb/s7bb.github.io`** (this repo) — humans + Dependabot. Code,
+  site, fetcher, workflows, docs. Does **not** track `data/`.
+- **`s7bb/s7bb-data`** — VM bot, sole writer. Flat tree at the root:
+  `latest.json`, `archive/*.json`, `archive/index.json`. Single-writer,
+  so VM pushes never collide with Dependabot/PR merges.
+
+```
+DB Timetables API (XML)
+  → Python fetcher → SQLite (/data/s7bb.db, VM-only)
+                       ↓
+                     /data/latest.json + /data/archive/*.json   (exporter)
+                       ↓ (copy)
+                     /repo/latest.json + /repo/archive/*.json   (s7bb-data clone)
+                       ↓ (hourly push, HEAD:refs/heads/main)
+                     GitHub: s7bb/s7bb-data main updated
+                       ↓
+                     Actions build-site.yml checks out this repo +
+                     s7bb-data, assembles site/dist, deploys gh-pages.
+```
 
 ### Key decisions (locked)
 - Storage: **SQLite** (`data/s7bb.db` stays on VM, never committed)
-- GitHub push: VM commits `data/latest.json` hourly via fine-grained GitHub PAT over HTTPS, server-side restricted by a `main`-branch ruleset to `data/latest.json` and `data/archive/**`; generated site deployed by Actions
+- GitHub push: VM commits a flat `latest.json` + `archive/*.json` hourly
+  to **`s7bb/s7bb-data`** `main` via a fine-grained GitHub PAT scoped to
+  that single repository (`Contents: read/write`). The bot PAT has no
+  access to this code repo. Generated site deployed by Actions, which
+  also checks out `s7bb/s7bb-data`.
 - DB API: `apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1`, auth via `DB-Api-Key` header
 - Baierbrunn EVA number: `8000781` (overridable via `S7BB_EVA` env var)
 - Fetch cadence: every 5 min (systemd timer)
