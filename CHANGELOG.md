@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-05-15
+
 ### Fixed
 
 - Production data-repo clone moved off the `s7bb-repo` Docker named
