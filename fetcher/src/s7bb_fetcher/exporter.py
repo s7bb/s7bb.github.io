@@ -40,7 +40,7 @@ def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
                actual_time, delay_minutes, cancelled, reason
         FROM arrivals
         WHERE scheduled_time >= ?
-        ORDER BY scheduled_time
+        ORDER BY scheduled_time, train_id
         """,
         (since,),
     )
@@ -185,7 +185,7 @@ def export_monthly_archive(
                actual_time, delay_minutes, cancelled, reason
         FROM arrivals
         WHERE scheduled_time >= ? AND scheduled_time < ?
-        ORDER BY scheduled_time
+        ORDER BY scheduled_time, train_id
         """,
         (start, end),
     )
