@@ -26,6 +26,25 @@ services:
     profiles:
       - dev
 
+  s7bb-data-init:
+    image: alpine/git:latest
+    profiles: [dev]
+    environment:
+      DATA_REPO_URL: https://github.com/s7bb/s7bb-data.git
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ ! -d /data-checkout/.git ]; then
+          git clone --branch main --single-branch --depth=1 \
+            "$$DATA_REPO_URL" /data-checkout
+        else
+          git -C /data-checkout fetch --depth=1 origin main
+          git -C /data-checkout reset --hard FETCH_HEAD
+        fi
+    volumes:
+      - s7bb-data-checkout:/data-checkout
+
   s7bb-site-dev:
     image: node:20-alpine
     working_dir: /repo/site
@@ -35,8 +54,13 @@ services:
     command: ["sh", "/repo/site/dev-entrypoint.sh"]
     ports:
       - "5173:5173"
+    depends_on:
+      s7bb-data-init:
+        condition: service_completed_successfully
     volumes:
       - .:/repo
+      # Data-repo tip, read-only, at the path dev-entrypoint.sh expects.
+      - s7bb-data-checkout:/repo/data:ro
       # Anonymous volume overlays the bind mount so the entrypoint can
       # write a transformed latest.json into /repo/site/data without
       # leaking back into the host's site/ tree. Vite serves it under
@@ -48,3 +72,4 @@ services:
 
 volumes:
   s7bb-site-node-modules:
+  s7bb-data-checkout:
