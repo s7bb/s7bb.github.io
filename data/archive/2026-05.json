@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-15T00:00:00.103947+00:00",
+  "generated_at": "2026-05-15T01:00:00.116872+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "period": "2026-05",
@@ -10356,16 +10356,16 @@
       "direction": "Wolfratshausen",
       "direction_bucket": "wolfratshausen",
       "scheduled_time": "2026-05-15T00:00:00+00:00",
-      "actual_time": "2026-05-15T00:02:00+00:00",
-      "delay_minutes": 2,
+      "actual_time": "2026-05-15T00:00:00+00:00",
+      "delay_minutes": 0,
       "cancelled": false,
       "reason": null
     }
   ],
   "aggregates": {
     "total": 863,
-    "on_time": 222,
-    "late": 613,
+    "on_time": 223,
+    "late": 612,
     "cancelled": 28,
     "avg_delay_min": 2.4,
     "by_direction": {
@@ -10378,8 +10378,8 @@
       },
       "wolfratshausen": {
         "total": 429,
-        "on_time": 97,
-        "late": 318,
+        "on_time": 98,
+        "late": 317,
         "cancelled": 14,
         "avg_delay_min": 2.8
       }
@@ -10461,10 +10461,10 @@
     {
       "date": "2026-05-15",
       "total": 1,
-      "on_time": 0,
-      "late": 1,
+      "on_time": 1,
+      "late": 0,
       "cancelled": 0,
-      "avg_delay_min": 2.0
+      "avg_delay_min": 0.0
     }
   ],
   "daily_by_direction": {
@@ -10618,10 +10618,10 @@
       {
         "date": "2026-05-15",
         "total": 1,
-        "on_time": 0,
-        "late": 1,
+        "on_time": 1,
+        "late": 0,
         "cancelled": 0,
-        "avg_delay_min": 2.0
+        "avg_delay_min": 0.0
       }
     ]
   }
