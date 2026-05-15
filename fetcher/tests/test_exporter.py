@@ -284,3 +284,41 @@ def test_archive_index_skips_non_period_files(tmp_path):
     export_archive_index(archive_dir, out)
     idx = json.loads(out.read_text())
     assert idx["months"] == []
+
+
+def test_export_latest_orders_ties_by_train_id(tmp_path):
+    import json
+    from datetime import UTC, datetime
+
+    from s7bb_fetcher.exporter import export_latest
+    from s7bb_fetcher.storage import open_db, upsert_records
+
+    conn = open_db(tmp_path / "test.db")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    upsert_records(conn, [
+        _make_arrival("m_zzz", f"{today}T10:00:00+00:00", "muenchen"),
+        _make_arrival("m_aaa", f"{today}T10:00:00+00:00", "muenchen"),
+    ])
+    out = tmp_path / "latest.json"
+    export_latest(conn, out)
+    arrivals = json.loads(out.read_text())["arrivals"]
+    same = [a for a in arrivals if a["scheduled_time"].startswith(f"{today}T10:00")]
+    assert [a["train_id"] for a in same] == ["m_aaa", "m_zzz"]
+
+
+def test_export_monthly_archive_orders_ties_by_train_id(tmp_path):
+    import json
+
+    from s7bb_fetcher.exporter import export_monthly_archive
+    from s7bb_fetcher.storage import open_db, upsert_records
+
+    conn = open_db(tmp_path / "test.db")
+    upsert_records(conn, [
+        _make_arrival("z2", "2026-04-15T10:00:00+00:00", "muenchen"),
+        _make_arrival("a1", "2026-04-15T10:00:00+00:00", "muenchen"),
+    ])
+    out = tmp_path / "2026-04.json"
+    export_monthly_archive(conn, 2026, 4, out)
+    arrivals = json.loads(out.read_text())["arrivals"]
+    same = [a for a in arrivals if a["scheduled_time"].startswith("2026-04-15T10:00")]
+    assert [a["train_id"] for a in same] == ["a1", "z2"]
