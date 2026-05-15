@@ -21,16 +21,14 @@ from s7bb_fetcher.pusher import PushOutcome, push_data
 
 @pytest.fixture
 def working_repo(tmp_path: Path) -> git.Repo:
-    """A working git repo with `origin` pointing at a local bare upstream and
-    `data/latest.json` already committed on `main`."""
+    """Working clone of a local bare upstream, seeded with a flat data-repo
+    layout (`latest.json` at the root, no `data/` prefix) on `main`."""
     bare_path = tmp_path / "remote.git"
     git.Repo.init(bare_path, bare=True, initial_branch="main")
     work = git.Repo.clone_from(str(bare_path), tmp_path / "work")
 
-    data_dir = Path(work.working_tree_dir) / "data"
-    data_dir.mkdir()
-    (data_dir / "latest.json").write_text('{"v":0}\n')
-    work.index.add(["data/latest.json"])
+    (Path(work.working_tree_dir) / "latest.json").write_text('{"v":0}\n')
+    work.index.add(["latest.json"])
     work.index.commit(
         "seed",
         author=git.Actor("seed", "seed@local"),
@@ -38,16 +36,14 @@ def working_repo(tmp_path: Path) -> git.Repo:
     )
     if work.active_branch.name != "main":
         work.git.branch("-M", "main")
-    # Push seed commit to bare upstream so origin/main ref exists locally.
     work.git.push("origin", "main")
-    # Force HTTPS-style remote so slug parsing has something deterministic by default.
     work.remotes["origin"].set_url("https://github.com/owner/s7bb.git")
     return work
 
 
 @pytest.fixture
 def dirty_latest(working_repo: git.Repo) -> git.Repo:
-    target = Path(working_repo.working_tree_dir) / "data" / "latest.json"
+    target = Path(working_repo.working_tree_dir) / "latest.json"
     target.write_text('{"v":1}\n')
     return working_repo
 
@@ -206,7 +202,7 @@ def test_push_data_stages_archive_and_latest(monkeypatch, dirty_latest):
     monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
     work = Path(dirty_latest.working_tree_dir)
 
-    arch_dir = work / "data" / "archive"
+    arch_dir = work / "archive"
     arch_dir.mkdir(parents=True, exist_ok=True)
     (arch_dir / "2026-04.json").write_text('{"period":"2026-04"}\n')
     (arch_dir / "index.json").write_text('{"months":[]}\n')
@@ -223,9 +219,9 @@ def test_push_data_stages_archive_and_latest(monkeypatch, dirty_latest):
     assert result is PushOutcome.COMMITTED_AND_PUSHED
     last = dirty_latest.head.commit
     files = set(last.stats.files.keys())
-    assert "data/latest.json" in files
-    assert "data/archive/2026-04.json" in files
-    assert "data/archive/index.json" in files
+    assert "latest.json" in files
+    assert "archive/2026-04.json" in files
+    assert "archive/index.json" in files
     assert last.message.startswith("chore: update data ")
 
 
@@ -246,7 +242,7 @@ def test_push_data_skips_when_no_diff(monkeypatch, working_repo):
 def test_push_data_single_commit_for_combined_changes(monkeypatch, dirty_latest):
     monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
     work = Path(dirty_latest.working_tree_dir)
-    arch_dir = work / "data" / "archive"
+    arch_dir = work / "archive"
     arch_dir.mkdir(parents=True, exist_ok=True)
     (arch_dir / "2026-04.json").write_text('{"period":"2026-04"}\n')
 
@@ -271,9 +267,9 @@ def test_is_ahead_of_origin_true_when_local_has_extra_commits(working_repo):
     from s7bb_fetcher.pusher import _is_ahead_of_origin
 
     # Add an extra local commit not on origin/main.
-    target = Path(working_repo.working_tree_dir) / "data" / "latest.json"
+    target = Path(working_repo.working_tree_dir) / "latest.json"
     target.write_text('{"v":2}\n')
-    working_repo.index.add(["data/latest.json"])
+    working_repo.index.add(["latest.json"])
     working_repo.index.commit(
         "extra",
         author=git.Actor("a", "a@local"),
@@ -304,9 +300,9 @@ def test_push_data_pushes_existing_unpushed_commits(monkeypatch, working_repo):
     monkeypatch.setenv("GITHUB_PAT", "ghp_fake")
 
     # Make a local commit that origin/main does not yet have.
-    target = Path(working_repo.working_tree_dir) / "data" / "latest.json"
+    target = Path(working_repo.working_tree_dir) / "latest.json"
     target.write_text('{"v":99}\n')
-    working_repo.index.add(["data/latest.json"])
+    working_repo.index.add(["latest.json"])
     working_repo.index.commit(
         "local-only commit",
         author=git.Actor("a", "a@local"),

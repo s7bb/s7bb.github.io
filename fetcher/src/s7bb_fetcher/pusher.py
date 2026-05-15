@@ -1,4 +1,4 @@
-"""Push data/latest.json + data/archive/*.json to git via GitHub PAT (HTTPS)."""
+"""Push latest.json + archive/*.json to the s7bb-data repo via GitHub PAT (HTTPS)."""
 
 import enum
 import logging
@@ -27,8 +27,8 @@ class PushOutcome(enum.Enum):
 
 logger = logging.getLogger(__name__)
 
-_LATEST_JSON = "data/latest.json"
-_ARCHIVE_GLOB = "data/archive/*.json"
+_LATEST_JSON = "latest.json"
+_ARCHIVE_GLOB = "archive/*.json"
 _HTTPS_USER = "x-access-token"
 _PUSH_REFSPEC = "HEAD:refs/heads/main"
 
@@ -114,7 +114,7 @@ def push_data(repo_path: Path) -> PushOutcome:
     paths: list[str] = []
     if (repo_path / _LATEST_JSON).exists():
         paths.append(_LATEST_JSON)
-    archive_files = sorted((repo_path / "data" / "archive").glob("*.json"))
+    archive_files = sorted((repo_path / "archive").glob("*.json"))
     for f in archive_files:
         paths.append(f.relative_to(repo_path).as_posix())
 
