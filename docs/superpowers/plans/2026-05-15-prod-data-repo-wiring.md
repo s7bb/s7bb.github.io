@@ -443,6 +443,25 @@ created in the **`s7bb/s7bb-data`** repo settings, not this code repo —
 prefix the step with that clarification:
 `Open **`s7bb/s7bb-data`** → Settings → Rules → Rulesets → New branch ruleset.`
 
+- [ ] **Step 4b: README `## Data` — post-split paths**
+
+The `## Data` table still shows pre-split `data/`-prefixed paths and
+"committed hourly" wording. Replace the three table rows:
+
+```markdown
+| `data/s7bb.db` | SQLite database — **VM only, never committed**. Schema: [`documentation/database-schema.md`](documentation/database-schema.md) |
+| `data/latest.json` | Last 7 days of arrivals + aggregates — committed hourly |
+| `data/archive/YYYY-MM.json` | Monthly dumps — committed on the 1st of each month |
+```
+
+with:
+
+```markdown
+| `/data/s7bb.db` | SQLite database — **VM only, never committed**. Schema: [`documentation/database-schema.md`](documentation/database-schema.md) |
+| `/data/latest.json` | Last 7 days of arrivals + aggregates — copied to the s7bb-data root and pushed hourly |
+| `/data/archive/YYYY-MM.json` | Monthly dumps — pushed to s7bb-data `archive/` on the 1st of each month |
+```
+
 - [ ] **Step 5: .env.example — fix post-split PAT/slug comments**
 
 Replace the `GITHUB_PAT` comment block and the `GITHUB_REPO_SLUG` block:
