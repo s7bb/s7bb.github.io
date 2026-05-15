@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-15T08:00:00.117049+00:00",
+  "generated_at": "2026-05-15T09:00:00.095507+00:00",
   "station": "Baierbrunn",
   "line": "S7",
   "period": "2026-05",
@@ -10744,26 +10744,98 @@
       "delay_minutes": 2,
       "cancelled": false,
       "reason": null
+    },
+    {
+      "train_id": "-6309676283875212231-2605150954-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-15T08:20:00+00:00",
+      "actual_time": "2026-05-15T08:21:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-6853724945093266244-2605151003-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-15T08:20:00+00:00",
+      "actual_time": "2026-05-15T08:21:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "6253962091175802956-2605151014-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-15T08:40:00+00:00",
+      "actual_time": "2026-05-15T08:41:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "4505930862277983650-2605151023-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-15T08:40:00+00:00",
+      "actual_time": "2026-05-15T08:41:00+00:00",
+      "delay_minutes": 1,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-6507325357114948862-2605151034-12",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "Wolfratshausen",
+      "direction_bucket": "wolfratshausen",
+      "scheduled_time": "2026-05-15T09:00:00+00:00",
+      "actual_time": "2026-05-15T09:02:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
+    },
+    {
+      "train_id": "-4843070226012423871-2605151043-5",
+      "line": "S7",
+      "station": "Baierbrunn",
+      "direction": "München Hbf Gl.27-36",
+      "direction_bucket": "muenchen",
+      "scheduled_time": "2026-05-15T09:00:00+00:00",
+      "actual_time": "2026-05-15T09:02:00+00:00",
+      "delay_minutes": 2,
+      "cancelled": false,
+      "reason": null
     }
   ],
   "aggregates": {
-    "total": 895,
+    "total": 901,
     "on_time": 229,
-    "late": 637,
+    "late": 643,
     "cancelled": 29,
     "avg_delay_min": 2.4,
     "by_direction": {
       "muenchen": {
-        "total": 451,
+        "total": 454,
         "on_time": 129,
-        "late": 307,
+        "late": 310,
         "cancelled": 15,
         "avg_delay_min": 1.9
       },
       "wolfratshausen": {
-        "total": 444,
+        "total": 447,
         "on_time": 100,
-        "late": 330,
+        "late": 333,
         "cancelled": 14,
         "avg_delay_min": 2.9
       }
@@ -10844,11 +10916,11 @@
     },
     {
       "date": "2026-05-15",
-      "total": 33,
+      "total": 39,
       "on_time": 7,
-      "late": 25,
+      "late": 31,
       "cancelled": 1,
-      "avg_delay_min": 2.8
+      "avg_delay_min": 2.6
     }
   ],
   "daily_by_direction": {
@@ -10927,9 +10999,9 @@
       },
       {
         "date": "2026-05-15",
-        "total": 17,
+        "total": 20,
         "on_time": 4,
-        "late": 12,
+        "late": 15,
         "cancelled": 1,
         "avg_delay_min": 1.2
       }
@@ -11009,11 +11081,11 @@
       },
       {
         "date": "2026-05-15",
-        "total": 16,
+        "total": 19,
         "on_time": 3,
-        "late": 13,
+        "late": 16,
         "cancelled": 0,
-        "avg_delay_min": 4.4
+        "avg_delay_min": 3.9
       }
     ]
   }
