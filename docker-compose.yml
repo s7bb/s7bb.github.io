@@ -1,4 +1,28 @@
 services:
+  # One-shot: clone/refresh the flat s7bb-data repo into the s7bb-repo
+  # named volume so s7bb-fetcher pushes to the data repo, never the code
+  # repo. Anonymous HTTPS clone (s7bb-data is public); the push itself
+  # uses GITHUB_PAT via GIT_ASKPASS. Non-shallow so pushes never hit
+  # shallow-clone edge cases. On restart, reset --hard origin/main
+  # discards unpushed local bot commits — they are regenerated from the
+  # persistent SQLite DB on the next export.
+  s7bb-repo-init:
+    image: alpine/git:latest
+    environment:
+      DATA_REPO_URL: https://github.com/s7bb/s7bb-data.git
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ ! -d /repo-clone/.git ]; then
+          git clone --branch main --single-branch "$$DATA_REPO_URL" /repo-clone
+        else
+          git -C /repo-clone fetch origin main
+          git -C /repo-clone reset --hard origin/main
+        fi
+    volumes:
+      - s7bb-repo:/repo-clone
+
   s7bb-fetcher:
     build:
       context: fetcher
@@ -6,12 +30,16 @@ services:
     restart: unless-stopped
     env_file: .env
     # Run as container UID 0. In rootless nerdctl this maps to the host
-    # invoking user, so bind mounts (data/, repo) preserve ownership.
-    # Setting UID=1000 here would map to a sub-UID and break write access.
+    # invoking user, so the data bind mount and s7bb-repo volume preserve
+    # ownership. Setting UID=1000 here would map to a sub-UID and break
+    # write access.
     user: "0:0"
+    depends_on:
+      s7bb-repo-init:
+        condition: service_completed_successfully
     volumes:
       - ./data:/data
-      - .:/repo
+      - s7bb-repo:/repo
     environment:
       DATA_DIR: /data
       REPO_PATH: /repo
@@ -73,3 +101,4 @@ services:
 volumes:
   s7bb-site-node-modules:
   s7bb-data-checkout:
+  s7bb-repo:
