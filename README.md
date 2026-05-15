@@ -277,9 +277,9 @@ The dev server reads `../data/latest.json` directly. Run `s7bb-export` first to 
 
 | Path | Description |
 |---|---|
-| `data/s7bb.db` | SQLite database — **VM only, never committed**. Schema: [`documentation/database-schema.md`](documentation/database-schema.md) |
-| `data/latest.json` | Last 7 days of arrivals + aggregates — committed hourly |
-| `data/archive/YYYY-MM.json` | Monthly dumps — committed on the 1st of each month |
+| `/data/s7bb.db` | SQLite database — **VM only, never committed**. Schema: [`documentation/database-schema.md`](documentation/database-schema.md) |
+| `/data/latest.json` | Last 7 days of arrivals + aggregates — copied to the s7bb-data root and pushed hourly |
+| `/data/archive/YYYY-MM.json` | Monthly dumps — pushed to s7bb-data `archive/` on the 1st of each month |
 
 To export a monthly archive manually:
 
