@@ -1,11 +1,14 @@
 services:
-  # One-shot: clone/refresh the flat s7bb-data repo into the s7bb-repo
-  # named volume so s7bb-fetcher pushes to the data repo, never the code
-  # repo. Anonymous HTTPS clone (s7bb-data is public); the push itself
-  # uses GITHUB_PAT via GIT_ASKPASS. Non-shallow so pushes never hit
+  # One-shot: clone/refresh the flat s7bb-data repo into the ./data-repo
+  # host directory (bind-mounted, gitignored) so s7bb-fetcher pushes to
+  # the data repo, never the code repo. A host bind mount survives
+  # `docker volume prune`, unlike the former s7bb-repo named volume.
+  # Anonymous HTTPS clone (s7bb-data is public); the push itself uses
+  # GITHUB_PAT via GIT_ASKPASS. Non-shallow so pushes never hit
   # shallow-clone edge cases. On restart, reset --hard origin/main
   # discards unpushed local bot commits — they are regenerated from the
-  # persistent SQLite DB on the next export.
+  # persistent SQLite DB on the next export, and the discard is now
+  # logged at WARN.
   s7bb-repo-init:
     image: alpine/git:latest
     environment:
@@ -18,10 +21,15 @@ services:
           git clone --branch main --single-branch "$$DATA_REPO_URL" /repo-clone
         else
           git -C /repo-clone fetch origin main
+          ahead=$$(git -C /repo-clone rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
+          if [ "$$ahead" -gt 0 ]; then
+            behind=$$(git -C /repo-clone rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+            echo "WARN: s7bb-repo-init discarding $$ahead unpushed local commit(s) (behind=$$behind) via 'reset --hard origin/main'; data is reconstructable from persistent /data on the next export / startup_sync push" >&2
+          fi
           git -C /repo-clone reset --hard origin/main
         fi
     volumes:
-      - s7bb-repo:/repo-clone
+      - ./data-repo:/repo-clone
 
   s7bb-fetcher:
     build:
@@ -30,7 +38,7 @@ services:
     restart: unless-stopped
     env_file: .env
     # Run as container UID 0. In rootless nerdctl this maps to the host
-    # invoking user, so the data bind mount and s7bb-repo volume preserve
+    # invoking user, so the ./data and ./data-repo bind mounts preserve
     # ownership. Setting UID=1000 here would map to a sub-UID and break
     # write access.
     user: "0:0"
@@ -39,7 +47,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./data:/data
-      - s7bb-repo:/repo
+      - ./data-repo:/repo
     environment:
       DATA_DIR: /data
       REPO_PATH: /repo
@@ -71,7 +79,7 @@ services:
           git -C /data-checkout reset --hard FETCH_HEAD
         fi
     volumes:
-      - s7bb-data-checkout:/data-checkout
+      - ./.data-checkout:/data-checkout
 
   s7bb-site-dev:
     image: node:20-alpine
@@ -88,7 +96,7 @@ services:
     volumes:
       - .:/repo
       # Data-repo tip, read-only, at the path dev-entrypoint.sh expects.
-      - s7bb-data-checkout:/repo/data:ro
+      - ./.data-checkout:/repo/data:ro
       # Anonymous volume overlays the bind mount so the entrypoint can
       # write a transformed latest.json into /repo/site/data without
       # leaking back into the host's site/ tree. Vite serves it under
@@ -100,5 +108,3 @@ services:
 
 volumes:
   s7bb-site-node-modules:
-  s7bb-data-checkout:
-  s7bb-repo:

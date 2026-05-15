@@ -35,5 +35,9 @@ site/dist/
 # Local data working dir (untracked here; s7bb-data repo is the source of truth)
 /data/
 
+# Production s7bb-data clone working tree (host bind mount; untracked
+# here — s7bb-data repo is the source of truth, same as /data/)
+/data-repo/
+
 # Optional host-side clone of the data repo for offline inspection
 /.data-checkout/
