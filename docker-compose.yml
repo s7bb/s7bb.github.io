@@ -82,7 +82,7 @@ services:
       - ./.data-checkout:/data-checkout
 
   s7bb-site-dev:
-    image: node:20-alpine
+    image: node:22-alpine
     working_dir: /repo/site
     # Entrypoint derives VITE_DEV_NOW from data/latest.json's generated_at so
     # the today page treats the bundled data as "now" (it's filtered to the

@@ -60,7 +60,7 @@ Endpoints used:
 ### Prerequisites
 
 - Python 3.11+ with [uv](https://docs.astral.sh/uv/) (`pip install uv`)
-- Node.js 20+
+- Node.js 22+
 - A VM with internet access. The fetcher pushes via HTTPS using a fine-grained GitHub Personal Access Token (no SSH key required — see §5)
 
 ### 1. Clone and configure

@@ -24,18 +24,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code + site
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout data repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: s7bb/s7bb-data
           ref: main
           path: data-src
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version-file: .nvmrc
           cache: "npm"
           cache-dependency-path: site/package-lock.json
 
@@ -55,7 +55,7 @@ jobs:
           cp data-src/latest.json site/dist/data/latest.json || true
           cp data-src/archive/*.json site/dist/data/archive/ 2>/dev/null || true
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
 
@@ -67,4 +67,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
