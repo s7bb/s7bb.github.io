@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-15T02:00:00.190989+00:00",
+  "generated_at": "2026-05-15T03:00:00.241967+00:00",
   "station": "Baierbrunn",
   "months": [
     {
@@ -30,16 +30,16 @@
     {
       "period": "2026-05",
       "finalized": false,
-      "total": 863,
+      "total": 865,
       "on_time": 223,
-      "late": 612,
+      "late": 614,
       "cancelled": 28,
       "avg_delay_min": 2.4,
       "by_direction": {
         "muenchen": {
-          "total": 434,
+          "total": 436,
           "on_time": 125,
-          "late": 295,
+          "late": 297,
           "cancelled": 14,
           "avg_delay_min": 1.9
         },
