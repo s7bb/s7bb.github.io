@@ -462,6 +462,39 @@ with:
 | `/data/archive/YYYY-MM.json` | Monthly dumps — pushed to s7bb-data `archive/` on the 1st of each month |
 ```
 
+- [ ] **Step 4c: README — stale Actions-trigger + service name (code-review follow-ups)**
+
+Code review found two README inaccuracies the two-repo rewrite makes
+actively wrong. `build-site.yml` triggers on `push` (`site/**`,
+`.github/workflows/build-site.yml`) + `schedule: "10 * * * *"` +
+`workflow_dispatch` — never `data/**`.
+
+In the "How it works" ASCII diagram, replace the line:
+
+```
+        ▼  GitHub Actions (triggered by push to data/**)
+```
+
+with:
+
+```
+        ▼  GitHub Actions (hourly cron :10, picks up VM's :00 push)
+```
+
+Replace the sentence immediately below the diagram:
+
+```
+The fetcher runs in a Docker container on a small VM and pushes `data/latest.json` hourly. GitHub Actions rebuilds and deploys the static site on every push.
+```
+
+with:
+
+```
+The fetcher runs in a Docker container on a small VM and pushes the schedule JSON hourly to `s7bb/s7bb-data`. GitHub Actions rebuilds and deploys the static site on an hourly schedule (and on site-code changes).
+```
+
+In README §3 startup-sequence paragraph, replace `` `s7bb-service` `` (the Python entrypoint name, inconsistent with the operator-facing `s7bb-fetcher` used everywhere else in §3) so the sentence reads `the `s7bb-fetcher` container then runs preflight checks and a startup sync against the s7bb-data `main`:` (keep the rest of the sentence unchanged).
+
 - [ ] **Step 5: .env.example — fix post-split PAT/slug comments**
 
 Replace the `GITHUB_PAT` comment block and the `GITHUB_REPO_SLUG` block:
