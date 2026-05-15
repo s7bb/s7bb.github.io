@@ -102,6 +102,42 @@ def _check_repo_ownership(repo_path: Path) -> Check:
     return Check(name, Severity.HARD, True, f"git accepts {repo_path}")
 
 
+_CODE_REPO_MARKERS = ("fetcher", "site")
+
+
+def _check_repo_identity(repo_path: Path) -> Check:
+    """Assert /repo is the flat s7bb-data tree, not the code repo.
+
+    Catches the misconfiguration where the code repo is mounted at
+    REPO_PATH: the bot would then commit data files into the code
+    working tree and push them to the wrong remote.
+    """
+    name = "repo_identity"
+    for marker in _CODE_REPO_MARKERS:
+        if (repo_path / marker).is_dir():
+            return Check(
+                name,
+                Severity.HARD,
+                False,
+                f"{repo_path} contains '{marker}/' — looks like the code "
+                f"repo. REPO_PATH must point at the flat s7bb-data clone "
+                f"(latest.json at the root).",
+            )
+    override = os.environ.get("GITHUB_REPO_SLUG", "").strip()
+    if override:
+        actual = _resolve_slug(repo_path)
+        if actual is not None and actual != override:
+            return Check(
+                name,
+                Severity.HARD,
+                False,
+                f"{repo_path} origin resolves to {actual!r} but "
+                f"GITHUB_REPO_SLUG={override!r} — REPO_PATH points at the "
+                f"wrong repository.",
+            )
+    return Check(name, Severity.HARD, True, f"{repo_path} is the data repo")
+
+
 def _check_sqlite(db_path: Path) -> Check:
     name = "sqlite"
     try:
@@ -227,6 +263,7 @@ def run(
         _check_data_writable(data_dir),
         _check_repo_writable(repo_path),
         _check_repo_ownership(repo_path),
+        _check_repo_identity(repo_path),
         _check_sqlite(db_path),
         _check_github(github_slug, github_token),
     ]
