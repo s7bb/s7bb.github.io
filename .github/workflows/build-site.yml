@@ -6,8 +6,6 @@ on:
     paths:
       - "site/**"
       - ".github/workflows/build-site.yml"
-  schedule:
-    - cron: "10 * * * *"  # after the VM's :00 hourly data push
   workflow_dispatch:
 
 permissions:
