@@ -37,6 +37,19 @@ export function renderMethodology(container: HTMLElement): void {
       <dt>Warum fehlen manchmal Daten?</dt>
       <dd>Kurzfristige Ausfälle des Abrufservers oder der DB-API können zu
           Lücken führen. Die Daten spiegeln daher nicht zwingend alle Züge wider.</dd>
+
+      <dt>Datenquelle &amp; Lizenz</dt>
+      <dd>Datenquelle:
+          <a href="https://developers.deutschebahn.com/db-api-marketplace/apis/product/timetables"
+             target="_blank" rel="noopener">DB Timetables API</a>
+          der Deutschen Bahn (DB Station&amp;Service AG / DB InfraGO AG),
+          lizenziert unter
+          <a href="https://creativecommons.org/licenses/by/4.0/"
+             target="_blank" rel="noopener">CC BY 4.0</a>.
+          Die Daten werden aufbereitet und aggregiert
+          (Verspätungs- und Pünktlichkeitsauswertung). Die Deutsche Bahn
+          übernimmt keine Gewähr für Vollständigkeit oder Richtigkeit der
+          Daten.</dd>
     </dl>
   `;
 }
