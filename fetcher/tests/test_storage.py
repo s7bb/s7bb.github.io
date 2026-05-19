@@ -81,3 +81,68 @@ def test_migration_adds_column(tmp_path: Path):
 
     row = conn2.execute("SELECT direction_bucket FROM arrivals WHERE train_id='t1'").fetchone()
     assert row[0] == "wolfratshausen"
+
+
+def test_train_number_round_trip(tmp_db):
+    upsert_records(tmp_db, [_record(train_number="6762")])
+    row = tmp_db.execute("SELECT train_number FROM arrivals").fetchone()
+    assert row[0] == "6762"
+
+
+def test_train_number_null_when_absent(tmp_db):
+    upsert_records(tmp_db, [_record()])  # train_number defaults to None
+    row = tmp_db.execute("SELECT train_number FROM arrivals").fetchone()
+    assert row[0] is None
+
+
+def test_upsert_fills_null_train_number(tmp_db):
+    """Re-observed row with <tl n> fills a previously NULL train_number."""
+    upsert_records(tmp_db, [_record(train_number=None)])
+    upsert_records(tmp_db, [_record(train_number="6762")])
+    rows = tmp_db.execute("SELECT train_number FROM arrivals").fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == "6762"
+
+
+def test_upsert_does_not_regress_train_number_to_null(tmp_db):
+    """COALESCE guard: a later observation lacking <tl n> must NOT
+    overwrite an already-captured train_number with NULL."""
+    upsert_records(tmp_db, [_record(train_number="6762")])
+    upsert_records(tmp_db, [_record(train_number=None)])
+    rows = tmp_db.execute("SELECT train_number FROM arrivals").fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == "6762"  # preserved, not regressed to NULL
+
+
+def test_migration_adds_train_number_column(tmp_path: Path):
+    """A DB created without train_number is migrated on open_db,
+    existing rows keep train_number NULL (Phase 1: no backfill)."""
+    db_path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.executescript("""
+        CREATE TABLE arrivals (
+            id INTEGER PRIMARY KEY,
+            train_id TEXT NOT NULL,
+            line TEXT NOT NULL,
+            station TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            direction_bucket TEXT NOT NULL DEFAULT 'unknown',
+            scheduled_time TEXT NOT NULL,
+            actual_time TEXT,
+            delay_minutes INTEGER,
+            cancelled INTEGER NOT NULL DEFAULT 0,
+            reason TEXT,
+            fetched_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX idx_dedup ON arrivals(train_id, scheduled_time);
+        INSERT INTO arrivals (train_id, line, station, direction, scheduled_time, cancelled, fetched_at)
+        VALUES ('t1', 'S7', 'Baierbrunn', 'Wolfratshausen', '2026-05-05T10:00:00+00:00', 0, '2026-05-05T10:01:00+00:00');
+    """)
+    conn.commit()
+    conn.close()
+
+    conn2 = open_db(db_path)
+    cols = {row[1] for row in conn2.execute("PRAGMA table_info(arrivals)").fetchall()}
+    assert "train_number" in cols
+    row = conn2.execute("SELECT train_number FROM arrivals WHERE train_id='t1'").fetchone()
+    assert row[0] is None  # pre-existing row stays NULL, no backfill
