@@ -25,9 +25,11 @@ DB Timetables API (XML)
                      /repo/latest.json + /repo/archive/*.json   (s7bb-data clone)
                        ↓ (hourly push, HEAD:refs/heads/main)
                      GitHub: s7bb/s7bb-data main updated
-                       ↓
-                     Actions build-site.yml checks out this repo +
-                     s7bb-data, assembles site/dist, deploys gh-pages.
+                       ↓ (push → s7bb-data/.github/workflows/dispatch-build.yml)
+                       ↓ (workflow_dispatch API, DISPATCH_TOKEN, Actions:write)
+                     Actions build-site.yml (event: workflow_dispatch)
+                     checks out this repo + s7bb-data, assembles
+                     site/dist, deploys gh-pages. No schedule cron.
 ```
 
 ### Key decisions (locked)
@@ -41,6 +43,16 @@ DB Timetables API (XML)
 - Baierbrunn EVA number: `8000781` (overridable via `S7BB_EVA` env var)
 - Fetch cadence: every 5 min (systemd timer)
 - Chart library: Chart.js v4
+- Site deploy is **event-driven, not scheduled**. GitHub `schedule:`
+  cron is best-effort and was silently dropped under load, so it is
+  removed. A `push`-triggered workflow in `s7bb/s7bb-data`
+  (`dispatch-build.yml`) calls the `workflow_dispatch` API of this repo.
+  Its token (`DISPATCH_TOKEN`, Actions secret in **s7bb-data**, not on
+  the VM) is a fine-grained PAT scoped to `s7bb.github.io` with
+  `Actions: write` only — it cannot modify code, preserving the
+  "bot PAT has no access to this code repo" boundary. Renew the PAT
+  before its 90-day expiry; an expired token silently stops deploys
+  (visible as failed dispatch runs in the s7bb-data Actions tab).
 
 ## Commands
 

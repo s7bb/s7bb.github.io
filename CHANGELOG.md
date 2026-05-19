@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Site deploy is now triggered by each data commit (a `push`-triggered
+  dispatch workflow in `s7bb/s7bb-data` calls this repo's
+  `workflow_dispatch` API) instead of an hourly `schedule:` cron, which
+  GitHub silently dropped under load (multi-hour gaps observed). The
+  cross-repo dispatch token is `Actions: write`-only and lives in
+  s7bb-data secrets, not on the VM — the VM's data-repo PAT is unchanged.
+
 ## [0.5.2] - 2026-05-15
 
 ### Fixed
