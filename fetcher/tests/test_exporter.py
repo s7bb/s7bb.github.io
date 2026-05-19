@@ -322,3 +322,34 @@ def test_export_monthly_archive_orders_ties_by_train_id(tmp_path):
     arrivals = json.loads(out.read_text())["arrivals"]
     same = [a for a in arrivals if a["scheduled_time"].startswith("2026-04-15T10:00")]
     assert [a["train_id"] for a in same] == ["a1", "z2"]
+
+
+def test_latest_json_includes_train_number(tmp_path):
+    conn = open_db(tmp_path / "test.db")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    upsert_records(conn, [
+        _make_arrival("m1", f"{today}T10:00:00+00:00", "muenchen", train_number="6762"),
+        _make_arrival("m2", f"{today}T10:20:00+00:00", "muenchen"),  # no train_number
+    ])
+    out = tmp_path / "latest.json"
+    export_latest(conn, out)
+    arrivals = {a["train_id"]: a for a in json.loads(out.read_text())["arrivals"]}
+    assert arrivals["m1"]["train_number"] == "6762"
+    assert "train_number" in arrivals["m2"]
+    assert arrivals["m2"]["train_number"] is None
+
+
+def test_monthly_archive_includes_train_number(tmp_path):
+    from s7bb_fetcher.exporter import export_monthly_archive
+
+    conn = open_db(tmp_path / "test.db")
+    upsert_records(conn, [
+        _make_arrival("m1", "2026-04-01T08:00:00+00:00", "muenchen", train_number="6762"),
+        _make_arrival("w1", "2026-04-01T08:13:00+00:00", "wolfratshausen"),
+    ])
+    out = tmp_path / "2026-04.json"
+    export_monthly_archive(conn, 2026, 4, out)
+    arrivals = {a["train_id"]: a for a in json.loads(out.read_text())["arrivals"]}
+    assert arrivals["m1"]["train_number"] == "6762"
+    assert "train_number" in arrivals["w1"]
+    assert arrivals["w1"]["train_number"] is None
