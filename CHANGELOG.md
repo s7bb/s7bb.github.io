@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The Methodik page now carries the full CC BY 4.0 attribution for the
+  DB Timetables API: named data source with link, the CC BY 4.0 license
+  with link, an indication that the data is processed and aggregated,
+  and the Deutsche Bahn no-liability disclaimer.
+
 ## [0.6.0] - 2026-05-19
 
 ### Added
