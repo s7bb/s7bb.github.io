@@ -92,3 +92,18 @@ def test_actual_time_matches_db_ct():
     rec = next(r for r in records if r.train_id == "trip-S7-real-001")
     assert rec.actual_time == "2026-05-05T11:00:00+00:00"
     assert rec.delay_minutes == 1
+
+
+def test_train_number_parsed_from_tl():
+    records = parse_timetable(_load("plan.xml"), _load("changes_empty.xml"))
+    r = next(r for r in records if r.train_id == "trip-S7-002-2605051230")
+    assert r.train_number == "6762"
+
+
+def test_missing_tl_yields_none_and_row_still_emitted():
+    records = parse_timetable(_load("plan.xml"), _load("changes_empty.xml"))
+    no_tl = next(
+        (r for r in records if r.train_id == "trip-S7-004-2605051330"), None
+    )
+    assert no_tl is not None, "stop without <tl> must still be emitted"
+    assert no_tl.train_number is None

@@ -21,6 +21,7 @@ class ArrivalRecord:
     delay_minutes: int | None
     cancelled: bool
     reason: str | None
+    train_number: str | None = None
 
 
 def _parse_db_time(raw: str) -> datetime:
@@ -86,6 +87,10 @@ def parse_timetable(
         if not pt_raw:
             continue
 
+        tl = stop.find("tl")
+        n = tl.get("n") if tl is not None else None
+        train_number = n.strip() if n and n.strip() else None
+
         scheduled_dt = _parse_db_time(pt_raw)
 
         dp_ppth = dp.get("ppth", "")
@@ -138,6 +143,7 @@ def parse_timetable(
             delay_minutes=delay_minutes,
             cancelled=cancelled,
             reason=reason,
+            train_number=train_number,
         ))
 
     return records
