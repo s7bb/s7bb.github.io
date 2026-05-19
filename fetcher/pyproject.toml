@@ -1,6 +1,6 @@
 [project]
 name = "s7bb-fetcher"
-version = "0.5.2"
+version = "0.6.0"
 requires-python = ">=3.11"
 dependencies = [
     "requests==2.33.1",

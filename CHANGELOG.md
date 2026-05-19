@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-19
+
+### Added
+
+- The public train number (Zugnummer, DB Timetables `<tl n>`) is now
+  captured going forward and exposed as a nullable `train_number` field
+  in SQLite, `latest.json`, and `archive/*.json`. Rows observed before
+  this release stay `null` (the plan endpoint has no history). No UI
+  change — the field is data-only.
+
 ### Changed
 
 - Site deploy is now triggered by each data commit (a `push`-triggered
