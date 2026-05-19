@@ -11,6 +11,7 @@ export interface Arrival {
   delay_minutes: number | null;
   cancelled: boolean;
   reason: string | null;
+  train_number?: string | null;
 }
 
 export interface DayAggregate {
