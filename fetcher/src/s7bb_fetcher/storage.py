@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS arrivals (
     delay_minutes  INTEGER,
     cancelled      INTEGER NOT NULL DEFAULT 0,
     reason         TEXT,
+    train_number   TEXT,
     fetched_at     TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_dedup ON arrivals(train_id, scheduled_time);
@@ -42,6 +43,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
             END
         """)
         conn.commit()
+    if "train_number" not in cols:
+        conn.execute("ALTER TABLE arrivals ADD COLUMN train_number TEXT")
+        conn.commit()
 
 
 def open_db(path: Path) -> sqlite3.Connection:
@@ -63,7 +67,7 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
         (
             r.train_id, r.line, r.station, r.direction, r.direction_bucket,
             r.scheduled_time, r.actual_time, r.delay_minutes,
-            1 if r.cancelled else 0, r.reason, now,
+            1 if r.cancelled else 0, r.reason, r.train_number, now,
         )
         for r in records
     ]
@@ -71,14 +75,15 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
         """
         INSERT INTO arrivals
             (train_id, line, station, direction, direction_bucket, scheduled_time,
-             actual_time, delay_minutes, cancelled, reason, fetched_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             actual_time, delay_minutes, cancelled, reason, train_number, fetched_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(train_id, scheduled_time) DO UPDATE SET
             actual_time      = excluded.actual_time,
             delay_minutes    = excluded.delay_minutes,
             cancelled        = excluded.cancelled,
             reason           = excluded.reason,
             direction_bucket = excluded.direction_bucket,
+            train_number     = COALESCE(excluded.train_number, train_number),
             fetched_at       = excluded.fetched_at
         """,
         rows,

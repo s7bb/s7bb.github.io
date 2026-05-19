@@ -14,6 +14,7 @@ function arrival(overrides: Partial<Arrival>): Arrival {
     delay_minutes: 0,
     cancelled: false,
     reason: null,
+    train_number: null,
     ...overrides,
   };
 }
