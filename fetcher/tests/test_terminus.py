@@ -168,3 +168,86 @@ def test_classify_arrived_zero_delay_when_ct_missing():
     update = classify(_pending(), entry, _BEFORE_CUTOFF, drilldown=lambda *_: None)
     assert update.terminus_status == "arrived"
     assert update.terminus_delay_minutes == 0
+
+
+class _FakeClient:
+    """Duck-typed stand-in for api module: maps eva → /fchg fixture name."""
+
+    def __init__(self, mapping: dict[str, str]):
+        # mapping: eva → fixture filename (without .xml)
+        self._mapping = mapping
+        self.calls: list[str] = []
+
+    def fetch_full_changes(self, eva: str) -> etree._Element:
+        self.calls.append(eva)
+        name = self._mapping.get(eva)
+        if name is None:
+            raise AssertionError(f"unexpected fetch for eva={eva}")
+        return _load(name + ".xml")
+
+
+def test_drilldown_returns_baierbrunn_most_cancelled():
+    """Solln has cs='c'; stations before Solln are not in /fchg (on-time
+    pass-through) → first reverse-walk None breaks the loop → return Solln."""
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({
+        "8004161": "intermediate_solln_cancelled",  # München-Solln cancelled
+        # Stations earlier in ppth (Pullach, Höllriegelskreuth, ...) return
+        # empty /fchg feeds. We model that by mapping them to an empty
+        # fixture; build_index of an empty <timetable/> yields {}.
+        "8004899": "empty_fchg",
+        "8002899": "empty_fchg",
+        "8071272": "empty_fchg",
+        "8002422": "empty_fchg",
+    })
+    ppth = "Buchenhain|Höllriegelskreuth|Pullach|Großhesselohe Isartalbf|München-Solln|München Hbf Gl.27-36"
+    result = drilldown_short_turn(client, ppth, "6762")
+    assert result == "München-Solln"
+
+
+def test_drilldown_stops_at_first_on_time_intermediate():
+    """If München-Solln is present in /fchg WITHOUT cs='c' (i.e. delayed
+    but ran), the walk stops there — Pullach (earlier) is never fetched."""
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({
+        "8004161": "intermediate_solln_arrived",  # delayed, not cancelled
+    })
+    ppth = "Pullach|München-Solln|München Hbf Gl.27-36"
+    result = drilldown_short_turn(client, ppth, "6762")
+    assert result is None
+    # Pullach (8004899) must NOT be fetched
+    assert "8004899" not in client.calls
+
+
+def test_drilldown_unknown_station_logs_and_continues(caplog):
+    """An unknown station name is skipped without aborting the walk."""
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({
+        "8004161": "intermediate_solln_cancelled",
+    })
+    ppth = "Mars|München-Solln|München Hbf Gl.27-36"
+    with caplog.at_level("WARNING"):
+        result = drilldown_short_turn(client, ppth, "6762")
+    assert result == "München-Solln"
+    assert any("Mars" in r.message for r in caplog.records)
+
+
+def test_drilldown_empty_ppth_returns_none():
+    """Legacy rows with NULL/empty dp_ppth cannot be drilled down."""
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({})
+    assert drilldown_short_turn(client, "", "6762") is None
+    assert drilldown_short_turn(client, None, "6762") is None
+    assert client.calls == []
+
+
+def test_drilldown_http_error_aborts_walk_and_returns_none():
+    """A transient HTTP failure mid-walk leaves the train pending (caller
+    interprets None correctly)."""
+    from s7bb_fetcher.terminus import drilldown_short_turn
+
+    class _Erroring:
+        def fetch_full_changes(self, eva):
+            raise RuntimeError("boom")
+    ppth = "München-Solln|München Hbf Gl.27-36"
+    assert drilldown_short_turn(_Erroring(), ppth, "6762") is None

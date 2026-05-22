@@ -178,3 +178,43 @@ def classify(
         terminus_delay_minutes=None,
         terminus_short_turn_station=station,
     )
+
+
+def drilldown_short_turn(client, dp_ppth: str | None, train_number: str) -> str | None:
+    """Walk dp.ppth reverse from one-before-terminus toward Baierbrunn,
+    looking up each station's /fchg and returning the Baierbrunn-most
+    station where the train is reported with cs='c'.
+
+    The /fchg endpoint only returns entries for stations where something
+    *changed*. So `entry is None` at an intermediate means the train passed
+    on time there — i.e. we walked past the cancellation point and can stop.
+
+    Returns None if no cancellation point is reachable (train vanished
+    before any station that reported a change, or HTTP failure mid-walk,
+    or dp_ppth is empty/None).
+    """
+    if not dp_ppth:
+        return None
+    parts = [p for p in dp_ppth.split("|") if p]
+    # parts[-1] is terminus; walk everything before it, reverse
+    candidate: str | None = None
+    for name in reversed(parts[:-1]):
+        eva = STATION_NAME_TO_EVA.get(name)
+        if eva is None:
+            log.warning("terminus drilldown: unknown intermediate %s", name)
+            continue
+        try:
+            feed = client.fetch_full_changes(eva)
+        except Exception:
+            log.exception("terminus drilldown: /fchg %s failed; aborting walk", eva)
+            return candidate  # best-effort: return what we have so far
+        entry = build_index(feed).get(train_number)
+        if entry is None:
+            # No change at this station → train passed → past cancellation point.
+            break
+        if _is_cancelled(entry):
+            candidate = name  # keep walking; may find a Baierbrunn-er hit
+            continue
+        # Entry present but not cancelled (delay only) → train ran here → stop.
+        break
+    return candidate
