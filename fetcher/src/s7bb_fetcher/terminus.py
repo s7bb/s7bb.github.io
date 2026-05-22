@@ -6,7 +6,7 @@ station's /fchg feed and matching on train_number.
 """
 
 import logging
-import sqlite3  # noqa: F401
+import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -178,6 +178,39 @@ def classify(
         terminus_delay_minutes=None,
         terminus_short_turn_station=station,
     )
+
+
+def list_pending_trains(
+    conn: sqlite3.Connection, now: datetime
+) -> list[PendingTrain]:
+    """Return Baierbrunn rows still awaiting terminus classification.
+
+    Window: [now - 2h, now + 5min]. Older trains are written off (next
+    cycle won't classify them — terminus feed has rolled past); +5min lets
+    early-departing trains that are seconds ahead of the clock still match.
+    """
+    lo = (now - timedelta(hours=2)).isoformat()
+    hi = (now + timedelta(minutes=5)).isoformat()
+    cur = conn.execute(
+        """
+        SELECT train_number, scheduled_time, direction_bucket, dp_ppth
+          FROM arrivals
+         WHERE terminus_status = 'pending'
+           AND cancelled = 0
+           AND train_number IS NOT NULL
+           AND scheduled_time BETWEEN ? AND ?
+        """,
+        (lo, hi),
+    )
+    return [
+        PendingTrain(
+            train_number=row[0],
+            scheduled_time=row[1],
+            direction_bucket=row[2],
+            dp_ppth=row[3] or "",
+        )
+        for row in cur.fetchall()
+    ]
 
 
 def drilldown_short_turn(client, dp_ppth: str | None, train_number: str) -> str | None:

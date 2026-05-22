@@ -251,3 +251,79 @@ def test_drilldown_http_error_aborts_walk_and_returns_none():
             raise RuntimeError("boom")
     ppth = "München-Solln|München Hbf Gl.27-36"
     assert drilldown_short_turn(_Erroring(), ppth, "6762") is None
+
+
+from s7bb_fetcher.parser import ArrivalRecord
+from s7bb_fetcher.storage import open_db, upsert_records
+
+
+def _arr(**kw) -> ArrivalRecord:
+    defaults = dict(
+        train_id=kw.get("train_id", "t1"),
+        line="S7", station="Baierbrunn", direction="München Hbf Gl.27-36",
+        direction_bucket="muenchen",
+        scheduled_time="2026-05-05T10:00:00+00:00",
+        actual_time="2026-05-05T10:00:00+00:00", delay_minutes=0,
+        cancelled=False, reason=None, train_number="6762",
+        dp_ppth="Buchenhain|München Hbf Gl.27-36",
+    )
+    return ArrivalRecord(**{**defaults, **kw})
+
+
+def test_list_pending_excludes_cancelled(tmp_path):
+    from s7bb_fetcher.terminus import list_pending_trains
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [
+        _arr(train_id="t1", train_number="A", cancelled=False),
+        _arr(train_id="t2", train_number="B", cancelled=True,
+             actual_time=None, delay_minutes=None),
+    ])
+    now = datetime(2026, 5, 5, 10, 5, tzinfo=UTC)
+    pending = list_pending_trains(conn, now)
+    nums = {p.train_number for p in pending}
+    assert nums == {"A"}
+
+
+def test_list_pending_excludes_terminal_states(tmp_path):
+    from s7bb_fetcher.terminus import list_pending_trains
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(train_id="t1", train_number="A")])
+    conn.execute("UPDATE arrivals SET terminus_status='arrived'")
+    conn.commit()
+    now = datetime(2026, 5, 5, 10, 5, tzinfo=UTC)
+    assert list_pending_trains(conn, now) == []
+
+
+def test_list_pending_excludes_null_train_number(tmp_path):
+    from s7bb_fetcher.terminus import list_pending_trains
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(train_id="t1", train_number=None)])
+    now = datetime(2026, 5, 5, 10, 5, tzinfo=UTC)
+    assert list_pending_trains(conn, now) == []
+
+
+def test_list_pending_window_scope(tmp_path):
+    """Window is [now-2h, now+5min]. Older than 2h or in the future > 5min is excluded."""
+    from s7bb_fetcher.terminus import list_pending_trains
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [
+        _arr(train_id="old",   train_number="A", scheduled_time="2026-05-05T07:00:00+00:00"),  # 3h ago
+        _arr(train_id="now",   train_number="B", scheduled_time="2026-05-05T09:30:00+00:00"),  # in window
+        _arr(train_id="future",train_number="C", scheduled_time="2026-05-05T11:00:00+00:00"),  # +1h
+    ])
+    now = datetime(2026, 5, 5, 10, 0, tzinfo=UTC)
+    pending = list_pending_trains(conn, now)
+    nums = {p.train_number for p in pending}
+    assert nums == {"B"}
+
+
+def test_list_pending_returns_dataclass_fields(tmp_path):
+    from s7bb_fetcher.terminus import list_pending_trains
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(train_id="t1", train_number="A",
+                                dp_ppth="X|München Hbf Gl.27-36")])
+    now = datetime(2026, 5, 5, 10, 5, tzinfo=UTC)
+    [p] = list_pending_trains(conn, now)
+    assert p.train_number == "A"
+    assert p.direction_bucket == "muenchen"
+    assert p.dp_ppth == "X|München Hbf Gl.27-36"
