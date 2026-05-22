@@ -353,3 +353,45 @@ def test_monthly_archive_includes_train_number(tmp_path):
     assert arrivals["m1"]["train_number"] == "6762"
     assert "train_number" in arrivals["w1"]
     assert arrivals["w1"]["train_number"] is None
+
+
+from s7bb_fetcher.exporter import export_monthly_archive
+
+
+def test_latest_json_includes_terminus_fields(populated_db, tmp_path):
+    # Seed one row with terminus fields set
+    populated_db.execute("""
+        UPDATE arrivals
+           SET terminus_status='arrived',
+               terminus_delay_minutes=3,
+               terminus_short_turn_station=NULL
+         WHERE train_id='m1'
+    """)
+    populated_db.commit()
+
+    out = tmp_path / "latest.json"
+    export_latest(populated_db, out)
+    data = json.loads(out.read_text())
+    m1 = next(a for a in data["arrivals"] if a["train_id"] == "m1")
+    assert m1["terminus_status"] == "arrived"
+    assert m1["terminus_delay_minutes"] == 3
+    assert m1["terminus_short_turn_station"] is None
+    # Untouched rows still have the keys (with null values)
+    other = next(a for a in data["arrivals"] if a["train_id"] != "m1")
+    for k in ("terminus_status", "terminus_delay_minutes", "terminus_short_turn_station"):
+        assert k in other
+
+
+def test_monthly_archive_includes_terminus_fields(populated_db, tmp_path):
+    populated_db.execute(
+        "UPDATE arrivals SET terminus_status='short_turn', "
+        "terminus_short_turn_station='München-Solln' WHERE train_id='m1'"
+    )
+    populated_db.commit()
+    today = datetime.now(UTC)
+    out = tmp_path / f"{today.year:04d}-{today.month:02d}.json"
+    export_monthly_archive(populated_db, today.year, today.month, out)
+    data = json.loads(out.read_text())
+    m1 = next(a for a in data["arrivals"] if a["train_id"] == "m1")
+    assert m1["terminus_status"] == "short_turn"
+    assert m1["terminus_short_turn_station"] == "München-Solln"
