@@ -213,6 +213,110 @@ def list_pending_trains(
     ]
 
 
+ZERO_MATCH_WARN_THRESHOLD = 3
+
+
+def _record_health(
+    conn: sqlite3.Connection, eva: str, *, pending_count: int, match_count: int, now: datetime
+) -> None:
+    """Increment/reset zero-match streak per terminus EVA."""
+    if pending_count == 0:
+        return  # quiet cycle isn't evidence of mismatch
+    if match_count > 0:
+        conn.execute(
+            """
+            INSERT INTO terminus_health (eva, zero_match_streak, updated_at)
+            VALUES (?, 0, ?)
+            ON CONFLICT(eva) DO UPDATE SET zero_match_streak=0, updated_at=excluded.updated_at
+            """,
+            (eva, now.isoformat()),
+        )
+        conn.commit()
+        return
+    cur = conn.execute(
+        "SELECT zero_match_streak FROM terminus_health WHERE eva=?", (eva,)
+    ).fetchone()
+    streak = (cur[0] if cur else 0) + 1
+    conn.execute(
+        """
+        INSERT INTO terminus_health (eva, zero_match_streak, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(eva) DO UPDATE SET
+            zero_match_streak = excluded.zero_match_streak,
+            updated_at = excluded.updated_at
+        """,
+        (eva, streak, now.isoformat()),
+    )
+    conn.commit()
+    if streak >= ZERO_MATCH_WARN_THRESHOLD:
+        log.warning(
+            "terminus: 0 matches against eva=%s across %d pending trains for %d consecutive cycles "
+            "— possible EVA mismatch",
+            eva, pending_count, streak,
+        )
+
+
+def update_terminus_for_window(
+    conn: sqlite3.Connection,
+    client,
+    now: datetime | None = None,
+) -> int:
+    """Orchestrator: poll terminus feeds, classify pending trains, persist.
+
+    `client` is duck-typed: must expose `fetch_full_changes(eva) -> Element`.
+    Returns count of rows actually updated.
+
+    Caller (service.py) wraps this in try/except — a raise here must not
+    abort the parent fetch cycle.
+    """
+    from .storage import update_terminus_fields  # local import: cycle break
+
+    now = now or datetime.now(UTC)
+    pending = list_pending_trains(conn, now)
+    if not pending:
+        return 0
+
+    # Group by direction so we hit each terminus /fchg at most once.
+    by_bucket: dict[str, list[PendingTrain]] = {}
+    for p in pending:
+        by_bucket.setdefault(p.direction_bucket, []).append(p)
+
+    def _drilldown(dp_ppth, train_number):
+        return drilldown_short_turn(client, dp_ppth, train_number)
+
+    updates: list[dict] = []
+    for bucket, group in by_bucket.items():
+        eva = TERMINUS_EVA_FOR_BUCKET.get(bucket)
+        if eva is None:
+            continue  # 'unknown' bucket — never resolvable
+        try:
+            feed = client.fetch_full_changes(eva)
+        except Exception:
+            log.exception("terminus: /fchg %s failed; %d pending stay pending", eva, len(group))
+            continue
+        idx = build_index(feed)
+        match_count = 0
+        for p in group:
+            entry = idx.get(p.train_number)
+            if entry is not None:
+                match_count += 1
+            update = classify(p, entry, now, drilldown=_drilldown)
+            if update is not None:
+                updates.append({
+                    "train_number": update.train_number,
+                    "scheduled_time": update.scheduled_time,
+                    "terminus_status": update.terminus_status,
+                    "terminus_delay_minutes": update.terminus_delay_minutes,
+                    "terminus_short_turn_station": update.terminus_short_turn_station,
+                })
+        _record_health(conn, eva, pending_count=len(group),
+                       match_count=match_count, now=now)
+
+    if not updates:
+        return 0
+    return update_terminus_fields(conn, updates)
+
+
 def drilldown_short_turn(client, dp_ppth: str | None, train_number: str) -> str | None:
     """Walk dp.ppth reverse from one-before-terminus toward Baierbrunn,
     looking up each station's /fchg and returning the Baierbrunn-most

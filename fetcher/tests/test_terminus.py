@@ -327,3 +327,96 @@ def test_list_pending_returns_dataclass_fields(tmp_path):
     assert p.train_number == "A"
     assert p.direction_bucket == "muenchen"
     assert p.dp_ppth == "X|München Hbf Gl.27-36"
+
+
+def test_update_terminus_for_window_writes_arrived(tmp_path):
+    from s7bb_fetcher.terminus import update_terminus_for_window
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(
+        train_id="t1", train_number="6762",
+        scheduled_time="2026-05-05T10:30:00+00:00",
+    )])
+    client = _FakeClient({"8000261": "terminus_munich_arrived"})
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    n = update_terminus_for_window(conn, client, now=now)
+    assert n == 1
+    row = conn.execute(
+        "SELECT terminus_status, terminus_delay_minutes FROM arrivals"
+    ).fetchone()
+    assert row == ("arrived", 0)
+
+
+def test_update_terminus_for_window_skips_quiet_directions(tmp_path):
+    """Only directions with pending trains are polled. With one Wolfratshausen-
+    bound pending train, München's /fchg must not be fetched."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(
+        train_id="t1", train_number="6763",
+        direction="Wolfratshausen", direction_bucket="wolfratshausen",
+        dp_ppth="Hohenschäftlarn|Wolfratshausen",
+        scheduled_time="2026-05-05T10:30:00+00:00",
+    )])
+    client = _FakeClient({"8006550": "terminus_wolfratshausen_arrived"})
+    # München (8000261) is NOT in the mapping; if it were fetched the
+    # _FakeClient would assert. The test passes iff it isn't fetched.
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    n = update_terminus_for_window(conn, client, now=now)
+    assert n == 1
+    assert "8000261" not in client.calls
+
+
+def test_update_terminus_for_window_logs_zero_match_streak(tmp_path, caplog):
+    """3 consecutive zero-match cycles with non-empty pending list logs a WARN
+    about possible EVA mismatch; the streak is persisted to terminus_health."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(
+        train_id="t1", train_number="9999",  # not in fixture → zero match
+        scheduled_time="2026-05-05T10:30:00+00:00",
+    )])
+    client = _FakeClient({"8000261": "terminus_munich_arrived"})  # has 6762, not 9999
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+
+    with caplog.at_level("WARNING"):
+        update_terminus_for_window(conn, client, now=now)
+        update_terminus_for_window(conn, client, now=now)
+        update_terminus_for_window(conn, client, now=now)
+
+    streak = conn.execute(
+        "SELECT zero_match_streak FROM terminus_health WHERE eva='8000261'"
+    ).fetchone()
+    assert streak[0] == 3
+    assert any("0 matches against eva=8000261" in r.message for r in caplog.records)
+
+
+def test_update_terminus_for_window_resets_streak_on_match(tmp_path):
+    from s7bb_fetcher.terminus import update_terminus_for_window
+    conn = open_db(tmp_path / "t.db")
+    # First: zero-match cycle (train_number 9999 not in fixture)
+    upsert_records(conn, [_arr(
+        train_id="t-miss", train_number="9999",
+        scheduled_time="2026-05-05T10:30:00+00:00",
+    )])
+    client = _FakeClient({"8000261": "terminus_munich_arrived"})
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    update_terminus_for_window(conn, client, now=now)
+    # Then: matching cycle (6762 is in the fixture)
+    upsert_records(conn, [_arr(
+        train_id="t-hit", train_number="6762",
+        scheduled_time="2026-05-05T10:35:00+00:00",
+    )])
+    update_terminus_for_window(conn, client, now=now)
+    streak = conn.execute(
+        "SELECT zero_match_streak FROM terminus_health WHERE eva='8000261'"
+    ).fetchone()
+    assert streak[0] == 0
+
+
+def test_update_terminus_for_window_returns_zero_when_no_pending(tmp_path):
+    from s7bb_fetcher.terminus import update_terminus_for_window
+    conn = open_db(tmp_path / "t.db")
+    client = _FakeClient({})  # nothing should be fetched
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    assert update_terminus_for_window(conn, client, now=now) == 0
+    assert client.calls == []
