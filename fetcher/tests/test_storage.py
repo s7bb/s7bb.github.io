@@ -146,3 +146,57 @@ def test_migration_adds_train_number_column(tmp_path: Path):
     assert "train_number" in cols
     row = conn2.execute("SELECT train_number FROM arrivals WHERE train_id='t1'").fetchone()
     assert row[0] is None  # pre-existing row stays NULL, no backfill
+
+
+def test_migration_adds_terminus_columns(tmp_path: Path):
+    """A pre-terminus DB gains the four new columns on open_db; existing rows
+    keep them NULL (no backfill)."""
+    db_path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.executescript("""
+        CREATE TABLE arrivals (
+            id INTEGER PRIMARY KEY,
+            train_id TEXT NOT NULL,
+            line TEXT NOT NULL,
+            station TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            direction_bucket TEXT NOT NULL DEFAULT 'unknown',
+            scheduled_time TEXT NOT NULL,
+            actual_time TEXT,
+            delay_minutes INTEGER,
+            cancelled INTEGER NOT NULL DEFAULT 0,
+            reason TEXT,
+            train_number TEXT,
+            fetched_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX idx_dedup ON arrivals(train_id, scheduled_time);
+        INSERT INTO arrivals (train_id, line, station, direction, scheduled_time, cancelled, fetched_at)
+        VALUES ('t1', 'S7', 'Baierbrunn', 'Wolfratshausen', '2026-05-05T10:00:00+00:00', 0, '2026-05-05T10:01:00+00:00');
+    """)
+    conn.commit()
+    conn.close()
+
+    conn2 = open_db(db_path)
+    cols = {row[1] for row in conn2.execute("PRAGMA table_info(arrivals)").fetchall()}
+    for col in ("terminus_status", "terminus_delay_minutes", "terminus_short_turn_station", "dp_ppth"):
+        assert col in cols, f"migration must add {col}"
+
+    row = conn2.execute(
+        "SELECT terminus_status, terminus_delay_minutes, terminus_short_turn_station, dp_ppth "
+        "FROM arrivals WHERE train_id='t1'"
+    ).fetchone()
+    assert row == (None, None, None, None), "pre-existing row stays NULL (no backfill)"
+
+
+def test_migration_creates_terminus_health_table(tmp_path: Path):
+    db_path = tmp_path / "old.db"
+    sqlite3.connect(str(db_path)).close()  # empty file is enough; open_db creates schema
+    conn = open_db(db_path)
+    tables = {row[0] for row in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    assert "terminus_health" in tables
+    cols = {row[1] for row in conn.execute(
+        "PRAGMA table_info(terminus_health)"
+    ).fetchall()}
+    assert cols == {"eva", "zero_match_streak", "updated_at"}

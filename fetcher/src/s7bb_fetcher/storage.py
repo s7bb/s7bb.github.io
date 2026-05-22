@@ -20,7 +20,11 @@ CREATE TABLE IF NOT EXISTS arrivals (
     cancelled      INTEGER NOT NULL DEFAULT 0,
     reason         TEXT,
     train_number   TEXT,
-    fetched_at     TEXT NOT NULL
+    fetched_at     TEXT NOT NULL,
+    terminus_status              TEXT,
+    terminus_delay_minutes       INTEGER,
+    terminus_short_turn_station  TEXT,
+    dp_ppth                      TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_dedup ON arrivals(train_id, scheduled_time);
 CREATE INDEX IF NOT EXISTS idx_scheduled ON arrivals(scheduled_time);
@@ -28,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_scheduled ON arrivals(scheduled_time);
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
-    """Add columns introduced after initial schema without breaking existing DBs."""
+    """Add columns and tables introduced after initial schema without breaking existing DBs."""
     cur = conn.execute("PRAGMA table_info(arrivals)")
     cols = {row[1] for row in cur.fetchall()}
     if "direction_bucket" not in cols:
@@ -46,6 +50,27 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "train_number" not in cols:
         conn.execute("ALTER TABLE arrivals ADD COLUMN train_number TEXT")
         conn.commit()
+    # Terminus tracking — forward-only ALTERs, no backfill.
+    for col, ddl in (
+        ("terminus_status",              "ALTER TABLE arrivals ADD COLUMN terminus_status TEXT"),
+        ("terminus_delay_minutes",       "ALTER TABLE arrivals ADD COLUMN terminus_delay_minutes INTEGER"),
+        ("terminus_short_turn_station",  "ALTER TABLE arrivals ADD COLUMN terminus_short_turn_station TEXT"),
+        ("dp_ppth",                      "ALTER TABLE arrivals ADD COLUMN dp_ppth TEXT"),
+    ):
+        if col not in cols:
+            conn.execute(ddl)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_terminus_pending "
+        "ON arrivals(scheduled_time) WHERE terminus_status='pending'"
+    )
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS terminus_health (
+            eva                TEXT PRIMARY KEY,
+            zero_match_streak  INTEGER NOT NULL DEFAULT 0,
+            updated_at         TEXT NOT NULL
+        )
+    """)
+    conn.commit()
 
 
 def open_db(path: Path) -> sqlite3.Connection:
