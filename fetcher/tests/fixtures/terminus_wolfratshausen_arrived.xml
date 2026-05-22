@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<timetable station="Wolfratshausen">
-  <s id="trip-S7-arr-002">
-    <tl c="S" n="6763"/>
-    <ar pt="2605051250" ct="2605051250" pp="1" l="S7"
-        ppth="Baierbrunn|Hohenschäftlarn|Ebenhausen-Schäftlarn|Icking"/>
+<timetable station="Wolfratshausen" eva="8006550">
+  <s id="42-2605051200-34" eva="8006550">
+    <ar ct="2605051250" l="S7"/>
   </s>
 </timetable>

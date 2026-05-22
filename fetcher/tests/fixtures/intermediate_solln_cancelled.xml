@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<timetable station="München-Solln">
-  <s id="trip-S7-mid-001">
-    <tl c="S" n="6762"/>
-    <ar pt="2605051220" pp="2" l="S7" cs="c"
-        ppth="Baierbrunn|Buchenhain|Höllriegelskreuth|Pullach|Großhesselohe Isartalbf"/>
+<timetable station="München-Solln" eva="8004161">
+  <s id="42-2605051200-14" eva="8004161">
+    <ar cs="c" l="S7"/>
   </s>
 </timetable>

@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<timetable station="München Hbf Gl.27-36">
-  <s id="trip-S7-arr-001">
-    <tl c="S" n="6762"/>
-    <ar pt="2605051230" pp="27" l="S7" cs="c"
-        ppth="Baierbrunn|Buchenhain|Höllriegelskreuth|Pullach|Großhesselohe Isartalbf|München-Solln|München Siemenswerke|München-Mittersendling|München Harras|München Heimeranplatz|München Donnersbergerbrücke"/>
+<timetable station="München Hbf Gl.27-36" eva="8098261">
+  <s id="42-2605051200-22" eva="8098261">
+    <ar cs="c" l="S7"/>
   </s>
 </timetable>

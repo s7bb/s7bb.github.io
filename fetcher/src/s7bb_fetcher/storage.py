@@ -1,7 +1,7 @@
 """SQLite storage for arrival records."""
 
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .parser import ArrivalRecord
@@ -138,30 +138,24 @@ def update_terminus_fields(
 ) -> int:
     """Apply a batch of terminus classification results.
 
-    Each update dict carries: train_number, scheduled_time, terminus_status,
+    Each update dict carries: train_id, scheduled_time, terminus_status,
     terminus_delay_minutes, terminus_short_turn_station.
 
     The UPDATE is guarded by `terminus_status='pending' AND cancelled=0`, so
     it is idempotent (a second call is a no-op) and a concurrent cancel-flip
-    silently drops the terminus write.
-
-    Match window is ±4 h around the row's scheduled_time on the same
-    train_number — avoids UTC-vs-local-DE date ambiguity for late-night
-    trains crossing midnight UTC.
+    silently drops the terminus write. Match is on `(train_id, scheduled_time)`
+    — the row's unique key, no fuzzy window needed.
     """
     total = 0
     for u in updates:
-        sched = datetime.fromisoformat(u["scheduled_time"])
-        lo = (sched - timedelta(hours=4)).isoformat()
-        hi = (sched + timedelta(hours=4)).isoformat()
         cur = conn.execute(
             """
             UPDATE arrivals
                SET terminus_status              = ?,
                    terminus_delay_minutes       = ?,
                    terminus_short_turn_station  = ?
-             WHERE train_number = ?
-               AND scheduled_time BETWEEN ? AND ?
+             WHERE train_id = ?
+               AND scheduled_time = ?
                AND terminus_status = 'pending'
                AND cancelled = 0
             """,
@@ -169,8 +163,8 @@ def update_terminus_fields(
                 u["terminus_status"],
                 u["terminus_delay_minutes"],
                 u["terminus_short_turn_station"],
-                u["train_number"],
-                lo, hi,
+                u["train_id"],
+                u["scheduled_time"],
             ),
         )
         total += cur.rowcount
