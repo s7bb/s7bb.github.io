@@ -93,6 +93,8 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
             r.train_id, r.line, r.station, r.direction, r.direction_bucket,
             r.scheduled_time, r.actual_time, r.delay_minutes,
             1 if r.cancelled else 0, r.reason, r.train_number, now,
+            None if r.cancelled else "pending",  # initial terminus_status
+            r.dp_ppth or None,                   # store NULL for empty, not ""
         )
         for r in records
     ]
@@ -100,8 +102,9 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
         """
         INSERT INTO arrivals
             (train_id, line, station, direction, direction_bucket, scheduled_time,
-             actual_time, delay_minutes, cancelled, reason, train_number, fetched_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             actual_time, delay_minutes, cancelled, reason, train_number, fetched_at,
+             terminus_status, dp_ppth)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(train_id, scheduled_time) DO UPDATE SET
             actual_time      = excluded.actual_time,
             delay_minutes    = excluded.delay_minutes,
@@ -109,7 +112,16 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
             reason           = excluded.reason,
             direction_bucket = excluded.direction_bucket,
             train_number     = COALESCE(excluded.train_number, train_number),
-            fetched_at       = excluded.fetched_at
+            fetched_at       = excluded.fetched_at,
+            dp_ppth          = COALESCE(excluded.dp_ppth, dp_ppth),
+            -- Cancellation flip wipes any prior terminus result back to NULL.
+            -- Non-cancelled refetch leaves terminus_* untouched.
+            terminus_status              = CASE WHEN excluded.cancelled = 1
+                                               THEN NULL ELSE terminus_status END,
+            terminus_delay_minutes       = CASE WHEN excluded.cancelled = 1
+                                               THEN NULL ELSE terminus_delay_minutes END,
+            terminus_short_turn_station  = CASE WHEN excluded.cancelled = 1
+                                               THEN NULL ELSE terminus_short_turn_station END
         """,
         rows,
     )

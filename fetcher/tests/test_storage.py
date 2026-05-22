@@ -200,3 +200,66 @@ def test_migration_creates_terminus_health_table(tmp_path: Path):
         "PRAGMA table_info(terminus_health)"
     ).fetchall()}
     assert cols == {"eva", "zero_match_streak", "updated_at"}
+
+
+def test_upsert_initialises_terminus_status_pending(tmp_db):
+    """Newly inserted non-cancelled row gets terminus_status='pending'."""
+    upsert_records(tmp_db, [_record(cancelled=False)])
+    row = tmp_db.execute("SELECT terminus_status FROM arrivals").fetchone()
+    assert row[0] == "pending"
+
+
+def test_upsert_initialises_terminus_status_null_when_cancelled(tmp_db):
+    """A Baierbrunn-cancelled row is not tracked → terminus_status stays NULL."""
+    upsert_records(tmp_db, [_record(cancelled=True, actual_time=None, delay_minutes=None)])
+    row = tmp_db.execute("SELECT terminus_status FROM arrivals").fetchone()
+    assert row[0] is None
+
+
+def test_upsert_clears_terminus_on_cancellation_flip(tmp_db):
+    """A previously pending row that is later marked cancelled at Baierbrunn
+    clears its terminus_* fields back to NULL."""
+    upsert_records(tmp_db, [_record(cancelled=False)])
+    # Simulate that a terminus update wrote a value before the cancellation arrived
+    tmp_db.execute(
+        "UPDATE arrivals SET terminus_status='arrived', terminus_delay_minutes=3"
+    )
+    tmp_db.commit()
+    upsert_records(tmp_db, [_record(cancelled=True, actual_time=None, delay_minutes=None)])
+    row = tmp_db.execute(
+        "SELECT terminus_status, terminus_delay_minutes, terminus_short_turn_station "
+        "FROM arrivals"
+    ).fetchone()
+    assert row == (None, None, None)
+
+
+def test_upsert_preserves_terminus_on_normal_refetch(tmp_db):
+    """Re-observation of a still-non-cancelled row must NOT clobber an
+    already-written terminus result (idempotent re-fetches)."""
+    upsert_records(tmp_db, [_record(cancelled=False)])
+    tmp_db.execute(
+        "UPDATE arrivals SET terminus_status='arrived', terminus_delay_minutes=2"
+    )
+    tmp_db.commit()
+    upsert_records(tmp_db, [_record(cancelled=False, delay_minutes=1)])  # later refetch
+    row = tmp_db.execute(
+        "SELECT terminus_status, terminus_delay_minutes FROM arrivals"
+    ).fetchone()
+    assert row == ("arrived", 2)
+
+
+def test_upsert_overwrites_dp_ppth_on_conflict(tmp_db):
+    """dp_ppth from a fresh non-empty plan fetch overwrites the prior value."""
+    upsert_records(tmp_db, [_record(dp_ppth="A|B|München Hbf Gl.27-36")])
+    upsert_records(tmp_db, [_record(dp_ppth="A|B|C|München Hbf Gl.27-36")])
+    row = tmp_db.execute("SELECT dp_ppth FROM arrivals").fetchone()
+    assert row[0] == "A|B|C|München Hbf Gl.27-36"
+
+
+def test_upsert_preserves_dp_ppth_when_refetch_is_empty(tmp_db):
+    """An empty/NULL dp_ppth on refetch (partial XML / outage) preserves the
+    last known good path — drilldown must stay usable."""
+    upsert_records(tmp_db, [_record(dp_ppth="A|B|München Hbf Gl.27-36")])
+    upsert_records(tmp_db, [_record(dp_ppth="")])  # empty → stored as NULL
+    row = tmp_db.execute("SELECT dp_ppth FROM arrivals").fetchone()
+    assert row[0] == "A|B|München Hbf Gl.27-36"
