@@ -444,7 +444,7 @@ wheels = [
 
 [[package]]
 name = "s7bb-fetcher"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
