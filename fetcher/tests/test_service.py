@@ -348,3 +348,43 @@ def test_export_job_stages_data_into_repo_before_push(tmp_path, monkeypatch):
     assert (repo_path / "latest.json").read_text() == '{"v":1}'
     assert (repo_path / "archive" / "index.json").read_text() == '{"months":[]}'
     assert pushed == [True]
+
+
+def test_terminus_failure_does_not_abort_fetch_job(monkeypatch, tmp_path, caplog):
+    """If update_terminus_for_window raises, _fetch_job must still log
+    success of the Baierbrunn upsert and return cleanly."""
+    from s7bb_fetcher import service
+    from s7bb_fetcher.parser import ArrivalRecord
+
+    # Stub the network calls and parser
+    monkeypatch.setattr(service, "DB_PATH", tmp_path / "test.db")
+    monkeypatch.setattr(
+        "s7bb_fetcher.api.fetch_baierbrunn_now",
+        lambda: (object(), object()),
+    )
+    monkeypatch.setattr(
+        "s7bb_fetcher.parser.parse_timetable",
+        lambda plan, changes: [ArrivalRecord(
+            train_id="t1", line="S7", station="Baierbrunn",
+            direction="München Hbf Gl.27-36", direction_bucket="muenchen",
+            scheduled_time="2026-05-05T10:00:00+00:00",
+            actual_time="2026-05-05T10:00:00+00:00",
+            delay_minutes=0, cancelled=False, reason=None, train_number="6762",
+            dp_ppth="X|München Hbf Gl.27-36",
+        )],
+    )
+    # Make terminus blow up
+    def _boom(*a, **kw):
+        raise RuntimeError("terminus failure")
+    monkeypatch.setattr("s7bb_fetcher.terminus.update_terminus_for_window", _boom)
+
+    with caplog.at_level("ERROR"):
+        service._fetch_job()  # must not raise
+
+    # Baierbrunn row was still committed
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "test.db"))
+    rows = conn.execute("SELECT train_id FROM arrivals").fetchall()
+    assert rows == [("t1",)]
+    # Failure was logged
+    assert any("terminus" in r.message.lower() for r in caplog.records)
