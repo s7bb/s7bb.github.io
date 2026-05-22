@@ -191,7 +191,7 @@ Terminus `/fchg` is fetched **once per direction per cycle**, shared across all 
 - `fetcher/src/s7bb_fetcher/storage.py`
   - Schema: add `terminus_status TEXT`, `terminus_delay_minutes INTEGER`, `terminus_short_turn_station TEXT`, `dp_ppth TEXT`
   - `_migrate()`: ALTER TABLE adds all 4 columns on existing DBs (forward-only — existing rows stay NULL, including `dp_ppth`; drilldown skips trains with NULL ppth and they classify only via terminus feed)
-  - `upsert_records()`: seed `terminus_status='pending' IF cancelled=0 ELSE NULL` on INSERT; on CONFLICT, leave terminus_* untouched **except** when `excluded.cancelled=1`, in which case clear them. Always overwrite `dp_ppth` on conflict (path is authoritative from latest plan fetch).
+  - `upsert_records()`: seed `terminus_status='pending' IF cancelled=0 ELSE NULL` on INSERT; on CONFLICT, leave terminus_* untouched **except** when `excluded.cancelled=1`, in which case clear them. On conflict, `dp_ppth` uses `COALESCE(excluded.dp_ppth, dp_ppth)` — newer non-empty paths overwrite, but a NULL/empty refetch (outage / partial XML) preserves the last known good path so drilldown stays usable.
   - New `update_terminus_fields(conn, updates) -> int` — guarded UPDATE (`WHERE terminus_status='pending' AND cancelled=0`)
   - New `terminus_health` table (see "First-run sanity check" above): `(eva TEXT PRIMARY KEY, zero_match_streak INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)`. Created in `SCHEMA` and idempotently in `_migrate()` for existing DBs.
 - `fetcher/src/s7bb_fetcher/parser.py`

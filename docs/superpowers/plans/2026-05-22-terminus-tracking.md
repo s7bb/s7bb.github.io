@@ -39,6 +39,23 @@ The `direction_bucket` value `"unknown"` is allowed by the schema (default) but 
 
 ---
 
+### Task 0: Create implementation branch
+
+All subsequent tasks edit code on a dedicated feature branch. Run before Task 1:
+
+```bash
+git checkout main
+git pull --ff-only
+git checkout -b feat/terminus-phase1
+```
+
+Plan (`docs/superpowers/plans/2026-05-22-terminus-tracking.md`) and spec
+(`docs/superpowers/specs/2026-05-22-terminus-tracking-design.md`) are
+already on `main` (commits `43275bf`, `6dacf63`, `3843810`) — no docs
+commit needed on this branch unless the plan is amended mid-execution.
+
+---
+
 ### Task 1: Parser — preserve `dp_ppth` onto `ArrivalRecord`
 
 **Files:**
@@ -363,11 +380,20 @@ def test_upsert_preserves_terminus_on_normal_refetch(tmp_db):
 
 
 def test_upsert_overwrites_dp_ppth_on_conflict(tmp_db):
-    """dp_ppth is authoritative from the latest plan fetch — always overwrite."""
+    """dp_ppth from a fresh non-empty plan fetch overwrites the prior value."""
     upsert_records(tmp_db, [_record(dp_ppth="A|B|München Hbf Gl.27-36")])
     upsert_records(tmp_db, [_record(dp_ppth="A|B|C|München Hbf Gl.27-36")])
     row = tmp_db.execute("SELECT dp_ppth FROM arrivals").fetchone()
     assert row[0] == "A|B|C|München Hbf Gl.27-36"
+
+
+def test_upsert_preserves_dp_ppth_when_refetch_is_empty(tmp_db):
+    """An empty/NULL dp_ppth on refetch (partial XML / outage) preserves the
+    last known good path — drilldown must stay usable."""
+    upsert_records(tmp_db, [_record(dp_ppth="A|B|München Hbf Gl.27-36")])
+    upsert_records(tmp_db, [_record(dp_ppth="")])  # empty → stored as NULL
+    row = tmp_db.execute("SELECT dp_ppth FROM arrivals").fetchone()
+    assert row[0] == "A|B|München Hbf Gl.27-36"
 ```
 
 #### Step 3.3 — Run, expect failure
@@ -427,7 +453,7 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
 
 Notes:
 - The `CASE WHEN excluded.cancelled=1 THEN NULL ELSE <existing> END` pattern is the SQL idiom for "clear on flip, otherwise leave alone".
-- `dp_ppth` uses `COALESCE` so an unparseable refetch (NULL/empty) doesn't erase a previously-captured path. The spec says "Always overwrite", but a missing value on a refetch is an outage condition and we prefer to keep the last known good value.
+- `dp_ppth` uses `COALESCE(excluded.dp_ppth, dp_ppth)` per spec §Modified files: a fresh non-empty path overwrites, but a NULL/empty refetch (outage / partial XML) preserves the last known good value so drilldown stays usable.
 
 #### Step 3.5 — Run, verify pass
 
@@ -818,10 +844,14 @@ import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from lxml import etree
 
 log = logging.getLogger(__name__)
+
+_DB_TIME_FMT = "%y%m%d%H%M"  # planning/change times: Europe/Berlin local
+_DE_TZ = ZoneInfo("Europe/Berlin")
 
 MUENCHEN_HBF_EVA = "8000261"
 WOLFRATSHAUSEN_EVA = "8006550"
@@ -1060,15 +1090,9 @@ Expected: FAIL — `classify` not defined.
 
 #### Step 7.3 — Implement `classify`
 
-- [ ] **Append to `fetcher/src/s7bb_fetcher/terminus.py`:**
+- [ ] **Append to `fetcher/src/s7bb_fetcher/terminus.py`** (note: `_DB_TIME_FMT` and `_DE_TZ` constants and the `zoneinfo` import are already at the top of the module from Task 6.3 — do not re-import them here):
 
 ```python
-_DB_TIME_FMT = "%y%m%d%H%M"  # planning/change times: Europe/Berlin local
-
-from zoneinfo import ZoneInfo
-_DE_TZ = ZoneInfo("Europe/Berlin")
-
-
 def _parse_db_time(raw: str) -> datetime:
     local = datetime.strptime(raw, _DB_TIME_FMT).replace(tzinfo=_DE_TZ)
     return local.astimezone(UTC)
@@ -1810,6 +1834,7 @@ def _fetch_job() -> None:
 
 Notes:
 - The `api` module itself satisfies the `client` duck type: `fetch_full_changes(eva)` is `s7bb_fetcher.api.fetch_full_changes`. Passing the module avoids constructing a wrapper.
+- The import is restructured from `from .api import fetch_baierbrunn_now` to `from . import api as _api` so that `monkeypatch.setattr("s7bb_fetcher.api.fetch_baierbrunn_now", ...)` in the test patches the lookup `_api.fetch_baierbrunn_now()` actually performs at call time — direct-name imports would bind a local reference at import time and bypass the monkeypatch.
 - The terminus call is **outside** the existing try/except so a terminus failure does not retrigger the "fetch_job failed" branch; spec §Error handling requires Baierbrunn data already committed to be preserved on terminus failure.
 
 #### Step 11.4 — Run, verify pass
@@ -2078,22 +2103,26 @@ git commit -m "docs(changelog): record terminus arrival tracking (phase 1)"
 
 ---
 
-### Task 16: Plan and spec files are committed
+### Task 16: Verify plan and spec are tracked
 
-The plan file (this document) and the spec file (`docs/superpowers/specs/2026-05-22-terminus-tracking-design.md`) must be in the same PR as the implementation. CLAUDE.md §Plan files: "Plan files written to `docs/superpowers/plans/YYYY-MM-DD-*.md` … Always commit them — bundle into the implementation PR."
+Plan and spec are already on `main` (see Task 0). This step is a sanity
+check; only commits if a mid-execution edit left an uncommitted change.
 
 - [ ] **Run:**
 
 ```bash
+git ls-files --error-unmatch \
+  docs/superpowers/plans/2026-05-22-terminus-tracking.md \
+  docs/superpowers/specs/2026-05-22-terminus-tracking-design.md
 git status -- docs/superpowers/
 ```
 
-If either file is untracked, stage and commit:
+The `ls-files` call must succeed (exit 0) confirming both files are tracked. If `git status` shows modifications (e.g. plan amended during execution), stage and commit:
 
 ```bash
 git add docs/superpowers/plans/2026-05-22-terminus-tracking.md \
         docs/superpowers/specs/2026-05-22-terminus-tracking-design.md
-git commit -m "docs(spec): terminus tracking phase 1 plan"
+git commit -m "docs(plan): amend terminus phase 1 plan during execution"
 ```
 
 ---
