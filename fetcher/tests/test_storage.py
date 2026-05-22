@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from s7bb_fetcher.parser import ArrivalRecord
-from s7bb_fetcher.storage import open_db, upsert_records
+from s7bb_fetcher.storage import open_db, update_terminus_fields, upsert_records
 
 
 @pytest.fixture
@@ -263,9 +263,6 @@ def test_upsert_preserves_dp_ppth_when_refetch_is_empty(tmp_db):
     upsert_records(tmp_db, [_record(dp_ppth="")])  # empty → stored as NULL
     row = tmp_db.execute("SELECT dp_ppth FROM arrivals").fetchone()
     assert row[0] == "A|B|München Hbf Gl.27-36"
-
-
-from s7bb_fetcher.storage import update_terminus_fields  # added in Task 4
 
 
 def test_update_terminus_fields_basic(tmp_db):

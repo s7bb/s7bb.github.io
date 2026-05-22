@@ -52,10 +52,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.commit()
     # Terminus tracking — forward-only ALTERs, no backfill.
     for col, ddl in (
-        ("terminus_status",              "ALTER TABLE arrivals ADD COLUMN terminus_status TEXT"),
-        ("terminus_delay_minutes",       "ALTER TABLE arrivals ADD COLUMN terminus_delay_minutes INTEGER"),
-        ("terminus_short_turn_station",  "ALTER TABLE arrivals ADD COLUMN terminus_short_turn_station TEXT"),
-        ("dp_ppth",                      "ALTER TABLE arrivals ADD COLUMN dp_ppth TEXT"),
+        ("terminus_status",
+         "ALTER TABLE arrivals ADD COLUMN terminus_status TEXT"),
+        ("terminus_delay_minutes",
+         "ALTER TABLE arrivals ADD COLUMN terminus_delay_minutes INTEGER"),
+        ("terminus_short_turn_station",
+         "ALTER TABLE arrivals ADD COLUMN terminus_short_turn_station TEXT"),
+        ("dp_ppth",
+         "ALTER TABLE arrivals ADD COLUMN dp_ppth TEXT"),
     ):
         if col not in cols:
             conn.execute(ddl)

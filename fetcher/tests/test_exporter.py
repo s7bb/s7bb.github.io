@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from s7bb_fetcher.exporter import _expected_slots, export_latest
+from s7bb_fetcher.exporter import _expected_slots, export_latest, export_monthly_archive
 from s7bb_fetcher.parser import ArrivalRecord
 from s7bb_fetcher.storage import open_db, upsert_records
 
@@ -353,9 +353,6 @@ def test_monthly_archive_includes_train_number(tmp_path):
     assert arrivals["m1"]["train_number"] == "6762"
     assert "train_number" in arrivals["w1"]
     assert arrivals["w1"]["train_number"] is None
-
-
-from s7bb_fetcher.exporter import export_monthly_archive
 
 
 def test_latest_json_includes_terminus_fields(populated_db, tmp_path):

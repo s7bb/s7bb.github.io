@@ -1,7 +1,11 @@
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from lxml import etree
+
+from s7bb_fetcher.parser import ArrivalRecord
+from s7bb_fetcher.storage import open_db, upsert_records
+from s7bb_fetcher.terminus import PendingTrain
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -50,9 +54,6 @@ def test_constants_present():
     # Spot-check the station→EVA table from the spec
     assert terminus.STATION_NAME_TO_EVA["München-Solln"] == "8004161"
     assert terminus.STATION_NAME_TO_EVA["Hohenschäftlarn"] == "8002955"
-
-
-from s7bb_fetcher.terminus import PendingTrain  # forward-OK after Task 6
 
 
 def _pending(
@@ -251,10 +252,6 @@ def test_drilldown_http_error_aborts_walk_and_returns_none():
             raise RuntimeError("boom")
     ppth = "München-Solln|München Hbf Gl.27-36"
     assert drilldown_short_turn(_Erroring(), ppth, "6762") is None
-
-
-from s7bb_fetcher.parser import ArrivalRecord
-from s7bb_fetcher.storage import open_db, upsert_records
 
 
 def _arr(**kw) -> ArrivalRecord:
