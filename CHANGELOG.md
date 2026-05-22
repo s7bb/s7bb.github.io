@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Terminus arrival tracking now actually classifies S-Bahn trips.
+  Two bugs landed together in 0.7.0 and produced the symptom: every
+  Baierbrunn departure was eventually filed as either `pending` or
+  `cancelled`, never `arrived` or `short_turn`.
+  - Matching key was wrong. The terminus and intermediate-station
+    `/fchg` responses omit the `<tl>` element entirely for S-Bahn
+    trips, but the code indexed those feeds by `tl/@n` (train number)
+    and so found zero matches across 90+ consecutive cycles. Match is
+    now on the cross-station trip-id prefix carried in `s/@id`
+    (`rpartition("-")[0]`).
+  - München terminus EVA was wrong. `MUENCHEN_HBF_EVA` was set to
+    `8000261` (regional München Hbf, long-distance only). The S-Bahn
+    surface platforms 27-36 are a separate station in the API with
+    EVA `8098261`; the regional EVA's `/fchg` never carries any S7
+    trip. Corrected.
+  - Operator note: rows wrongly classified `cancelled` between the
+    0.7.0 deploy and this fix cannot be reconstructed (the live
+    `/fchg` window has rolled past). Reset them with
+    `UPDATE arrivals SET terminus_status=NULL, terminus_delay_minutes=NULL, terminus_short_turn_station=NULL WHERE cancelled=0 AND terminus_status='cancelled';`
+    before the new fetcher cycle starts.
+
 ## [0.7.0] - 2026-05-22
 
 ### Added

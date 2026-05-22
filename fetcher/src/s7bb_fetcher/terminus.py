@@ -2,7 +2,15 @@
 
 After each Baierbrunn fetch cycle, classify every pending train as
 arrived / short_turn / cancelled / pending by polling the terminus
-station's /fchg feed and matching on train_number.
+station's /fchg feed and matching on the trip-id prefix carried in
+``<s id>`` (the last ``-NN`` segment is the per-station stop sequence
+and differs between Baierbrunn and the terminus; the prefix is stable
+across stations for a single trip).
+
+Why not match on ``<tl n>`` (the human-readable train number)? S-Bahn
+entries in ``/fchg`` responses omit the ``<tl>`` element entirely — only
+long-distance categories (ICE, ECE, RB, ...) carry it. Matching on
+``tl/@n`` therefore drops every S-Bahn trip on the floor.
 """
 
 import logging
@@ -18,7 +26,9 @@ log = logging.getLogger(__name__)
 _DB_TIME_FMT = "%y%m%d%H%M"  # planning/change times: Europe/Berlin local
 _DE_TZ = ZoneInfo("Europe/Berlin")
 
-MUENCHEN_HBF_EVA = "8000261"
+# S-Bahn surface platforms 27-36 at München Hbf are a separate station
+# in the Timetables API from the long-distance München Hbf (8000261).
+MUENCHEN_HBF_EVA = "8098261"
 WOLFRATSHAUSEN_EVA = "8006550"
 
 # Per-direction average travel time Baierbrunn → terminus (minutes).
@@ -59,7 +69,7 @@ TERMINUS_EVA_FOR_BUCKET = {
 
 @dataclass(frozen=True)
 class PendingTrain:
-    train_number: str
+    train_id: str         # Baierbrunn s/@id; trip prefix is rsplit('-',1)[0]
     scheduled_time: str   # ISO UTC
     direction_bucket: str
     dp_ppth: str          # may be empty/None for legacy rows
@@ -67,21 +77,37 @@ class PendingTrain:
 
 @dataclass(frozen=True)
 class TerminusUpdate:
-    train_number: str
+    train_id: str
     scheduled_time: str
     terminus_status: str                    # "arrived" | "short_turn" | "cancelled"
     terminus_delay_minutes: int | None
     terminus_short_turn_station: str | None
 
 
+def trip_prefix(sid: str) -> str:
+    """Return the cross-station trip key for a DB Timetables ``s/@id``.
+
+    ``s/@id`` has the form ``<trip>-<YYMMDDHHMM>-<stop_seq>``; the stop
+    sequence varies per station, the rest is constant for a trip. An
+    empty/invalid id yields an empty string (caller skips empties).
+    """
+    if not sid:
+        return ""
+    head, sep, _tail = sid.rpartition("-")
+    return head if sep else ""
+
+
 def build_index(feed: etree._Element) -> dict[str, etree._Element]:
-    """Index a /fchg response by train_number."""
+    """Index a /fchg response by trip-prefix.
+
+    Entries without a usable id are skipped — the prefix is the only
+    cross-station join key available for S-Bahn trips (``<tl>`` is absent).
+    """
     out: dict[str, etree._Element] = {}
     for s in feed.findall(".//s"):
-        tl = s.find("tl")
-        n = tl.get("n") if tl is not None else None
-        if n and n.strip():
-            out[n.strip()] = s
+        key = trip_prefix(s.get("id") or "")
+        if key:
+            out[key] = s
     return out
 
 
@@ -108,14 +134,21 @@ def _cutoff(pending: PendingTrain) -> datetime:
 
 
 def _arrival_delay_minutes(entry: etree._Element) -> int:
-    """Compute ct - pt in whole minutes; 0 if ct missing."""
+    """Compute ct - pt in whole minutes; 0 if ct missing.
+
+    /fchg ``<ar>`` carries ``ct`` (changed time) when the arrival deviates
+    from plan. Planned time ``pt`` is not always echoed in /fchg — when
+    missing, fall back to the row's scheduled time (passed by caller).
+    """
     ar = entry.find("ar")
     if ar is None:
         return 0
     pt = ar.get("pt")
     ct = ar.get("ct")
-    if not pt or not ct:
+    if not ct:
         return 0
+    if not pt:
+        return 0  # planned time unknown from /fchg alone
     delta = _parse_db_time(ct) - _parse_db_time(pt)
     return int(delta.total_seconds() / 60)
 
@@ -130,30 +163,30 @@ def classify(
 
     Returns a TerminusUpdate to write, or None to leave the row pending.
 
-    `drilldown` is a callable `(dp_ppth, train_number) -> str | None` that
+    `drilldown` is a callable `(dp_ppth, train_id) -> str | None` that
     returns the Baierbrunn-most station where the train is reported with
     cs="c", or None if no cancellation point is found.
     """
-    # Case A: terminus feed has an entry for this train_number.
+    # Case A: terminus feed has an entry for this trip.
     if entry is not None:
         if _is_cancelled(entry):
-            station = drilldown(pending.dp_ppth, pending.train_number)
+            station = drilldown(pending.dp_ppth, pending.train_id)
             if station is None:
                 return TerminusUpdate(
-                    pending.train_number, pending.scheduled_time,
+                    pending.train_id, pending.scheduled_time,
                     terminus_status="cancelled",
                     terminus_delay_minutes=None,
                     terminus_short_turn_station=None,
                 )
             return TerminusUpdate(
-                pending.train_number, pending.scheduled_time,
+                pending.train_id, pending.scheduled_time,
                 terminus_status="short_turn",
                 terminus_delay_minutes=None,
                 terminus_short_turn_station=station,
             )
         # Not cancelled at terminus → arrived (possibly late).
         return TerminusUpdate(
-            pending.train_number, pending.scheduled_time,
+            pending.train_id, pending.scheduled_time,
             terminus_status="arrived",
             terminus_delay_minutes=_arrival_delay_minutes(entry),
             terminus_short_turn_station=None,
@@ -164,16 +197,16 @@ def classify(
         return None  # stay pending; next cycle may catch it
 
     # Case C: missing past cutoff → drilldown.
-    station = drilldown(pending.dp_ppth, pending.train_number)
+    station = drilldown(pending.dp_ppth, pending.train_id)
     if station is None:
         return TerminusUpdate(
-            pending.train_number, pending.scheduled_time,
+            pending.train_id, pending.scheduled_time,
             terminus_status="cancelled",
             terminus_delay_minutes=None,
             terminus_short_turn_station=None,
         )
     return TerminusUpdate(
-        pending.train_number, pending.scheduled_time,
+        pending.train_id, pending.scheduled_time,
         terminus_status="short_turn",
         terminus_delay_minutes=None,
         terminus_short_turn_station=station,
@@ -193,18 +226,17 @@ def list_pending_trains(
     hi = (now + timedelta(minutes=5)).isoformat()
     cur = conn.execute(
         """
-        SELECT train_number, scheduled_time, direction_bucket, dp_ppth
+        SELECT train_id, scheduled_time, direction_bucket, dp_ppth
           FROM arrivals
          WHERE terminus_status = 'pending'
            AND cancelled = 0
-           AND train_number IS NOT NULL
            AND scheduled_time BETWEEN ? AND ?
         """,
         (lo, hi),
     )
     return [
         PendingTrain(
-            train_number=row[0],
+            train_id=row[0],
             scheduled_time=row[1],
             direction_bucket=row[2],
             dp_ppth=row[3] or "",
@@ -281,8 +313,8 @@ def update_terminus_for_window(
     for p in pending:
         by_bucket.setdefault(p.direction_bucket, []).append(p)
 
-    def _drilldown(dp_ppth, train_number):
-        return drilldown_short_turn(client, dp_ppth, train_number)
+    def _drilldown(dp_ppth, train_id):
+        return drilldown_short_turn(client, dp_ppth, train_id)
 
     updates: list[dict] = []
     for bucket, group in by_bucket.items():
@@ -297,13 +329,13 @@ def update_terminus_for_window(
         idx = build_index(feed)
         match_count = 0
         for p in group:
-            entry = idx.get(p.train_number)
+            entry = idx.get(trip_prefix(p.train_id))
             if entry is not None:
                 match_count += 1
             update = classify(p, entry, now, drilldown=_drilldown)
             if update is not None:
                 updates.append({
-                    "train_number": update.train_number,
+                    "train_id": update.train_id,
                     "scheduled_time": update.scheduled_time,
                     "terminus_status": update.terminus_status,
                     "terminus_delay_minutes": update.terminus_delay_minutes,
@@ -317,7 +349,7 @@ def update_terminus_for_window(
     return update_terminus_fields(conn, updates)
 
 
-def drilldown_short_turn(client, dp_ppth: str | None, train_number: str) -> str | None:
+def drilldown_short_turn(client, dp_ppth: str | None, train_id: str) -> str | None:
     """Walk dp.ppth reverse from one-before-terminus toward Baierbrunn,
     looking up each station's /fchg and returning the Baierbrunn-most
     station where the train is reported with cs='c'.
@@ -332,6 +364,9 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_number: str) -> str 
     """
     if not dp_ppth:
         return None
+    prefix = trip_prefix(train_id)
+    if not prefix:
+        return None
     parts = [p for p in dp_ppth.split("|") if p]
     # parts[-1] is terminus; walk everything before it, reverse
     candidate: str | None = None
@@ -345,7 +380,7 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_number: str) -> str 
         except Exception:
             log.exception("terminus drilldown: /fchg %s failed; aborting walk", eva)
             return candidate  # best-effort: return what we have so far
-        entry = build_index(feed).get(train_number)
+        entry = build_index(feed).get(prefix)
         if entry is None:
             # No change at this station → train passed → past cancellation point.
             break

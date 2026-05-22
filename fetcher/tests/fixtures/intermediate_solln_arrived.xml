@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<timetable station="München-Solln">
-  <s id="trip-S7-mid-001">
-    <tl c="S" n="6762"/>
-    <ar pt="2605051220" ct="2605051225" pp="2" l="S7"
-        ppth="Baierbrunn|Buchenhain|Höllriegelskreuth|Pullach|Großhesselohe Isartalbf"/>
+<!-- München-Solln (EVA 8004161) /fchg: trip present but not cancelled —
+     train ran here, only delayed. Drilldown must stop at this entry. -->
+<timetable station="München-Solln" eva="8004161">
+  <s id="42-2605051200-14" eva="8004161">
+    <ar pt="2605051220" ct="2605051225" l="S7"/>
   </s>
 </timetable>
