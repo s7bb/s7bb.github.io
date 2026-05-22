@@ -29,7 +29,7 @@ APScheduler _fetch_job (every 5 min):
 3. For each direction in use, call `fetch_full_changes(terminus_eva)` **once** (not once per train).
 4. Match each pending train against the terminus feed by `train_number`.
 5. Classify per train → `TerminusUpdate` (status + delay + short_turn_station).
-6. For trains with `cs="c"` at terminus, perform a drilldown walk along that train's own `dp.ppth` (stored on the Baierbrunn row) — last non-cancelled station = short-turn.
+6. For trains with `cs="c"` at terminus, or trains missing from the terminus feed past cutoff, perform a drilldown walk along that train's own `dp.ppth` (stored on the Baierbrunn row). Drilldown returns the Baierbrunn-most station where the train is reported with `cs="c"`, or None if no cancellation is reported along the path.
 7. Apply updates via `storage.update_terminus_fields()`.
 
 All terminus work runs inside a single try/except. Failure logs and returns; the parent fetch job is unaffected. Pending rows simply retry next cycle.
@@ -58,10 +58,12 @@ each cycle, for pending rows in window:
   match train_number in terminus_fchg
     found, no cs="c"               → 'arrived',     delay = ct - pt
     found, cs="c"                  → drilldown walks dp.ppth reverse:
-        last station with non-cancelled <ar>   → 'short_turn', short_turn_station = X
-        no station has the train                → 'cancelled', short_turn = NULL
+        Baierbrunn-most cs="c" station   → 'short_turn', short_turn_station = X
+        no cs="c" station found          → 'cancelled', short_turn = NULL
     not found, now <= cutoff       → stay 'pending'
-    not found, now >  cutoff       → 'cancelled', short_turn = NULL
+    not found, now >  cutoff       → run drilldown:
+        Baierbrunn-most cs="c" station   → 'short_turn', short_turn_station = X
+        else                              → 'cancelled', short_turn = NULL
 ```
 
 **Cutoff formula.** The user-approved rule is "planned terminus arrival + 60 min". The DB row only stores Baierbrunn departure (`scheduled_time`), so the formula adds a per-direction travel-time constant:
@@ -76,7 +78,7 @@ CUTOFF_GRACE_MINUTES = 60
 cutoff = scheduled_time + TRAVEL_TIME_MINUTES[direction_bucket] + CUTOFF_GRACE_MINUTES
 ```
 
-Effective cutoff: scheduled_time + 95 min (München) or +80 min (Wolfratshausen). Source: official MVV timetable; stable across years. If the schedule materially changes, update these constants.
+Effective cutoff: scheduled_time + 95 min (München) or +80 min (Wolfratshausen). Source: official MVV timetable; stable across years. Note this approximates "planned terminus arrival + 60 min" using a per-direction travel constant rather than the exact per-train planned arrival; real travel varies by ±2 min between runs, well inside the 60 min grace. If the schedule materially changes, update these constants.
 
 Once a row reaches `arrived` / `short_turn` / `cancelled`, it is **terminal** — subsequent cycles do not touch it (the SQL `WHERE` clause filters `terminus_status='pending'`). This avoids flapping on terminus-feed jitter and saves quota.
 
@@ -120,24 +122,39 @@ München Hbf Gl.27-36
 
 **First-run sanity check** for `MUENCHEN_HBF_EVA`. The München Hbf deep S-Bahn platform sometimes appears under a separate EVA from the long-distance Hbf in DB catalogues. `update_terminus_for_window()` logs `WARN terminus: 0 matches against eva=<EVA> across <N> pending trains` if a non-empty pending list yields zero matches at a terminus EVA for 3 consecutive cycles. This flags an EVA mismatch without spurious warnings on quiet nights.
 
+The 3-cycle counter is persisted as a row per `terminus_eva` in a new tiny `terminus_health` table (`eva TEXT PRIMARY KEY, zero_match_streak INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL`). Each call increments on a zero-match pending-non-empty cycle, resets to 0 on any match. Persistent storage means a container restart does not silently mask an EVA mismatch.
+
 ### Drilldown algorithm
 
 Hardcoded EVA tables are brittle to MVV reroutes. Instead, walk the train's own `dp.ppth` (which the Baierbrunn record already carries) and look up each station name in a static `STATION_NAME_TO_EVA` dictionary. Unknown names log a warning and are skipped, allowing graceful degradation on new stations.
 
+**Key DB API constraint.** `/fchg/<eva>` returns only stations where something *changed*; on-time pass-throughs do not appear. So `entry is None` at an intermediate means "train ran on time through here" (i.e. we have walked past the cancellation point), not "train never reached here". The algorithm must therefore walk reverse from terminus and find the Baierbrunn-most station where the train is reported with `cs="c"`. The first `entry is None` while walking is the stop signal.
+
+`_is_cancelled(entry)` returns True iff the train's `<ar>` (or `<dp>` fallback) element on this station entry carries `cs="c"`.
+
 ```python
 parts = dp_ppth.split("|")     # ordered Baierbrunn → terminus
 # parts[-1] is terminus; cancelled there → walk parts[:-1] reverse
+short_turn = None
 for name in reversed(parts[:-1]):
     eva = STATION_NAME_TO_EVA.get(name)
     if eva is None:
         log.warning("unknown intermediate %s", name)
         continue
     feed = fetch_full_changes(eva)
-    entry = feed_index.get(train_number)
-    if entry is not None and not _is_cancelled(entry):
-        return name
-return None    # train vanished entirely → 'cancelled'
+    entry = build_index(feed).get(train_number)
+    if entry is None:
+        # no change at this station → train passed on time → past cancellation point
+        break
+    if _is_cancelled(entry):
+        short_turn = name        # candidate; keep walking, may find one closer to Baierbrunn
+        continue
+    # entry present but not cancelled (delay only) → train passed → stop
+    break
+return short_turn   # None ⇒ train vanished entirely → caller labels 'cancelled'
 ```
+
+Result semantics: `short_turn` names the Baierbrunn-most station where the train is reported cancelled. The train was last seen running at the next earlier station in `parts` (or at Baierbrunn itself if `short_turn` is the first station after Baierbrunn).
 
 ### Quota cost
 
@@ -154,7 +171,7 @@ Terminus `/fchg` is fetched **once per direction per cycle**, shared across all 
 ### New files
 
 - `fetcher/src/s7bb_fetcher/terminus.py`
-  - Constants: `MUENCHEN_HBF_EVA`, `WOLFRATSHAUSEN_EVA`, `STATION_NAME_TO_EVA`, `CUTOFF_MINUTES = 60`
+  - Constants: `MUENCHEN_HBF_EVA`, `WOLFRATSHAUSEN_EVA`, `STATION_NAME_TO_EVA`, `TRAVEL_TIME_MINUTES`, `CUTOFF_GRACE_MINUTES = 60`
   - `@dataclass TerminusUpdate { train_number, scheduled_time, terminus_status, terminus_delay_minutes, terminus_short_turn_station }` — `scheduled_time` (UTC ISO) is the Baierbrunn row's value and is used to compute the ±4 h match window
   - `list_pending_trains(conn) -> list[PendingTrain]` — issues `SELECT train_number, scheduled_time, direction_bucket, dp_ppth FROM arrivals WHERE terminus_status='pending' AND cancelled=0 AND train_number IS NOT NULL AND scheduled_time BETWEEN ? AND ?`
   - `build_index(feed) -> dict[train_number, <s>]`
@@ -172,13 +189,13 @@ Terminus `/fchg` is fetched **once per direction per cycle**, shared across all 
 ### Modified files
 
 - `fetcher/src/s7bb_fetcher/storage.py`
-  - Schema: add `terminus_status TEXT`, `terminus_delay_minutes INTEGER`, `terminus_short_turn_station TEXT`
-  - `_migrate()`: add columns on existing DBs (forward-only — existing rows stay NULL)
-  - `upsert_records()`: seed `terminus_status='pending' IF cancelled=0 ELSE NULL` on INSERT; on CONFLICT, leave terminus_* untouched **except** when `excluded.cancelled=1`, in which case clear them
+  - Schema: add `terminus_status TEXT`, `terminus_delay_minutes INTEGER`, `terminus_short_turn_station TEXT`, `dp_ppth TEXT`
+  - `_migrate()`: ALTER TABLE adds all 4 columns on existing DBs (forward-only — existing rows stay NULL, including `dp_ppth`; drilldown skips trains with NULL ppth and they classify only via terminus feed)
+  - `upsert_records()`: seed `terminus_status='pending' IF cancelled=0 ELSE NULL` on INSERT; on CONFLICT, leave terminus_* untouched **except** when `excluded.cancelled=1`, in which case clear them. Always overwrite `dp_ppth` on conflict (path is authoritative from latest plan fetch).
   - New `update_terminus_fields(conn, updates) -> int` — guarded UPDATE (`WHERE terminus_status='pending' AND cancelled=0`)
-  - Also store `dp_ppth` so drilldown can read it back. ArrivalRecord gains a `dp_ppth` field; storage adds a column.
+  - New `terminus_health` table (see "First-run sanity check" above): `(eva TEXT PRIMARY KEY, zero_match_streak INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)`. Created in `SCHEMA` and idempotently in `_migrate()` for existing DBs.
 - `fetcher/src/s7bb_fetcher/parser.py`
-  - `ArrivalRecord` gains `dp_ppth: str` (already extracted, just preserve)
+  - `ArrivalRecord` gains `dp_ppth: str`. Parser already reads `dp.get("ppth", "")` locally (parser.py:96) but currently discards it — preserve onto the dataclass instead.
 - `fetcher/src/s7bb_fetcher/service.py:_fetch_job()`
   - Append: `try: update_terminus_for_window(conn, client) except Exception: log.exception(...)`
 - `fetcher/src/s7bb_fetcher/exporter.py`
@@ -214,7 +231,7 @@ DB Timetables API
                          classify(pending, entry, now) → TerminusUpdate
 
   └─ /fchg/<intermediate> ────► drilldown_short_turn(dp_ppth) → station name | None
-     (only on cs="c" at terminus)
+     (on cs="c" at terminus OR on missing-past-cutoff)
 
                               │
                               ▼
@@ -259,10 +276,12 @@ Strict TDD: write tests before implementation.
 - `test_classify_arrived_with_delay` — ct − pt = 5 min → delay_minutes=5
 - `test_classify_arrived_zero_delay` — ct missing, no cs → status='arrived', delay=0
 - `test_classify_short_turn_triggers_drilldown` — terminus `cs="c"`; drilldown returns "München-Solln"
-- `test_classify_short_turn_drilldown_all_cancelled` — every intermediate also `cs="c"` → status='cancelled', short_turn=None
-- `test_classify_pending_not_in_feed_before_cutoff` — not matched, now < T+60 → no update issued (stays pending)
-- `test_classify_cancelled_past_cutoff` — not in feed, now > T+60 → status='cancelled'
-- `test_drilldown_walks_ppth_reverse` — multi-station fixture; returns the last non-cancelled name
+- `test_classify_short_turn_drilldown_no_cancelled_intermediates` — terminus `cs="c"` but no intermediate has the train in /fchg (all on-time pass-throughs) → status='cancelled', short_turn=None
+- `test_classify_pending_not_in_feed_before_cutoff` — not matched, now < T+cutoff → no update issued (stays pending)
+- `test_classify_missing_past_cutoff_triggers_drilldown` — not in terminus feed, now > T+cutoff; drilldown finds cs="c" at intermediate → status='short_turn'
+- `test_classify_missing_past_cutoff_no_drilldown_hit` — not in terminus feed, now > T+cutoff, drilldown finds nothing → status='cancelled'
+- `test_drilldown_walks_ppth_reverse_returns_baierbrunn_most_cancelled` — fixture: stations Y,X,Z toward terminus all show cs="c", station before Y absent (on-time pass) → returns Y
+- `test_drilldown_stops_at_first_on_time_intermediate` — reverse walk: first None entry breaks the loop, earlier cs="c" stations are not rechecked
 - `test_drilldown_unknown_station_logs_and_continues` — ppth contains unknown name → warn + skip
 - `test_list_pending_excludes_baierbrunn_cancelled` — rows with `cancelled=1` never selected
 - `test_list_pending_excludes_terminal_states` — rows with non-pending status excluded
@@ -274,11 +293,13 @@ Strict TDD: write tests before implementation.
 
 ### Modified `test_storage.py`
 
-- `test_migration_adds_terminus_columns`
+- `test_migration_adds_terminus_columns` — terminus_status / terminus_delay_minutes / terminus_short_turn_station / dp_ppth all added on legacy DB
+- `test_migration_creates_terminus_health_table`
 - `test_upsert_initialises_terminus_status_pending` (cancelled=0)
 - `test_upsert_initialises_terminus_status_null_when_cancelled`
 - `test_upsert_clears_terminus_on_cancellation_flip`
 - `test_upsert_preserves_terminus_on_normal_refetch`
+- `test_upsert_overwrites_dp_ppth_on_conflict`
 
 ### Modified `test_exporter.py`
 
@@ -298,7 +319,7 @@ All fixtures local. Existing fetcher tests already follow this pattern.
 
 End-to-end manual verification after deploy:
 
-1. **Migration:** `docker compose up -d s7bb-fetcher` on VM → check `sqlite3 data/s7bb.db ".schema arrivals"` shows the 3 new columns.
+1. **Migration:** `docker compose up -d s7bb-fetcher` on VM → check `sqlite3 data/s7bb.db ".schema arrivals"` shows the 4 new columns (terminus_status, terminus_delay_minutes, terminus_short_turn_station, dp_ppth) and `.schema terminus_health` shows the health table.
 2. **Seed:** wait one fetch cycle → `SELECT COUNT(*) FROM arrivals WHERE terminus_status='pending'` > 0; cancelled rows have `terminus_status IS NULL`.
 3. **Match:** wait ~30 min for terminus polling → `SELECT terminus_status, COUNT(*) FROM arrivals GROUP BY terminus_status` shows non-zero `arrived` count.
 4. **Delay:** spot-check one row where actual_time != scheduled_time at Baierbrunn → terminus_delay_minutes should also reflect München arrival delay (likely similar magnitude).
