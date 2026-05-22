@@ -61,18 +61,28 @@ def _stage_into_repo(data_dir: Path, repo_path: Path) -> None:
 
 
 def _fetch_job() -> None:
-    from .api import fetch_baierbrunn_now
+    from . import api as _api
     from .parser import parse_timetable
     from .storage import open_db, upsert_records
+    from .terminus import update_terminus_for_window
 
     try:
-        plan_xml, changes_xml = fetch_baierbrunn_now()
+        plan_xml, changes_xml = _api.fetch_baierbrunn_now()
         records = parse_timetable(plan_xml, changes_xml)
         conn = open_db(DB_PATH)
         n = upsert_records(conn, records)
         logger.info("fetch_job: %d stops, %d upserted", len(records), n)
     except Exception:
         logger.exception("fetch_job failed")
+        return
+
+    # Terminus tracking runs in its own try/except so a terminus failure
+    # never invalidates the Baierbrunn data we just committed.
+    try:
+        updated = update_terminus_for_window(conn, _api)
+        logger.info("fetch_job: terminus %d rows updated", updated)
+    except Exception:
+        logger.exception("fetch_job: terminus tracking failed")
 
 
 def _run_push_step() -> None:

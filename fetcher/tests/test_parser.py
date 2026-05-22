@@ -107,3 +107,14 @@ def test_missing_tl_yields_none_and_row_still_emitted():
     )
     assert no_tl is not None, "stop without <tl> must still be emitted"
     assert no_tl.train_number is None
+
+
+def test_dp_ppth_preserved_on_record():
+    records = parse_timetable(_load("plan.xml"), _load("changes_empty.xml"))
+    munich_bound = [r for r in records if r.direction_bucket == "muenchen"]
+    assert munich_bound, "fixture must contain at least one München-bound stop"
+    r = munich_bound[0]
+    assert r.dp_ppth, "dp_ppth must be populated"
+    # ppth is ordered Baierbrunn → terminus, pipe-separated
+    parts = r.dp_ppth.split("|")
+    assert parts[-1].startswith("München"), f"last stop should be München, got {parts[-1]}"

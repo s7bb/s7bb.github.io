@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   DB Timetables API: named data source with link, the CC BY 4.0 license
   with link, an indication that the data is processed and aggregated,
   and the Deutsche Bahn no-liability disclaimer.
+- Backend tracking of S7 terminus arrivals (München Hbf Gl.27-36 /
+  Wolfratshausen). Each Baierbrunn departure is now classified per cycle
+  as `arrived` (with delay), `short_turn` (with station), `cancelled`, or
+  `pending`. Data is exposed as three new optional+nullable fields on
+  every arrival in `latest.json` and the monthly archives:
+  `terminus_status`, `terminus_delay_minutes`,
+  `terminus_short_turn_station`. UI rendering is Phase 2 and intentionally
+  not part of this release.
 
 ## [0.6.0] - 2026-05-19
 

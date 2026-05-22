@@ -1,5 +1,7 @@
 export type DirectionBucket = "muenchen" | "wolfratshausen" | "unknown";
 
+export type TerminusStatus = "arrived" | "short_turn" | "cancelled" | "pending";
+
 export interface Arrival {
   train_id: string;
   line: string;
@@ -12,6 +14,9 @@ export interface Arrival {
   cancelled: boolean;
   reason: string | null;
   train_number?: string | null;
+  terminus_status?: TerminusStatus | null;
+  terminus_delay_minutes?: number | null;
+  terminus_short_turn_station?: string | null;
 }
 
 export interface DayAggregate {

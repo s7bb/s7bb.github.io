@@ -37,7 +37,8 @@ def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
     cur = conn.execute(
         """
         SELECT train_id, line, station, direction, direction_bucket, scheduled_time,
-               actual_time, delay_minutes, cancelled, reason, train_number
+               actual_time, delay_minutes, cancelled, reason, train_number,
+               terminus_status, terminus_delay_minutes, terminus_short_turn_station
         FROM arrivals
         WHERE scheduled_time >= ?
         ORDER BY scheduled_time, train_id
@@ -182,7 +183,8 @@ def export_monthly_archive(
     cur = conn.execute(
         """
         SELECT train_id, line, station, direction, direction_bucket, scheduled_time,
-               actual_time, delay_minutes, cancelled, reason, train_number
+               actual_time, delay_minutes, cancelled, reason, train_number,
+               terminus_status, terminus_delay_minutes, terminus_short_turn_station
         FROM arrivals
         WHERE scheduled_time >= ? AND scheduled_time < ?
         ORDER BY scheduled_time, train_id
