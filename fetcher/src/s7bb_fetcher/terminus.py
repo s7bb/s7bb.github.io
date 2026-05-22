@@ -8,7 +8,7 @@ station's /fchg feed and matching on train_number.
 import logging
 import sqlite3  # noqa: F401
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta  # noqa: F401
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from lxml import etree
@@ -94,3 +94,87 @@ def _is_cancelled(entry: etree._Element) -> bool:
     if dp is not None and dp.get("cs", "") == "c":
         return True
     return False
+
+
+def _parse_db_time(raw: str) -> datetime:
+    local = datetime.strptime(raw, _DB_TIME_FMT).replace(tzinfo=_DE_TZ)
+    return local.astimezone(UTC)
+
+
+def _cutoff(pending: PendingTrain) -> datetime:
+    sched = datetime.fromisoformat(pending.scheduled_time)
+    travel = TRAVEL_TIME_MINUTES.get(pending.direction_bucket, 35)
+    return sched + timedelta(minutes=travel + CUTOFF_GRACE_MINUTES)
+
+
+def _arrival_delay_minutes(entry: etree._Element) -> int:
+    """Compute ct - pt in whole minutes; 0 if ct missing."""
+    ar = entry.find("ar")
+    if ar is None:
+        return 0
+    pt = ar.get("pt")
+    ct = ar.get("ct")
+    if not pt or not ct:
+        return 0
+    delta = _parse_db_time(ct) - _parse_db_time(pt)
+    return int(delta.total_seconds() / 60)
+
+
+def classify(
+    pending: PendingTrain,
+    entry: etree._Element | None,
+    now: datetime,
+    drilldown,
+) -> TerminusUpdate | None:
+    """Classify a single pending train.
+
+    Returns a TerminusUpdate to write, or None to leave the row pending.
+
+    `drilldown` is a callable `(dp_ppth, train_number) -> str | None` that
+    returns the Baierbrunn-most station where the train is reported with
+    cs="c", or None if no cancellation point is found.
+    """
+    # Case A: terminus feed has an entry for this train_number.
+    if entry is not None:
+        if _is_cancelled(entry):
+            station = drilldown(pending.dp_ppth, pending.train_number)
+            if station is None:
+                return TerminusUpdate(
+                    pending.train_number, pending.scheduled_time,
+                    terminus_status="cancelled",
+                    terminus_delay_minutes=None,
+                    terminus_short_turn_station=None,
+                )
+            return TerminusUpdate(
+                pending.train_number, pending.scheduled_time,
+                terminus_status="short_turn",
+                terminus_delay_minutes=None,
+                terminus_short_turn_station=station,
+            )
+        # Not cancelled at terminus → arrived (possibly late).
+        return TerminusUpdate(
+            pending.train_number, pending.scheduled_time,
+            terminus_status="arrived",
+            terminus_delay_minutes=_arrival_delay_minutes(entry),
+            terminus_short_turn_station=None,
+        )
+
+    # Case B: missing from terminus feed.
+    if now <= _cutoff(pending):
+        return None  # stay pending; next cycle may catch it
+
+    # Case C: missing past cutoff → drilldown.
+    station = drilldown(pending.dp_ppth, pending.train_number)
+    if station is None:
+        return TerminusUpdate(
+            pending.train_number, pending.scheduled_time,
+            terminus_status="cancelled",
+            terminus_delay_minutes=None,
+            terminus_short_turn_station=None,
+        )
+    return TerminusUpdate(
+        pending.train_number, pending.scheduled_time,
+        terminus_status="short_turn",
+        terminus_delay_minutes=None,
+        terminus_short_turn_station=station,
+    )

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 from lxml import etree
@@ -49,3 +50,121 @@ def test_constants_present():
     # Spot-check the station→EVA table from the spec
     assert terminus.STATION_NAME_TO_EVA["München-Solln"] == "8004161"
     assert terminus.STATION_NAME_TO_EVA["Hohenschäftlarn"] == "8002955"
+
+
+from s7bb_fetcher.terminus import PendingTrain  # forward-OK after Task 6
+
+
+def _pending(
+    train_number="6762",
+    scheduled_iso="2026-05-05T10:30:00+00:00",
+    bucket="muenchen",
+    dp_ppth="Buchenhain|Höllriegelskreuth|München Hbf Gl.27-36",
+) -> PendingTrain:
+    return PendingTrain(train_number, scheduled_iso, bucket, dp_ppth)
+
+
+# scheduled_time is 10:30 UTC; cutoff = 10:30 + 35 + 60 = 12:05 UTC
+_BEFORE_CUTOFF = datetime(2026, 5, 5, 11, 30, tzinfo=UTC)
+_AFTER_CUTOFF  = datetime(2026, 5, 5, 13,  0, tzinfo=UTC)
+
+
+def test_classify_arrived_on_time():
+    from s7bb_fetcher.terminus import build_index, classify
+    idx = build_index(_load("terminus_munich_arrived.xml"))
+    pending = _pending()
+    update = classify(pending, idx.get(pending.train_number), _BEFORE_CUTOFF,
+                      drilldown=lambda *_: None)
+    assert update is not None
+    assert update.terminus_status == "arrived"
+    assert update.terminus_delay_minutes == 0
+    assert update.terminus_short_turn_station is None
+
+
+def test_classify_arrived_with_delay():
+    from s7bb_fetcher.terminus import build_index, classify
+    idx = build_index(_load("terminus_munich_delayed.xml"))
+    pending = _pending()
+    update = classify(pending, idx.get(pending.train_number), _BEFORE_CUTOFF,
+                      drilldown=lambda *_: None)
+    assert update.terminus_status == "arrived"
+    assert update.terminus_delay_minutes == 5
+
+
+def test_classify_short_turn_calls_drilldown_and_uses_its_result():
+    from s7bb_fetcher.terminus import build_index, classify
+    idx = build_index(_load("terminus_munich_cancelled.xml"))
+    calls = []
+
+    def fake_drilldown(dp_ppth, train_number):
+        calls.append((dp_ppth, train_number))
+        return "München-Solln"
+
+    update = classify(_pending(), idx.get("6762"), _BEFORE_CUTOFF,
+                      drilldown=fake_drilldown)
+    assert calls == [("Buchenhain|Höllriegelskreuth|München Hbf Gl.27-36", "6762")]
+    assert update.terminus_status == "short_turn"
+    assert update.terminus_short_turn_station == "München-Solln"
+    assert update.terminus_delay_minutes is None
+
+
+def test_classify_cancelled_when_drilldown_finds_no_intermediate():
+    """Terminus says cs='c' but no intermediate station reports the train
+    as cancelled → train vanished entirely → status='cancelled'."""
+    from s7bb_fetcher.terminus import build_index, classify
+    idx = build_index(_load("terminus_munich_cancelled.xml"))
+    update = classify(_pending(), idx.get("6762"), _BEFORE_CUTOFF,
+                      drilldown=lambda *_: None)
+    assert update.terminus_status == "cancelled"
+    assert update.terminus_short_turn_station is None
+
+
+def test_classify_pending_when_missing_before_cutoff():
+    """Train absent from terminus feed but cutoff not yet passed → return
+    None (= no update; row stays 'pending' until next cycle)."""
+    from s7bb_fetcher.terminus import classify
+    assert classify(_pending(), None, _BEFORE_CUTOFF,
+                    drilldown=lambda *_: None) is None
+
+
+def test_classify_short_turn_via_drilldown_after_cutoff():
+    """Missing past cutoff + drilldown finds a cancelled intermediate →
+    short_turn."""
+    from s7bb_fetcher.terminus import classify
+    update = classify(_pending(), None, _AFTER_CUTOFF,
+                      drilldown=lambda *_: "Pullach")
+    assert update.terminus_status == "short_turn"
+    assert update.terminus_short_turn_station == "Pullach"
+
+
+def test_classify_cancelled_when_missing_past_cutoff_and_drilldown_blank():
+    from s7bb_fetcher.terminus import classify
+    update = classify(_pending(), None, _AFTER_CUTOFF,
+                      drilldown=lambda *_: None)
+    assert update.terminus_status == "cancelled"
+    assert update.terminus_short_turn_station is None
+
+
+def test_classify_wolfratshausen_uses_20_minute_travel_time():
+    """Wolfratshausen cutoff = scheduled + 20 + 60 = +80 min. A train missing
+    at scheduled + 70 min must still be 'pending', not 'cancelled'."""
+    from s7bb_fetcher.terminus import classify
+    pending = _pending(bucket="wolfratshausen",
+                       dp_ppth="Hohenschäftlarn|Ebenhausen-Schäftlarn|Icking|Wolfratshausen")
+    sched = datetime.fromisoformat(pending.scheduled_time)
+    now = sched + timedelta(minutes=70)
+    assert classify(pending, None, now, drilldown=lambda *_: None) is None
+
+
+def test_classify_arrived_zero_delay_when_ct_missing():
+    """Some on-time entries omit ct entirely. With no cs and no ct, treat
+    as arrived with delay=0."""
+    from s7bb_fetcher.terminus import classify
+    xml = etree.fromstring(
+        b'<timetable><s id="x"><tl n="6762"/><ar pt="2605051230"/></s></timetable>',
+        parser=_PARSER,
+    )
+    entry = xml.find(".//s")
+    update = classify(_pending(), entry, _BEFORE_CUTOFF, drilldown=lambda *_: None)
+    assert update.terminus_status == "arrived"
+    assert update.terminus_delay_minutes == 0
