@@ -22,6 +22,7 @@ class ArrivalRecord:
     cancelled: bool
     reason: str | None
     train_number: str | None = None
+    dp_ppth: str = ""        # pipe-separated path Baierbrunn → terminus
 
 
 def _parse_db_time(raw: str) -> datetime:
@@ -144,6 +145,7 @@ def parse_timetable(
             cancelled=cancelled,
             reason=reason,
             train_number=train_number,
+            dp_ppth=dp_ppth,
         ))
 
     return records
