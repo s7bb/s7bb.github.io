@@ -1,7 +1,7 @@
 """SQLite storage for arrival records."""
 
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .parser import ArrivalRecord
@@ -127,3 +127,48 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
     )
     conn.commit()
     return cursor.rowcount
+
+
+def update_terminus_fields(
+    conn: sqlite3.Connection, updates: list[dict]
+) -> int:
+    """Apply a batch of terminus classification results.
+
+    Each update dict carries: train_number, scheduled_time, terminus_status,
+    terminus_delay_minutes, terminus_short_turn_station.
+
+    The UPDATE is guarded by `terminus_status='pending' AND cancelled=0`, so
+    it is idempotent (a second call is a no-op) and a concurrent cancel-flip
+    silently drops the terminus write.
+
+    Match window is ±4 h around the row's scheduled_time on the same
+    train_number — avoids UTC-vs-local-DE date ambiguity for late-night
+    trains crossing midnight UTC.
+    """
+    total = 0
+    for u in updates:
+        sched = datetime.fromisoformat(u["scheduled_time"])
+        lo = (sched - timedelta(hours=4)).isoformat()
+        hi = (sched + timedelta(hours=4)).isoformat()
+        cur = conn.execute(
+            """
+            UPDATE arrivals
+               SET terminus_status              = ?,
+                   terminus_delay_minutes       = ?,
+                   terminus_short_turn_station  = ?
+             WHERE train_number = ?
+               AND scheduled_time BETWEEN ? AND ?
+               AND terminus_status = 'pending'
+               AND cancelled = 0
+            """,
+            (
+                u["terminus_status"],
+                u["terminus_delay_minutes"],
+                u["terminus_short_turn_station"],
+                u["train_number"],
+                lo, hi,
+            ),
+        )
+        total += cur.rowcount
+    conn.commit()
+    return total

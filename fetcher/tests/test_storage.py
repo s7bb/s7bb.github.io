@@ -263,3 +263,89 @@ def test_upsert_preserves_dp_ppth_when_refetch_is_empty(tmp_db):
     upsert_records(tmp_db, [_record(dp_ppth="")])  # empty → stored as NULL
     row = tmp_db.execute("SELECT dp_ppth FROM arrivals").fetchone()
     assert row[0] == "A|B|München Hbf Gl.27-36"
+
+
+from s7bb_fetcher.storage import update_terminus_fields  # added in Task 4
+
+
+def test_update_terminus_fields_basic(tmp_db):
+    """Writes status + delay + short_turn for a pending row matched by
+    train_number within the ±4 h window."""
+    upsert_records(tmp_db, [_record(
+        train_number="6762", scheduled_time="2026-05-05T12:00:00+00:00",
+    )])
+    n = update_terminus_fields(tmp_db, [{
+        "train_number": "6762",
+        "scheduled_time": "2026-05-05T12:00:00+00:00",
+        "terminus_status": "arrived",
+        "terminus_delay_minutes": 3,
+        "terminus_short_turn_station": None,
+    }])
+    assert n == 1
+    row = tmp_db.execute(
+        "SELECT terminus_status, terminus_delay_minutes, terminus_short_turn_station "
+        "FROM arrivals WHERE train_number='6762'"
+    ).fetchone()
+    assert row == ("arrived", 3, None)
+
+
+def test_update_terminus_fields_idempotent(tmp_db):
+    """A second identical call is a no-op — the WHERE filter excludes
+    rows no longer in 'pending' state."""
+    upsert_records(tmp_db, [_record(train_number="6762")])
+    update = {
+        "train_number": "6762",
+        "scheduled_time": _record().scheduled_time,
+        "terminus_status": "arrived",
+        "terminus_delay_minutes": 0,
+        "terminus_short_turn_station": None,
+    }
+    update_terminus_fields(tmp_db, [update])
+    n = update_terminus_fields(tmp_db, [update])
+    assert n == 0
+
+
+def test_update_terminus_fields_guards_cancelled_flip(tmp_db):
+    """If a Baierbrunn refetch flipped cancelled=1 between cycles, the
+    terminus update for that train is silently dropped."""
+    upsert_records(tmp_db, [_record(train_number="6762", cancelled=False)])
+    upsert_records(tmp_db, [_record(
+        train_number="6762", cancelled=True, actual_time=None, delay_minutes=None,
+    )])  # flips → terminus_status reset to NULL
+    n = update_terminus_fields(tmp_db, [{
+        "train_number": "6762",
+        "scheduled_time": _record().scheduled_time,
+        "terminus_status": "arrived",
+        "terminus_delay_minutes": 0,
+        "terminus_short_turn_station": None,
+    }])
+    assert n == 0
+    row = tmp_db.execute(
+        "SELECT terminus_status FROM arrivals WHERE train_number='6762'"
+    ).fetchone()
+    assert row[0] is None  # cancelled rows never gain a terminus_status
+
+
+def test_update_terminus_fields_window_scope(tmp_db):
+    """Two rows with same train_number on different days: the one outside
+    the ±4 h window is not updated."""
+    upsert_records(tmp_db, [_record(
+        train_id="d1", train_number="6762",
+        scheduled_time="2026-05-05T12:00:00+00:00",
+    )])
+    upsert_records(tmp_db, [_record(
+        train_id="d2", train_number="6762",
+        scheduled_time="2026-05-06T12:00:00+00:00",
+    )])
+    n = update_terminus_fields(tmp_db, [{
+        "train_number": "6762",
+        "scheduled_time": "2026-05-05T12:00:00+00:00",
+        "terminus_status": "arrived",
+        "terminus_delay_minutes": 0,
+        "terminus_short_turn_station": None,
+    }])
+    assert n == 1  # only the May 5 row
+    rows = dict(tmp_db.execute(
+        "SELECT train_id, terminus_status FROM arrivals ORDER BY train_id"
+    ).fetchall())
+    assert rows == {"d1": "arrived", "d2": "pending"}
