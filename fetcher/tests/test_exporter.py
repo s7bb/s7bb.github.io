@@ -405,15 +405,15 @@ def test_terminus_health_empty_table(tmp_path):
     assert data["terminus_health"] == []
 
 
-def test_terminus_health_populated_sorted_by_eva(tmp_path):
-    """`terminus_health` rows emitted as list[{eva,zero_match_streak,updated_at}],
-    ordered by eva ASC for stable diffs in the s7bb-data repo."""
+def test_terminus_health_populated_sorted_by_bucket(tmp_path):
+    """`terminus_health` rows emitted as list[{bucket,zero_match_streak,updated_at}],
+    ordered by bucket ASC for stable diffs in the s7bb-data repo."""
     conn = open_db(tmp_path / "test.db")
     conn.executemany(
-        "INSERT INTO terminus_health (eva, zero_match_streak, updated_at) VALUES (?,?,?)",
+        "INSERT INTO terminus_health (bucket, zero_match_streak, updated_at) VALUES (?,?,?)",
         [
-            ("8004158", 12, "2026-05-23T07:42:11+00:00"),
-            ("8000261",  0, "2026-05-23T07:42:11+00:00"),
+            ("wolfratshausen", 12, "2026-05-23T07:42:11+00:00"),
+            ("muenchen",        0, "2026-05-23T07:42:11+00:00"),
         ],
     )
     conn.commit()
@@ -423,6 +423,6 @@ def test_terminus_health_populated_sorted_by_eva(tmp_path):
     data = json.loads(out.read_text())
 
     assert data["terminus_health"] == [
-        {"eva": "8000261", "zero_match_streak":  0, "updated_at": "2026-05-23T07:42:11+00:00"},
-        {"eva": "8004158", "zero_match_streak": 12, "updated_at": "2026-05-23T07:42:11+00:00"},
+        {"bucket": "muenchen",        "zero_match_streak":  0, "updated_at": "2026-05-23T07:42:11+00:00"},
+        {"bucket": "wolfratshausen",  "zero_match_streak": 12, "updated_at": "2026-05-23T07:42:11+00:00"},
     ]

@@ -28,8 +28,11 @@ _DE_TZ = ZoneInfo("Europe/Berlin")
 
 # S-Bahn surface platforms 27-36 at München Hbf are a separate station
 # in the Timetables API from the long-distance München Hbf (8000261).
-MUENCHEN_HBF_EVA = "8098261"
-WOLFRATSHAUSEN_EVA = "8006550"
+# Tief = Stammstrecke underground S-Bahn platforms.
+MUENCHEN_HBF_EVA      = "8098261"
+MUENCHEN_HBF_TIEF_EVA = "8098263"
+MUENCHEN_HBF_EVAS     = (MUENCHEN_HBF_EVA, MUENCHEN_HBF_TIEF_EVA)
+WOLFRATSHAUSEN_EVA    = "8006550"
 
 # Per-direction average travel time Baierbrunn → terminus (minutes).
 TRAVEL_TIME_MINUTES = {
@@ -54,6 +57,7 @@ STATION_NAME_TO_EVA = {
     "München Heimeranplatz":       "8005419",
     "München Donnersbergerbrücke": "8004128",
     "München Hbf Gl.27-36":        MUENCHEN_HBF_EVA,
+    "München Hbf (tief)":          MUENCHEN_HBF_TIEF_EVA,
     # Direction Wolfratshausen
     "Hohenschäftlarn":             "8002955",
     "Ebenhausen-Schäftlarn":       "8001621",
@@ -61,9 +65,9 @@ STATION_NAME_TO_EVA = {
     "Wolfratshausen":              WOLFRATSHAUSEN_EVA,
 }
 
-TERMINUS_EVA_FOR_BUCKET = {
-    "muenchen":       MUENCHEN_HBF_EVA,
-    "wolfratshausen": WOLFRATSHAUSEN_EVA,
+TERMINUS_EVA_FOR_BUCKET: dict[str, tuple[str, ...]] = {
+    "muenchen":       MUENCHEN_HBF_EVAS,
+    "wolfratshausen": (WOLFRATSHAUSEN_EVA,),
 }
 
 
@@ -289,42 +293,52 @@ ZERO_MATCH_WARN_THRESHOLD = 3
 
 
 def _record_health(
-    conn: sqlite3.Connection, eva: str, *, pending_count: int, match_count: int, now: datetime
+    conn: sqlite3.Connection, bucket: str, *,
+    pending_count: int, match_count: int, now: datetime,
 ) -> None:
-    """Increment/reset zero-match streak per terminus EVA."""
+    """Increment/reset zero-match streak per direction bucket.
+
+    Keyed by bucket (not EVA) so multi-EVA polls do not trip a false warning
+    when only one variant carries traffic for a given cycle. The bucket-level
+    metric matches the user-facing question: "can I reach this terminus at
+    all?".
+    """
     if pending_count == 0:
         return  # quiet cycle isn't evidence of mismatch
     if match_count > 0:
         conn.execute(
             """
-            INSERT INTO terminus_health (eva, zero_match_streak, updated_at)
+            INSERT INTO terminus_health (bucket, zero_match_streak, updated_at)
             VALUES (?, 0, ?)
-            ON CONFLICT(eva) DO UPDATE SET zero_match_streak=0, updated_at=excluded.updated_at
+            ON CONFLICT(bucket) DO UPDATE SET
+                zero_match_streak = 0,
+                updated_at        = excluded.updated_at
             """,
-            (eva, now.isoformat()),
+            (bucket, now.isoformat()),
         )
         conn.commit()
         return
     cur = conn.execute(
-        "SELECT zero_match_streak FROM terminus_health WHERE eva=?", (eva,)
+        "SELECT zero_match_streak FROM terminus_health WHERE bucket=?", (bucket,)
     ).fetchone()
     streak = (cur[0] if cur else 0) + 1
     conn.execute(
         """
-        INSERT INTO terminus_health (eva, zero_match_streak, updated_at)
+        INSERT INTO terminus_health (bucket, zero_match_streak, updated_at)
         VALUES (?, ?, ?)
-        ON CONFLICT(eva) DO UPDATE SET
+        ON CONFLICT(bucket) DO UPDATE SET
             zero_match_streak = excluded.zero_match_streak,
-            updated_at = excluded.updated_at
+            updated_at        = excluded.updated_at
         """,
-        (eva, streak, now.isoformat()),
+        (bucket, streak, now.isoformat()),
     )
     conn.commit()
     if streak >= ZERO_MATCH_WARN_THRESHOLD:
         log.warning(
-            "terminus: 0 matches against eva=%s across %d pending trains for %d consecutive cycles "
-            "— possible EVA mismatch",
-            eva, pending_count, streak,
+            "terminus: 0 matches against bucket=%s across %d pending trains "
+            "for %d consecutive cycles — possible EVA mismatch in "
+            "TERMINUS_EVA_FOR_BUCKET[%s]",
+            bucket, pending_count, streak, bucket,
         )
 
 
@@ -359,29 +373,51 @@ def update_terminus_for_window(
 
     updates: list[dict] = []
     for bucket, group in by_bucket.items():
-        eva = TERMINUS_EVA_FOR_BUCKET.get(bucket)
-        if eva is None:
+        evas = TERMINUS_EVA_FOR_BUCKET.get(bucket)
+        if not evas:
             continue  # 'unknown' bucket — never resolvable
-        try:
-            feed = client.fetch_full_changes(eva)
-        except Exception:
-            log.exception("terminus: /fchg %s failed; %d pending stay pending", eva, len(group))
-            continue
-        idx = build_index(feed)
 
-        plan_pt: dict[str, str] = {}
-        for date, hour in sorted(_hour_keys(group, bucket)):
+        # Merge /fchg across all EVAs in the tuple. One inbound S-Bahn run
+        # physically calls at exactly one variant, so last-write-wins is
+        # safe; collisions (if any) carry identical ar/@ct.
+        merged_idx: dict[str, etree._Element] = {}
+        any_fchg_ok = False
+        for eva in evas:
             try:
-                plan_xml = client.fetch_plan(eva, date, hour)
+                feed = client.fetch_full_changes(eva)
             except Exception:
-                log.exception("terminus: /plan %s %s/%s failed; delays may fall back to 0",
-                              eva, date, hour)
+                log.exception(
+                    "terminus: /fchg %s failed; trying remaining EVAs for bucket=%s",
+                    eva, bucket,
+                )
                 continue
-            plan_pt.update(_build_plan_pt_index(plan_xml))
+            any_fchg_ok = True
+            merged_idx.update(build_index(feed))
+        if not any_fchg_ok:
+            log.warning(
+                "terminus: all /fchg EVAs failed for bucket=%s; %d pending stay pending",
+                bucket, len(group),
+            )
+            continue
+
+        # Merge /plan across all (EVA, hour) combinations. Same idempotency
+        # rationale: a given trip-prefix appears in at most one EVA's plan.
+        plan_pt: dict[str, str] = {}
+        for eva in evas:
+            for date, hour in sorted(_hour_keys(group, bucket)):
+                try:
+                    plan_xml = client.fetch_plan(eva, date, hour)
+                except Exception:
+                    log.exception(
+                        "terminus: /plan %s %s/%s failed; delays may fall back to 0",
+                        eva, date, hour,
+                    )
+                    continue
+                plan_pt.update(_build_plan_pt_index(plan_xml))
 
         match_count = 0
         for p in group:
-            entry = idx.get(trip_prefix(p.train_id))
+            entry = merged_idx.get(trip_prefix(p.train_id))
             if entry is not None:
                 match_count += 1
             update = classify(
@@ -396,7 +432,7 @@ def update_terminus_for_window(
                     "terminus_delay_minutes": update.terminus_delay_minutes,
                     "terminus_short_turn_station": update.terminus_short_turn_station,
                 })
-        _record_health(conn, eva, pending_count=len(group),
+        _record_health(conn, bucket, pending_count=len(group),
                        match_count=match_count, now=now)
 
     if not updates:
@@ -408,6 +444,12 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_id: str) -> str | No
     """Walk dp.ppth reverse from one-before-terminus toward Baierbrunn,
     looking up each station's /fchg and returning the Baierbrunn-most
     station where the train is reported with cs='c'.
+
+    For muenchen-direction trains that DB routes through the Stammstrecke
+    (path continues east of München Hbf to Aying/Kreuzstraße/etc.), the
+    walk truncates at the first Hbf variant encountered. Stations east of
+    Hbf are irrelevant to the "can I reach Munich?" question and are not
+    in STATION_NAME_TO_EVA anyway — walking them just logs noise.
 
     The /fchg endpoint only returns entries for stations where something
     *changed*. So `entry is None` at an intermediate means the train passed
@@ -423,7 +465,15 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_id: str) -> str | No
     if not prefix:
         return None
     parts = [p for p in dp_ppth.split("|") if p]
-    # parts[-1] is terminus; walk everything before it, reverse
+    # Cap at first München Hbf variant if present — a single inbound S-Bahn
+    # cannot physically call at both surface and tief, so first match suffices.
+    hbf_variants = {"München Hbf Gl.27-36", "München Hbf (tief)"}
+    for idx, name in enumerate(parts):
+        if name in hbf_variants:
+            parts = parts[: idx + 1]
+            break
+    # parts[-1] is the (possibly truncated) terminus; walk everything before
+    # it in reverse.
     candidate: str | None = None
     for name in reversed(parts[:-1]):
         eva = STATION_NAME_TO_EVA.get(name)
@@ -434,14 +484,12 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_id: str) -> str | No
             feed = client.fetch_full_changes(eva)
         except Exception:
             log.exception("terminus drilldown: /fchg %s failed; aborting walk", eva)
-            return candidate  # best-effort: return what we have so far
+            return candidate
         entry = build_index(feed).get(prefix)
         if entry is None:
-            # No change at this station → train passed → past cancellation point.
             break
         if _is_cancelled(entry):
-            candidate = name  # keep walking; may find a Baierbrunn-er hit
+            candidate = name
             continue
-        # Entry present but not cancelled (delay only) → train ran here → stop.
         break
     return candidate

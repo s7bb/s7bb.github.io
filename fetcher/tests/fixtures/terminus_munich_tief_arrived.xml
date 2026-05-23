@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<timetable station="München Hbf (tief)">
+  <s id="42-2605051200-22">
+    <ar ct="2605051245" pt="2605051240" l="2" cs="a"/>
+  </s>
+</timetable>

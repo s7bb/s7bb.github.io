@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-05-23
+
+### Fixed
+
+- Treat München Hbf surface (`8098261`, Gl.27-36) **and** Hbf tief
+  (`8098263`, Stammstrecke) as equally valid terminus arrivals for
+  the `muenchen` bucket. `update_terminus_for_window` now polls a
+  tuple of EVAs per bucket and merges the trip-prefix indexes, so
+  Baierbrunn → Hbf trips classify correctly whether DB routes them
+  through the surface platforms or continues east via the
+  Stammstrecke (Höhenkirchen-Siegertsbrunn / Kreuzstraße / Aying).
+- Drilldown walk truncates at the first München Hbf variant in
+  `dp.ppth`; eastern Stammstrecke stations (München Ost,
+  Höhenkirchen-Siegertsbrunn, Kreuzstraße, Aying, …) — none of which
+  are in `STATION_NAME_TO_EVA` — no longer reach the name-lookup
+  branch, eliminating spurious `unknown intermediate` WARNs per cycle.
+- `terminus_health` re-keyed from `eva` to `bucket`. The exporter
+  emits `bucket` instead of `eva` in `latest.json[].terminus_health`.
+  The site has no consumer of this field yet, so the rename is not a
+  breaking change.
+
+### Migration notes
+
+- One-shot SQLite migration drops and recreates `terminus_health`
+  on first start under v0.8.3. Health is a derived 3-cycle streak —
+  the bucket-level row reaccrues within ~15 minutes.
+- Rows for `direction_bucket = "muenchen"` on **2026-05-23** are
+  not backfilled: the majority ended up `terminus_status = null`,
+  with a handful misclassified `cancelled` via cutoff drilldown.
+  The pre-deploy `/fchg` window has closed; accept the lossy day.
+  Same convention as the 2026-05-23 parser fix in 0.8.2.
+
 ## [0.8.2] - 2026-05-23
 
 ### Fixed
