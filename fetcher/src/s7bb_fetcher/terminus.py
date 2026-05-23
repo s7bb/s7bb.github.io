@@ -413,6 +413,12 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_id: str) -> str | No
     looking up each station's /fchg and returning the Baierbrunn-most
     station where the train is reported with cs='c'.
 
+    For muenchen-direction trains that DB routes through the Stammstrecke
+    (path continues east of München Hbf to Aying/Kreuzstraße/etc.), the
+    walk truncates at the first Hbf variant encountered. Stations east of
+    Hbf are irrelevant to the "can I reach Munich?" question and are not
+    in STATION_NAME_TO_EVA anyway — walking them just logs noise.
+
     The /fchg endpoint only returns entries for stations where something
     *changed*. So `entry is None` at an intermediate means the train passed
     on time there — i.e. we walked past the cancellation point and can stop.
@@ -427,7 +433,15 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_id: str) -> str | No
     if not prefix:
         return None
     parts = [p for p in dp_ppth.split("|") if p]
-    # parts[-1] is terminus; walk everything before it, reverse
+    # Cap at first München Hbf variant if present — a single inbound S-Bahn
+    # cannot physically call at both surface and tief, so first match suffices.
+    hbf_variants = {"München Hbf Gl.27-36", "München Hbf (tief)"}
+    for idx, name in enumerate(parts):
+        if name in hbf_variants:
+            parts = parts[: idx + 1]
+            break
+    # parts[-1] is the (possibly truncated) terminus; walk everything before
+    # it in reverse.
     candidate: str | None = None
     for name in reversed(parts[:-1]):
         eva = STATION_NAME_TO_EVA.get(name)
@@ -438,14 +452,12 @@ def drilldown_short_turn(client, dp_ppth: str | None, train_id: str) -> str | No
             feed = client.fetch_full_changes(eva)
         except Exception:
             log.exception("terminus drilldown: /fchg %s failed; aborting walk", eva)
-            return candidate  # best-effort: return what we have so far
+            return candidate
         entry = build_index(feed).get(prefix)
         if entry is None:
-            # No change at this station → train passed → past cancellation point.
             break
         if _is_cancelled(entry):
-            candidate = name  # keep walking; may find a Baierbrunn-er hit
+            candidate = name
             continue
-        # Entry present but not cancelled (delay only) → train ran here → stop.
         break
     return candidate

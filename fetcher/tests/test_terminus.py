@@ -619,3 +619,86 @@ def test_update_terminus_for_window_tolerates_plan_http_error(tmp_path):
     ).fetchone()
     # arrived; delay falls back to 0 because both /fchg.pt and plan are unavailable
     assert row == ("arrived", 0)
+
+
+def test_drilldown_truncates_at_muenchen_hbf_tief():
+    """When dp_ppth runs THROUGH München Hbf (tief) on to Aying, the walk
+    must cap at Hbf-tief. Solln cancelled → return Solln; cap prevents the
+    walk from ever asking the (non-existent in STATION_NAME_TO_EVA) eastern
+    Stammstrecke stations, eliminating `unknown intermediate` WARN spam.
+    """
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({
+        "8004161": "intermediate_solln_cancelled",  # cancelled → candidate
+        "8004899": "empty_fchg",                    # Pullach passed → break
+    })
+    ppth = (
+        "Buchenhain|Höllriegelskreuth|Pullach|München-Solln|"
+        "München Hbf (tief)|München Ost|Höhenkirchen-Siegertsbrunn|Aying"
+    )
+    result = drilldown_short_turn(client, ppth, BAIERBRUNN_ID)
+    assert result == "München-Solln"
+    # Walk order after cap: reversed([Buchenhain, Höllriegelskreuth, Pullach,
+    # Solln]) → Solln (cs=c, candidate), Pullach (empty → break).
+    assert client.calls == ["8004161", "8004899"]
+
+
+def test_drilldown_truncates_at_muenchen_hbf_surface_skips_eastern_stops(caplog):
+    """Symmetric case for surface Gl.27-36 routing — same cap rule. Asserts
+    NO `unknown intermediate` WARN for eastern stops (which aren't in
+    STATION_NAME_TO_EVA), and only mapped western EVAs are fetched.
+    """
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({
+        "8004161": "intermediate_solln_cancelled",
+        "8004899": "empty_fchg",
+    })
+    ppth = (
+        "Höllriegelskreuth|Pullach|München-Solln|"
+        "München Hbf Gl.27-36|Some Stammstrecke Stop|Aying"
+    )
+    with caplog.at_level("WARNING"):
+        result = drilldown_short_turn(client, ppth, BAIERBRUNN_ID)
+    assert result == "München-Solln"
+    assert client.calls == ["8004161", "8004899"]
+    for east in ("Some Stammstrecke Stop", "Aying"):
+        assert not any(east in r.message for r in caplog.records), (
+            f"cap regressed: drilldown logged unknown intermediate for {east}"
+        )
+
+
+def test_drilldown_no_hbf_in_ppth_falls_back_to_full_walk():
+    """Wolfratshausen-direction paths contain no Hbf variant — must walk all
+    intermediates from one-before-terminus toward Baierbrunn unchanged.
+    """
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({
+        "8002955": "empty_fchg",  # Hohenschäftlarn
+        "8001621": "empty_fchg",  # Ebenhausen-Schäftlarn
+        "8003039": "empty_fchg",  # Icking
+    })
+    ppth = "Hohenschäftlarn|Ebenhausen-Schäftlarn|Icking|Wolfratshausen"
+    result = drilldown_short_turn(client, ppth, BAIERBRUNN_ID)
+    assert result is None
+    # All three intermediates must have been walked (each returned empty,
+    # break on first empty). Order: reversed(parts[:-1]) → Icking first.
+    assert client.calls[0] == "8003039"
+
+
+def test_drilldown_finds_cancellation_west_of_hbf_tief():
+    """A real short-turn west of Hbf must still be detected when the path
+    continues east past Hbf (tief). Use München-Solln as the cancellation
+    point; truncation must not hide it.
+    """
+    from s7bb_fetcher.terminus import drilldown_short_turn
+    client = _FakeClient({
+        "8004161": "intermediate_solln_cancelled",     # München-Solln cs="c"
+        "8004899": "empty_fchg",                       # Pullach passed → break
+    })
+    ppth = (
+        "Pullach|München-Solln|München Hbf (tief)|München Ost|Aying"
+    )
+    result = drilldown_short_turn(client, ppth, BAIERBRUNN_ID)
+    assert result == "München-Solln"
+    # Walk: reversed([Pullach, Solln]) → Solln (candidate), Pullach (empty → break).
+    assert client.calls == ["8004161", "8004899"]
