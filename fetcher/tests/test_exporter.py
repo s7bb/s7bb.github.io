@@ -392,3 +392,37 @@ def test_monthly_archive_includes_terminus_fields(populated_db, tmp_path):
     m1 = next(a for a in data["arrivals"] if a["train_id"] == "m1")
     assert m1["terminus_status"] == "short_turn"
     assert m1["terminus_short_turn_station"] == "München-Solln"
+
+
+def test_terminus_health_empty_table(tmp_path):
+    """latest.json must always carry a `terminus_health` key — empty list when
+    the table has no rows (fresh DB, pre-first terminus fetch)."""
+    conn = open_db(tmp_path / "test.db")
+    out = tmp_path / "latest.json"
+    export_latest(conn, out)
+    data = json.loads(out.read_text())
+    assert "terminus_health" in data
+    assert data["terminus_health"] == []
+
+
+def test_terminus_health_populated_sorted_by_eva(tmp_path):
+    """`terminus_health` rows emitted as list[{eva,zero_match_streak,updated_at}],
+    ordered by eva ASC for stable diffs in the s7bb-data repo."""
+    conn = open_db(tmp_path / "test.db")
+    conn.executemany(
+        "INSERT INTO terminus_health (eva, zero_match_streak, updated_at) VALUES (?,?,?)",
+        [
+            ("8004158", 12, "2026-05-23T07:42:11+00:00"),
+            ("8000261",  0, "2026-05-23T07:42:11+00:00"),
+        ],
+    )
+    conn.commit()
+
+    out = tmp_path / "latest.json"
+    export_latest(conn, out)
+    data = json.loads(out.read_text())
+
+    assert data["terminus_health"] == [
+        {"eva": "8000261", "zero_match_streak":  0, "updated_at": "2026-05-23T07:42:11+00:00"},
+        {"eva": "8004158", "zero_match_streak": 12, "updated_at": "2026-05-23T07:42:11+00:00"},
+    ]

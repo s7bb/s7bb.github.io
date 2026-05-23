@@ -140,6 +140,14 @@ def export_latest(conn: sqlite3.Connection, out_path: Path, window_days: int = 7
     today_rows = _today_rows(rows)
     today_agg, week_agg, today_slots = _build_aggregates(rows, today_rows)
 
+    health_cur = conn.execute(
+        "SELECT eva, zero_match_streak, updated_at FROM terminus_health ORDER BY eva"
+    )
+    terminus_health = [
+        {"eva": eva, "zero_match_streak": streak, "updated_at": updated_at}
+        for eva, streak, updated_at in health_cur.fetchall()
+    ]
+
     payload = {
         "generated_at": datetime.now(UTC).isoformat(),
         "station": "Baierbrunn",
@@ -151,6 +159,7 @@ def export_latest(conn: sqlite3.Connection, out_path: Path, window_days: int = 7
             "last_7_days": week_agg,
         },
         "expected_slots": {"today": today_slots},
+        "terminus_health": terminus_health,
     }
     _atomic_write_json(out_path, payload)
 
