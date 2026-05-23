@@ -64,13 +64,20 @@ def test_is_cancelled_false_on_normal_arrival():
 def test_constants_present():
     from s7bb_fetcher import terminus
     assert terminus.MUENCHEN_HBF_EVA == "8098261"
+    assert terminus.MUENCHEN_HBF_TIEF_EVA == "8098263"
+    assert terminus.MUENCHEN_HBF_EVAS == ("8098261", "8098263")
     assert terminus.WOLFRATSHAUSEN_EVA == "8006550"
     assert terminus.CUTOFF_GRACE_MINUTES == 60
     assert terminus.TRAVEL_TIME_MINUTES == {"muenchen": 35, "wolfratshausen": 20}
-    # Spot-check the station→EVA table from the spec
-    assert terminus.STATION_NAME_TO_EVA["München-Solln"] == "8004161"
-    assert terminus.STATION_NAME_TO_EVA["Hohenschäftlarn"] == "8002955"
+    # TERMINUS_EVA_FOR_BUCKET is now uniformly a tuple of EVAs.
+    assert terminus.TERMINUS_EVA_FOR_BUCKET == {
+        "muenchen":       ("8098261", "8098263"),
+        "wolfratshausen": ("8006550",),
+    }
+    # Station map covers both Hbf variants by their dp_ppth name.
     assert terminus.STATION_NAME_TO_EVA["München Hbf Gl.27-36"] == "8098261"
+    assert terminus.STATION_NAME_TO_EVA["München Hbf (tief)"]   == "8098263"
+    assert terminus.STATION_NAME_TO_EVA["Hohenschäftlarn"]      == "8002955"
 
 
 def _pending(

@@ -28,8 +28,11 @@ _DE_TZ = ZoneInfo("Europe/Berlin")
 
 # S-Bahn surface platforms 27-36 at München Hbf are a separate station
 # in the Timetables API from the long-distance München Hbf (8000261).
-MUENCHEN_HBF_EVA = "8098261"
-WOLFRATSHAUSEN_EVA = "8006550"
+# Tief = Stammstrecke underground S-Bahn platforms.
+MUENCHEN_HBF_EVA      = "8098261"
+MUENCHEN_HBF_TIEF_EVA = "8098263"
+MUENCHEN_HBF_EVAS     = (MUENCHEN_HBF_EVA, MUENCHEN_HBF_TIEF_EVA)
+WOLFRATSHAUSEN_EVA    = "8006550"
 
 # Per-direction average travel time Baierbrunn → terminus (minutes).
 TRAVEL_TIME_MINUTES = {
@@ -54,6 +57,7 @@ STATION_NAME_TO_EVA = {
     "München Heimeranplatz":       "8005419",
     "München Donnersbergerbrücke": "8004128",
     "München Hbf Gl.27-36":        MUENCHEN_HBF_EVA,
+    "München Hbf (tief)":          MUENCHEN_HBF_TIEF_EVA,
     # Direction Wolfratshausen
     "Hohenschäftlarn":             "8002955",
     "Ebenhausen-Schäftlarn":       "8001621",
@@ -61,9 +65,9 @@ STATION_NAME_TO_EVA = {
     "Wolfratshausen":              WOLFRATSHAUSEN_EVA,
 }
 
-TERMINUS_EVA_FOR_BUCKET = {
-    "muenchen":       MUENCHEN_HBF_EVA,
-    "wolfratshausen": WOLFRATSHAUSEN_EVA,
+TERMINUS_EVA_FOR_BUCKET: dict[str, tuple[str, ...]] = {
+    "muenchen":       MUENCHEN_HBF_EVAS,
+    "wolfratshausen": (WOLFRATSHAUSEN_EVA,),
 }
 
 
