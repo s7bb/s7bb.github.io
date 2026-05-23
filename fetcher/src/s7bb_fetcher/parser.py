@@ -8,6 +8,11 @@ from lxml import etree
 
 _DE_TZ = ZoneInfo("Europe/Berlin")
 
+# DB Timetables re-labels S7-Süd trains as "S5" while the Munich
+# Stammstrecke is closed for construction. Both labels denote the
+# same Baierbrunn S-Bahn service for our purposes.
+_ACCEPTED_LINES = {"S7", "S5"}
+
 
 @dataclass
 class ArrivalRecord:
@@ -81,7 +86,10 @@ def parse_timetable(
 
         line = (dp.get("l") or "").strip()
         ar = stop.find("ar")
-        if line != "S7" and (ar is None or (ar.get("l") or "").strip() != "S7"):
+        ar_line = (ar.get("l") or "").strip() if ar is not None else ""
+        # Accept S7 (normal) and S5 (substitute label DB applies to S7-Süd
+        # services when the Munich Stammstrecke is closed for construction).
+        if line not in _ACCEPTED_LINES and ar_line not in _ACCEPTED_LINES:
             continue
 
         pt_raw = dp.get("pt")

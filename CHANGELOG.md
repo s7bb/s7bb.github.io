@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Parser now accepts both `S7` and `S5` line codes for Baierbrunn
+  arrivals. DB Timetables re-labels S7-Süd trains as `S5` while the
+  Munich Stammstrecke is closed for construction; under the previous
+  S7-only filter every Munich-bound row was silently dropped for the
+  duration of the closure, producing an empty München column on the
+  site.
+
 ## [0.8.0] - 2026-05-23
 
 ### Added

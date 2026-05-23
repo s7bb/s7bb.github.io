@@ -109,6 +109,20 @@ def test_missing_tl_yields_none_and_row_still_emitted():
     assert no_tl.train_number is None
 
 
+def test_accepts_s5_substitute_line_during_stammstrecke_closure():
+    """During Munich Stammstrecke construction DB Timetables labels
+    S7-Süd trains as 'S5'. Parser must keep them, not drop them."""
+    records = parse_timetable(
+        _load("plan_s5_substitute.xml"), _load("changes_empty.xml")
+    )
+    rec = next(
+        (r for r in records if r.train_id == "trip-S5-sub-001-2605231200"), None
+    )
+    assert rec is not None, "S5-labelled Munich-bound stop must be parsed"
+    assert rec.direction_bucket == "muenchen"
+    assert rec.dp_ppth.endswith("München Hbf Gl.27-36")
+
+
 def test_dp_ppth_preserved_on_record():
     records = parse_timetable(_load("plan.xml"), _load("changes_empty.xml"))
     munich_bound = [r for r in records if r.direction_bucket == "muenchen"]
