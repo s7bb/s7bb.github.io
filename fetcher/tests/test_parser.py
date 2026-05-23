@@ -59,6 +59,22 @@ def test_direction_bucket_muenchen_terminus_only():
     assert classify_direction("München Hbf Gl.27-36") == "muenchen"
 
 
+def test_direction_bucket_muenchen_via_stammstrecke_to_kreuzstrasse():
+    """S5 substitute route during Stammstrecke closure: train passes through
+    Munich (low-level Stammstrecke) and continues to a S7-Nord terminus.
+    Munich is mid-path, terminus is east of the city — still Munich-direction
+    for our purposes."""
+    path = (
+        "Buchenhain|Höllriegelskreuth|Pullach|Großhesselohe Isartalbf|"
+        "München-Solln|München Siemenswerke|München-Mittersendling|"
+        "München Hbf (tief)|München Karlsplatz|München Marienplatz|"
+        "München Ost|München-Giesing|München-Neuperlach Süd|"
+        "Neubiberg|Ottobrunn|Hohenbrunn|Höhenkirchen-Siegertsbrunn|"
+        "Aying|Peiß|Großhelfendorf|Kreuzstraße"
+    )
+    assert classify_direction(path) == "muenchen"
+
+
 def test_direction_bucket_unknown_empty():
     assert classify_direction("") == "unknown"
 

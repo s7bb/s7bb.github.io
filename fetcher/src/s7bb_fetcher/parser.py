@@ -49,7 +49,13 @@ def _last_stop(path: str) -> str:
 def classify_direction(dp_ppth: str) -> str:
     """Classify departure path into direction bucket.
 
-    S7 (since 2024 timetable split) runs Wolfratshausen <-> München Hbf Gl.27-36.
+    Normal S7 runs Wolfratshausen <-> München Hbf Gl.27-36. During Munich
+    Stammstrecke construction the southbound train is relabelled S5 and
+    the route is stitched onto S7-Nord so the public path becomes
+    Wolfratshausen → München (tief, via Stammstrecke) → Kreuzstraße /
+    Aying. Terminus alone is therefore not enough to identify Munich-
+    direction trains; "München" can appear mid-path while the listed
+    terminus is well east of the city.
 
     Returns "wolfratshausen", "muenchen", or "unknown".
     """
@@ -58,7 +64,7 @@ def classify_direction(dp_ppth: str) -> str:
     terminus = _last_stop(dp_ppth)
     if terminus == "Wolfratshausen":
         return "wolfratshausen"
-    if "München" in terminus:
+    if "München" in dp_ppth:
         return "muenchen"
     return "unknown"
 
