@@ -204,6 +204,12 @@ class _FakeClient:
             raise AssertionError(f"unexpected fetch for eva={eva}")
         return _load(name + ".xml")
 
+    def fetch_plan(self, eva: str, date: str, hour: str) -> etree._Element:
+        # No-op for orchestrator tests that don't care about plan-pt: every
+        # delay assertion in pre-existing tests is 0 anyway, so an empty
+        # timetable yields an empty plan_pt index.
+        return etree.fromstring(b"<timetable/>", parser=_PARSER)
+
 
 def test_drilldown_returns_baierbrunn_most_cancelled():
     """Solln has cs='c'; stations before Solln are not in /fchg (on-time
@@ -434,3 +440,175 @@ def test_update_terminus_for_window_returns_zero_when_no_pending(tmp_path):
     now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
     assert update_terminus_for_window(conn, client, now=now) == 0
     assert client.calls == []
+
+
+def test_build_plan_pt_index_keys_by_trip_prefix_and_uses_ar_pt():
+    from s7bb_fetcher.terminus import _build_plan_pt_index
+    idx = _build_plan_pt_index(_load("terminus_munich_plan.xml"))
+    assert idx == {TRIP_PREFIX: "2605051340"}
+
+
+def test_build_plan_pt_index_skips_blocks_without_ar_or_id():
+    from s7bb_fetcher.terminus import _build_plan_pt_index
+    xml = etree.fromstring(
+        b'<timetable>'
+        b'  <s id=""><ar pt="2605051340"/></s>'           # bad id
+        b'  <s id="single"><ar pt="2605051340"/></s>'     # no separator
+        b'  <s id="42-2605051200-22"></s>'                # no ar
+        b'  <s id="42-2605051200-22"><ar/></s>'           # ar without pt
+        b'</timetable>',
+        parser=_PARSER,
+    )
+    assert _build_plan_pt_index(xml) == {}
+
+
+def test_hour_keys_dedups_and_uses_terminus_local_hour():
+    """Two pending trains 10 min apart at Baierbrunn, same target hour at
+    München (10:30 UTC + 35 min ≈ 13:05 Berlin; 10:40 UTC + 35 min ≈
+    13:15 Berlin) → both fall into the same (date, "13") plan hour."""
+    from s7bb_fetcher.terminus import _hour_keys
+    group = [
+        _pending(scheduled_iso="2026-05-05T10:30:00+00:00"),
+        _pending(scheduled_iso="2026-05-05T10:40:00+00:00"),
+    ]
+    assert _hour_keys(group, bucket="muenchen") == {("260505", "13")}
+
+
+def test_hour_keys_spans_two_hours_when_pending_straddles_boundary():
+    from s7bb_fetcher.terminus import _hour_keys
+    # 11:00 UTC + 35 min = 13:35 Berlin (CEST) → "13"
+    # 11:30 UTC + 35 min = 14:05 Berlin (CEST) → "14"
+    group = [
+        _pending(scheduled_iso="2026-05-05T11:00:00+00:00"),
+        _pending(scheduled_iso="2026-05-05T11:30:00+00:00"),
+    ]
+    assert _hour_keys(group, bucket="muenchen") == {("260505", "13"), ("260505", "14")}
+
+
+def test_hour_keys_uses_wolfratshausen_offset():
+    from s7bb_fetcher.terminus import _hour_keys
+    # 11:00 UTC + 20 min = 13:20 Berlin → "13"
+    group = [_pending(scheduled_iso="2026-05-05T11:00:00+00:00", bucket="wolfratshausen")]
+    assert _hour_keys(group, bucket="wolfratshausen") == {("260505", "13")}
+
+
+def test_arrival_delay_uses_fchg_pt_when_present():
+    """If /fchg carries pt (long-distance services do), it wins over the plan fallback."""
+    from s7bb_fetcher.terminus import _arrival_delay_minutes, build_index
+    entry = build_index(_load("terminus_munich_delayed.xml"))[TRIP_PREFIX]
+    # planned_pt argument is ignored when entry has pt
+    assert _arrival_delay_minutes(entry, planned_pt="2605059999") == 5
+
+
+def test_arrival_delay_falls_back_to_planned_pt_when_fchg_lacks_it():
+    from s7bb_fetcher.terminus import _arrival_delay_minutes, build_index
+    entry = build_index(_load("terminus_munich_delayed_no_pt.xml"))[TRIP_PREFIX]
+    assert _arrival_delay_minutes(entry, planned_pt="2605051340") == 5
+
+
+def test_arrival_delay_returns_zero_when_no_pt_anywhere():
+    from s7bb_fetcher.terminus import _arrival_delay_minutes, build_index
+    entry = build_index(_load("terminus_munich_delayed_no_pt.xml"))[TRIP_PREFIX]
+    assert _arrival_delay_minutes(entry, planned_pt=None) == 0
+
+
+def test_arrival_delay_returns_zero_when_ct_missing():
+    from s7bb_fetcher.terminus import _arrival_delay_minutes
+    xml = etree.fromstring(
+        b'<timetable><s id="42-2605051200-22"><ar/></s></timetable>',
+        parser=_PARSER,
+    )
+    entry = xml.find(".//s")
+    assert _arrival_delay_minutes(entry, planned_pt="2605051340") == 0
+
+
+def test_classify_arrived_uses_planned_pt_for_delay():
+    from s7bb_fetcher.terminus import build_index, classify, trip_prefix
+    idx = build_index(_load("terminus_munich_delayed_no_pt.xml"))
+    pending = _pending()
+    update = classify(
+        pending,
+        idx.get(trip_prefix(pending.train_id)),
+        _BEFORE_CUTOFF,
+        drilldown=lambda *_: None,
+        planned_pt="2605051340",
+    )
+    assert update.terminus_status == "arrived"
+    assert update.terminus_delay_minutes == 5
+
+
+def test_update_terminus_for_window_uses_plan_pt_for_delay(tmp_path):
+    """End-to-end: pending row, fake client returns /fchg without pt + /plan
+    with pt → delay 5 written to DB."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+
+    db = open_db(tmp_path / "s.db")
+    # Insert a pending row matching TRIP_PREFIX, scheduled 10:30 UTC München-bound.
+    sched_iso = "2026-05-05T10:30:00+00:00"
+    upsert_records(db, [ArrivalRecord(
+        train_id=BAIERBRUNN_ID, line="S7", station="Baierbrunn",
+        direction="München Hbf Gl.27-36", direction_bucket="muenchen",
+        scheduled_time=sched_iso, actual_time=sched_iso, delay_minutes=0,
+        cancelled=False, reason=None, train_number="6042",
+        dp_ppth="Buchenhain|München Hbf Gl.27-36",
+    )])
+
+    class FakeClient:
+        def __init__(self):
+            self.plan_calls: list[tuple[str, str, str]] = []
+            self.fchg_calls: list[str] = []
+        def fetch_plan(self, eva, date, hour):
+            self.plan_calls.append((eva, date, hour))
+            return _load("terminus_munich_plan.xml")
+        def fetch_full_changes(self, eva):
+            self.fchg_calls.append(eva)
+            return _load("terminus_munich_delayed_no_pt.xml")
+
+    client = FakeClient()
+    # now must be after Baierbrunn departure so the pending row is in window.
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    written = update_terminus_for_window(db, client, now=now)
+
+    assert written == 1
+    # Plan was called for the München terminus EVA at the expected Berlin hour.
+    # 10:30 UTC + 35 min = 13:05 Berlin (CEST) → hour "13"
+    assert client.plan_calls == [("8098261", "260505", "13")]
+    assert client.fchg_calls == ["8098261"]
+
+    row = db.execute(
+        "SELECT terminus_status, terminus_delay_minutes FROM arrivals WHERE train_id=?",
+        (BAIERBRUNN_ID,),
+    ).fetchone()
+    assert row == ("arrived", 5)
+
+
+def test_update_terminus_for_window_tolerates_plan_http_error(tmp_path):
+    """If /plan raises, the cycle still completes; delay falls back to 0."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+
+    db = open_db(tmp_path / "s.db")
+    sched_iso = "2026-05-05T10:30:00+00:00"
+    upsert_records(db, [ArrivalRecord(
+        train_id=BAIERBRUNN_ID, line="S7", station="Baierbrunn",
+        direction="München Hbf Gl.27-36", direction_bucket="muenchen",
+        scheduled_time=sched_iso, actual_time=sched_iso, delay_minutes=0,
+        cancelled=False, reason=None, train_number="6042",
+        dp_ppth="Buchenhain|München Hbf Gl.27-36",
+    )])
+
+    class FakeClient:
+        def fetch_plan(self, *a, **kw):
+            raise RuntimeError("boom")
+        def fetch_full_changes(self, eva):
+            return _load("terminus_munich_delayed_no_pt.xml")
+
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    written = update_terminus_for_window(db, FakeClient(), now=now)
+
+    assert written == 1
+    row = db.execute(
+        "SELECT terminus_status, terminus_delay_minutes FROM arrivals WHERE train_id=?",
+        (BAIERBRUNN_ID,),
+    ).fetchone()
+    # arrived; delay falls back to 0 because both /fchg.pt and plan are unavailable
+    assert row == ("arrived", 0)

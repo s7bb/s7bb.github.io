@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Terminus arrival delay is now computed from the planned arrival time
+  returned by `/plan/{terminus_eva}/{date}/{hour}` when the `/fchg`
+  feed omits `pt` (the live behaviour for every S-Bahn arrival).
+  Previously `terminus_delay_minutes` was always 0 for rows in the
+  `arrived` state. Historical rows are not retroactively corrected —
+  re-evaluation only applies to the freshest pending window.
+  ([#51](https://github.com/s7bb/s7bb.github.io/issues/51))
+
 ## [0.7.1] - 2026-05-22
 
 ### Fixed

@@ -111,6 +111,27 @@ def build_index(feed: etree._Element) -> dict[str, etree._Element]:
     return out
 
 
+def _build_plan_pt_index(plan_xml: etree._Element) -> dict[str, str]:
+    """Index a /plan response by trip-prefix → planned arrival time.
+
+    /plan carries the authoritative ``ar/@pt`` for every regular run,
+    which /fchg omits for S-Bahn. Used to compute real arrival delay.
+    Values are the raw DB time string ``YYMMDDHHMM`` (Europe/Berlin).
+    """
+    out: dict[str, str] = {}
+    for s in plan_xml.findall(".//s"):
+        key = trip_prefix(s.get("id") or "")
+        if not key:
+            continue
+        ar = s.find("ar")
+        if ar is None:
+            continue
+        pt = ar.get("pt")
+        if pt:
+            out[key] = pt
+    return out
+
+
 def _is_cancelled(entry: etree._Element) -> bool:
     """True iff this station's <ar> (or <dp> fallback) carries cs="c"."""
     ar = entry.find("ar")
@@ -133,24 +154,42 @@ def _cutoff(pending: PendingTrain) -> datetime:
     return sched + timedelta(minutes=travel + CUTOFF_GRACE_MINUTES)
 
 
-def _arrival_delay_minutes(entry: etree._Element) -> int:
-    """Compute ct - pt in whole minutes; 0 if ct missing.
+def _hour_keys(group: list[PendingTrain], bucket: str) -> set[tuple[str, str]]:
+    """Distinct (YYMMDD, HH) Europe/Berlin plan-hour keys covering the
+    expected terminus arrival times of every train in ``group``.
 
-    /fchg ``<ar>`` carries ``ct`` (changed time) when the arrival deviates
-    from plan. Planned time ``pt`` is not always echoed in /fchg — when
-    missing, fall back to the row's scheduled time (passed by caller).
+    Returns the deduplicated set used to issue ``/plan/{eva}/{date}/{hour}``
+    calls. Times convert to Europe/Berlin because the API's date/hour
+    path components are local.
+    """
+    offset = timedelta(minutes=TRAVEL_TIME_MINUTES.get(bucket, 35))
+    out: set[tuple[str, str]] = set()
+    for p in group:
+        sched = datetime.fromisoformat(p.scheduled_time)
+        local = (sched + offset).astimezone(_DE_TZ)
+        out.add((local.strftime("%y%m%d"), local.strftime("%H")))
+    return out
+
+
+def _arrival_delay_minutes(
+    entry: etree._Element, planned_pt: str | None = None
+) -> int:
+    """Compute ct - pt in whole minutes; 0 if either side missing.
+
+    /fchg carries ``pt`` for long-distance services but omits it for
+    S-Bahn. ``planned_pt`` is the raw DB time string (``YYMMDDHHMM``)
+    looked up from a parallel ``/plan`` call when /fchg has no ``pt``.
     """
     ar = entry.find("ar")
     if ar is None:
         return 0
-    pt = ar.get("pt")
     ct = ar.get("ct")
     if not ct:
         return 0
+    pt = ar.get("pt") or planned_pt
     if not pt:
-        return 0  # planned time unknown from /fchg alone
-    delta = _parse_db_time(ct) - _parse_db_time(pt)
-    return int(delta.total_seconds() / 60)
+        return 0
+    return int((_parse_db_time(ct) - _parse_db_time(pt)).total_seconds() / 60)
 
 
 def classify(
@@ -158,6 +197,7 @@ def classify(
     entry: etree._Element | None,
     now: datetime,
     drilldown,
+    planned_pt: str | None = None,
 ) -> TerminusUpdate | None:
     """Classify a single pending train.
 
@@ -188,7 +228,7 @@ def classify(
         return TerminusUpdate(
             pending.train_id, pending.scheduled_time,
             terminus_status="arrived",
-            terminus_delay_minutes=_arrival_delay_minutes(entry),
+            terminus_delay_minutes=_arrival_delay_minutes(entry, planned_pt),
             terminus_short_turn_station=None,
         )
 
@@ -295,7 +335,8 @@ def update_terminus_for_window(
 ) -> int:
     """Orchestrator: poll terminus feeds, classify pending trains, persist.
 
-    `client` is duck-typed: must expose `fetch_full_changes(eva) -> Element`.
+    `client` is duck-typed: must expose `fetch_full_changes(eva) -> Element`
+    and `fetch_plan(eva, date, hour) -> Element`.
     Returns count of rows actually updated.
 
     Caller (service.py) wraps this in try/except — a raise here must not
@@ -327,12 +368,26 @@ def update_terminus_for_window(
             log.exception("terminus: /fchg %s failed; %d pending stay pending", eva, len(group))
             continue
         idx = build_index(feed)
+
+        plan_pt: dict[str, str] = {}
+        for date, hour in sorted(_hour_keys(group, bucket)):
+            try:
+                plan_xml = client.fetch_plan(eva, date, hour)
+            except Exception:
+                log.exception("terminus: /plan %s %s/%s failed; delays may fall back to 0",
+                              eva, date, hour)
+                continue
+            plan_pt.update(_build_plan_pt_index(plan_xml))
+
         match_count = 0
         for p in group:
             entry = idx.get(trip_prefix(p.train_id))
             if entry is not None:
                 match_count += 1
-            update = classify(p, entry, now, drilldown=_drilldown)
+            update = classify(
+                p, entry, now, drilldown=_drilldown,
+                planned_pt=plan_pt.get(trip_prefix(p.train_id)),
+            )
             if update is not None:
                 updates.append({
                     "train_id": update.train_id,
