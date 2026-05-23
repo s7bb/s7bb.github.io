@@ -335,7 +335,8 @@ def update_terminus_for_window(
 ) -> int:
     """Orchestrator: poll terminus feeds, classify pending trains, persist.
 
-    `client` is duck-typed: must expose `fetch_full_changes(eva) -> Element`.
+    `client` is duck-typed: must expose `fetch_full_changes(eva) -> Element`
+    and `fetch_plan(eva, date, hour) -> Element`.
     Returns count of rows actually updated.
 
     Caller (service.py) wraps this in try/except — a raise here must not
