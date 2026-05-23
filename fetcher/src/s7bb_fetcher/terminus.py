@@ -335,8 +335,9 @@ def _record_health(
     conn.commit()
     if streak >= ZERO_MATCH_WARN_THRESHOLD:
         log.warning(
-            "terminus: 0 matches against bucket=%s across %d pending trains for %d consecutive cycles "
-            "— possible EVA mismatch in TERMINUS_EVA_FOR_BUCKET[%s]",
+            "terminus: 0 matches against bucket=%s across %d pending trains "
+            "for %d consecutive cycles — possible EVA mismatch in "
+            "TERMINUS_EVA_FOR_BUCKET[%s]",
             bucket, pending_count, streak, bucket,
         )
 
