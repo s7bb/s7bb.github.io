@@ -67,9 +67,16 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_terminus_pending "
         "ON arrivals(scheduled_time) WHERE terminus_status='pending'"
     )
+    # terminus_health: re-keyed from `eva` to `bucket` in v0.8.3. Old rows
+    # are derived (3-cycle streak) and reaccrue within ~15 min, so a hard
+    # drop on schema mismatch is the simplest correct migration.
+    health_info = conn.execute("PRAGMA table_info(terminus_health)").fetchall()
+    health_cols = {row[1] for row in health_info}
+    if health_info and "bucket" not in health_cols:
+        conn.execute("DROP TABLE terminus_health")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS terminus_health (
-            eva                TEXT PRIMARY KEY,
+            bucket             TEXT PRIMARY KEY,
             zero_match_streak  INTEGER NOT NULL DEFAULT 0,
             updated_at         TEXT NOT NULL
         )

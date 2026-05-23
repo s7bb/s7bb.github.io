@@ -190,7 +190,7 @@ def test_migration_adds_terminus_columns(tmp_path: Path):
 
 def test_migration_creates_terminus_health_table(tmp_path: Path):
     db_path = tmp_path / "old.db"
-    sqlite3.connect(str(db_path)).close()  # empty file is enough; open_db creates schema
+    sqlite3.connect(str(db_path)).close()
     conn = open_db(db_path)
     tables = {row[0] for row in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
@@ -199,7 +199,42 @@ def test_migration_creates_terminus_health_table(tmp_path: Path):
     cols = {row[1] for row in conn.execute(
         "PRAGMA table_info(terminus_health)"
     ).fetchall()}
-    assert cols == {"eva", "zero_match_streak", "updated_at"}
+    assert cols == {"bucket", "zero_match_streak", "updated_at"}
+    pk_cols = [
+        row[1] for row in conn.execute(
+            "PRAGMA table_info(terminus_health)"
+        ).fetchall() if row[5]  # row[5] == pk position (1+) for PK cols
+    ]
+    assert pk_cols == ["bucket"]
+
+
+def test_migration_drops_old_eva_keyed_terminus_health(tmp_path: Path):
+    """Pre-existing DB with eva-keyed terminus_health is migrated to a
+    bucket-keyed one; old rows are dropped (derived metric, reaccrues fast).
+    """
+    db_path = tmp_path / "old.db"
+    conn0 = sqlite3.connect(str(db_path))
+    conn0.executescript(
+        """
+        CREATE TABLE terminus_health (
+            eva               TEXT PRIMARY KEY,
+            zero_match_streak INTEGER NOT NULL DEFAULT 0,
+            updated_at        TEXT NOT NULL
+        );
+        INSERT INTO terminus_health (eva, zero_match_streak, updated_at)
+            VALUES ('8098261', 19, '2026-05-23T19:00:00+00:00');
+        """
+    )
+    conn0.commit()
+    conn0.close()
+
+    conn = open_db(db_path)
+    cols = {row[1] for row in conn.execute(
+        "PRAGMA table_info(terminus_health)"
+    ).fetchall()}
+    assert cols == {"bucket", "zero_match_streak", "updated_at"}
+    rows = conn.execute("SELECT * FROM terminus_health").fetchall()
+    assert rows == []  # dropped + recreated; no carry-over
 
 
 def test_upsert_initialises_terminus_status_pending(tmp_db):
