@@ -484,3 +484,33 @@ def test_hour_keys_uses_wolfratshausen_offset():
     # 11:00 UTC + 20 min = 13:20 Berlin → "13"
     group = [_pending(scheduled_iso="2026-05-05T11:00:00+00:00", bucket="wolfratshausen")]
     assert _hour_keys(group, bucket="wolfratshausen") == {("260505", "13")}
+
+
+def test_arrival_delay_uses_fchg_pt_when_present():
+    """If /fchg carries pt (long-distance services do), it wins over the plan fallback."""
+    from s7bb_fetcher.terminus import _arrival_delay_minutes, build_index
+    entry = build_index(_load("terminus_munich_delayed.xml"))[TRIP_PREFIX]
+    # planned_pt argument is ignored when entry has pt
+    assert _arrival_delay_minutes(entry, planned_pt="2605059999") == 5
+
+
+def test_arrival_delay_falls_back_to_planned_pt_when_fchg_lacks_it():
+    from s7bb_fetcher.terminus import _arrival_delay_minutes, build_index
+    entry = build_index(_load("terminus_munich_delayed_no_pt.xml"))[TRIP_PREFIX]
+    assert _arrival_delay_minutes(entry, planned_pt="2605051340") == 5
+
+
+def test_arrival_delay_returns_zero_when_no_pt_anywhere():
+    from s7bb_fetcher.terminus import _arrival_delay_minutes, build_index
+    entry = build_index(_load("terminus_munich_delayed_no_pt.xml"))[TRIP_PREFIX]
+    assert _arrival_delay_minutes(entry, planned_pt=None) == 0
+
+
+def test_arrival_delay_returns_zero_when_ct_missing():
+    from s7bb_fetcher.terminus import _arrival_delay_minutes
+    xml = etree.fromstring(
+        b'<timetable><s id="42-2605051200-22"><ar/></s></timetable>',
+        parser=_PARSER,
+    )
+    entry = xml.find(".//s")
+    assert _arrival_delay_minutes(entry, planned_pt="2605051340") == 0

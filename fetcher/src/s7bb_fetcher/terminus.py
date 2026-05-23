@@ -171,24 +171,25 @@ def _hour_keys(group: list[PendingTrain], bucket: str) -> set[tuple[str, str]]:
     return out
 
 
-def _arrival_delay_minutes(entry: etree._Element) -> int:
-    """Compute ct - pt in whole minutes; 0 if ct missing.
+def _arrival_delay_minutes(
+    entry: etree._Element, planned_pt: str | None = None
+) -> int:
+    """Compute ct - pt in whole minutes; 0 if either side missing.
 
-    /fchg ``<ar>`` carries ``ct`` (changed time) when the arrival deviates
-    from plan. Planned time ``pt`` is not always echoed in /fchg — when
-    missing, fall back to the row's scheduled time (passed by caller).
+    /fchg carries ``pt`` for long-distance services but omits it for
+    S-Bahn. ``planned_pt`` is the raw DB time string (``YYMMDDHHMM``)
+    looked up from a parallel ``/plan`` call when /fchg has no ``pt``.
     """
     ar = entry.find("ar")
     if ar is None:
         return 0
-    pt = ar.get("pt")
     ct = ar.get("ct")
     if not ct:
         return 0
+    pt = ar.get("pt") or planned_pt
     if not pt:
-        return 0  # planned time unknown from /fchg alone
-    delta = _parse_db_time(ct) - _parse_db_time(pt)
-    return int(delta.total_seconds() / 60)
+        return 0
+    return int((_parse_db_time(ct) - _parse_db_time(pt)).total_seconds() / 60)
 
 
 def classify(
