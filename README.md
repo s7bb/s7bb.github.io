@@ -53,6 +53,32 @@ Endpoints used:
 - `GET /plan/{eva}/{YYMMDD}/{HH}` — planned timetable for a station/date/hour
 - `GET /fchg/{eva}` — full set of current changes (actual vs. planned times, cancellations)
 
+### Operational notes — construction work
+
+The DB Timetables API does **not** always label S7 trains as `S7`. During
+Munich Stammstrecke construction the S7-Süd service is operationally
+linked to S7-Nord and the combined Wolfratshausen ↔ Kreuzstraße run is
+exposed by the API with `l="S5"` for the Munich-direction departures.
+The public timetable still markets these as "S7" but the underlying
+slot uses the S5 designator. The fetcher therefore accepts both `S7`
+and `S5` for Baierbrunn arrivals.
+
+For the same reason, a Munich-direction departure from Baierbrunn may
+list a terminus east of the city (e.g. `Höhenkirchen-Siegertsbrunn`,
+`Aying`, `Kreuzstraße`) instead of `München Hbf Gl.27-36` — the train
+really does run that whole route during the closure. The site still
+groups these as "Richtung München" because München appears in the
+mid-path; the displayed terminus shows the train's actual final stop.
+
+Current and upcoming Stammstrecke closures (with their service-pattern
+changes) are listed on the official S-Bahn München construction page:
+**[s-bahn-muenchen.de/de/fahren/baustellen/stammstrecke](https://www.s-bahn-muenchen.de/de/fahren/baustellen/stammstrecke)**.
+
+For programmatic access to disruption / construction messages, see the
+**RIS::Disruptions** product on the DB API Marketplace
+([developers.deutschebahn.com/db-api-marketplace/apis/product/ris-disruptions-transporteure](https://developers.deutschebahn.com/db-api-marketplace/apis/product/ris-disruptions-transporteure)).
+S7BB does not currently ingest it.
+
 ---
 
 ## Setup
