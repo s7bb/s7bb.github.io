@@ -367,12 +367,26 @@ def update_terminus_for_window(
             log.exception("terminus: /fchg %s failed; %d pending stay pending", eva, len(group))
             continue
         idx = build_index(feed)
+
+        plan_pt: dict[str, str] = {}
+        for date, hour in sorted(_hour_keys(group, bucket)):
+            try:
+                plan_xml = client.fetch_plan(eva, date, hour)
+            except Exception:
+                log.exception("terminus: /plan %s %s/%s failed; delays may fall back to 0",
+                              eva, date, hour)
+                continue
+            plan_pt.update(_build_plan_pt_index(plan_xml))
+
         match_count = 0
         for p in group:
             entry = idx.get(trip_prefix(p.train_id))
             if entry is not None:
                 match_count += 1
-            update = classify(p, entry, now, drilldown=_drilldown)
+            update = classify(
+                p, entry, now, drilldown=_drilldown,
+                planned_pt=plan_pt.get(trip_prefix(p.train_id)),
+            )
             if update is not None:
                 updates.append({
                     "train_id": update.train_id,

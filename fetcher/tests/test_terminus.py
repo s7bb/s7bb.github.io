@@ -204,6 +204,12 @@ class _FakeClient:
             raise AssertionError(f"unexpected fetch for eva={eva}")
         return _load(name + ".xml")
 
+    def fetch_plan(self, eva: str, date: str, hour: str) -> etree._Element:
+        # No-op for orchestrator tests that don't care about plan-pt: every
+        # delay assertion in pre-existing tests is 0 anyway, so an empty
+        # timetable yields an empty plan_pt index.
+        return etree.fromstring(b"<timetable/>", parser=_PARSER)
+
 
 def test_drilldown_returns_baierbrunn_most_cancelled():
     """Solln has cs='c'; stations before Solln are not in /fchg (on-time
@@ -529,3 +535,80 @@ def test_classify_arrived_uses_planned_pt_for_delay():
     )
     assert update.terminus_status == "arrived"
     assert update.terminus_delay_minutes == 5
+
+
+def test_update_terminus_for_window_uses_plan_pt_for_delay(tmp_path):
+    """End-to-end: pending row, fake client returns /fchg without pt + /plan
+    with pt → delay 5 written to DB."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+
+    db = open_db(tmp_path / "s.db")
+    # Insert a pending row matching TRIP_PREFIX, scheduled 10:30 UTC München-bound.
+    sched_iso = "2026-05-05T10:30:00+00:00"
+    upsert_records(db, [ArrivalRecord(
+        train_id=BAIERBRUNN_ID, line="S7", station="Baierbrunn",
+        direction="München Hbf Gl.27-36", direction_bucket="muenchen",
+        scheduled_time=sched_iso, actual_time=sched_iso, delay_minutes=0,
+        cancelled=False, reason=None, train_number="6042",
+        dp_ppth="Buchenhain|München Hbf Gl.27-36",
+    )])
+
+    class FakeClient:
+        def __init__(self):
+            self.plan_calls: list[tuple[str, str, str]] = []
+            self.fchg_calls: list[str] = []
+        def fetch_plan(self, eva, date, hour):
+            self.plan_calls.append((eva, date, hour))
+            return _load("terminus_munich_plan.xml")
+        def fetch_full_changes(self, eva):
+            self.fchg_calls.append(eva)
+            return _load("terminus_munich_delayed_no_pt.xml")
+
+    client = FakeClient()
+    # now must be after Baierbrunn departure so the pending row is in window.
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    written = update_terminus_for_window(db, client, now=now)
+
+    assert written == 1
+    # Plan was called for the München terminus EVA at the expected Berlin hour.
+    # 10:30 UTC + 35 min = 13:05 Berlin (CEST) → hour "13"
+    assert client.plan_calls == [("8098261", "260505", "13")]
+    assert client.fchg_calls == ["8098261"]
+
+    row = db.execute(
+        "SELECT terminus_status, terminus_delay_minutes FROM arrivals WHERE train_id=?",
+        (BAIERBRUNN_ID,),
+    ).fetchone()
+    assert row == ("arrived", 5)
+
+
+def test_update_terminus_for_window_tolerates_plan_http_error(tmp_path):
+    """If /plan raises, the cycle still completes; delay falls back to 0."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+
+    db = open_db(tmp_path / "s.db")
+    sched_iso = "2026-05-05T10:30:00+00:00"
+    upsert_records(db, [ArrivalRecord(
+        train_id=BAIERBRUNN_ID, line="S7", station="Baierbrunn",
+        direction="München Hbf Gl.27-36", direction_bucket="muenchen",
+        scheduled_time=sched_iso, actual_time=sched_iso, delay_minutes=0,
+        cancelled=False, reason=None, train_number="6042",
+        dp_ppth="Buchenhain|München Hbf Gl.27-36",
+    )])
+
+    class FakeClient:
+        def fetch_plan(self, *a, **kw):
+            raise RuntimeError("boom")
+        def fetch_full_changes(self, eva):
+            return _load("terminus_munich_delayed_no_pt.xml")
+
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    written = update_terminus_for_window(db, FakeClient(), now=now)
+
+    assert written == 1
+    row = db.execute(
+        "SELECT terminus_status, terminus_delay_minutes FROM arrivals WHERE train_id=?",
+        (BAIERBRUNN_ID,),
+    ).fetchone()
+    # arrived; delay falls back to 0 because both /fchg.pt and plan are unavailable
+    assert row == ("arrived", 0)
