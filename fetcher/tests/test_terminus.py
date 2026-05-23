@@ -454,3 +454,33 @@ def test_build_plan_pt_index_skips_blocks_without_ar_or_id():
         parser=_PARSER,
     )
     assert _build_plan_pt_index(xml) == {}
+
+
+def test_hour_keys_dedups_and_uses_terminus_local_hour():
+    """Two pending trains 10 min apart at Baierbrunn, same target hour at
+    München (10:30 UTC + 35 min ≈ 13:05 Berlin; 10:40 UTC + 35 min ≈
+    13:15 Berlin) → both fall into the same (date, "13") plan hour."""
+    from s7bb_fetcher.terminus import _hour_keys
+    group = [
+        _pending(scheduled_iso="2026-05-05T10:30:00+00:00"),
+        _pending(scheduled_iso="2026-05-05T10:40:00+00:00"),
+    ]
+    assert _hour_keys(group, bucket="muenchen") == {("260505", "13")}
+
+
+def test_hour_keys_spans_two_hours_when_pending_straddles_boundary():
+    from s7bb_fetcher.terminus import _hour_keys
+    # 11:00 UTC + 35 min = 13:35 Berlin (CEST) → "13"
+    # 11:30 UTC + 35 min = 14:05 Berlin (CEST) → "14"
+    group = [
+        _pending(scheduled_iso="2026-05-05T11:00:00+00:00"),
+        _pending(scheduled_iso="2026-05-05T11:30:00+00:00"),
+    ]
+    assert _hour_keys(group, bucket="muenchen") == {("260505", "13"), ("260505", "14")}
+
+
+def test_hour_keys_uses_wolfratshausen_offset():
+    from s7bb_fetcher.terminus import _hour_keys
+    # 11:00 UTC + 20 min = 13:20 Berlin → "13"
+    group = [_pending(scheduled_iso="2026-05-05T11:00:00+00:00", bucket="wolfratshausen")]
+    assert _hour_keys(group, bucket="wolfratshausen") == {("260505", "13")}

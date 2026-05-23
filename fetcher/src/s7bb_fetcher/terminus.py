@@ -154,6 +154,23 @@ def _cutoff(pending: PendingTrain) -> datetime:
     return sched + timedelta(minutes=travel + CUTOFF_GRACE_MINUTES)
 
 
+def _hour_keys(group: list[PendingTrain], bucket: str) -> set[tuple[str, str]]:
+    """Distinct (YYMMDD, HH) Europe/Berlin plan-hour keys covering the
+    expected terminus arrival times of every train in ``group``.
+
+    Returns the deduplicated set used to issue ``/plan/{eva}/{date}/{hour}``
+    calls. Times convert to Europe/Berlin because the API's date/hour
+    path components are local.
+    """
+    offset = timedelta(minutes=TRAVEL_TIME_MINUTES.get(bucket, 35))
+    out: set[tuple[str, str]] = set()
+    for p in group:
+        sched = datetime.fromisoformat(p.scheduled_time)
+        local = (sched + offset).astimezone(_DE_TZ)
+        out.add((local.strftime("%y%m%d"), local.strftime("%H")))
+    return out
+
+
 def _arrival_delay_minutes(entry: etree._Element) -> int:
     """Compute ct - pt in whole minutes; 0 if ct missing.
 
