@@ -111,6 +111,27 @@ def build_index(feed: etree._Element) -> dict[str, etree._Element]:
     return out
 
 
+def _build_plan_pt_index(plan_xml: etree._Element) -> dict[str, str]:
+    """Index a /plan response by trip-prefix → planned arrival time.
+
+    /plan carries the authoritative ``ar/@pt`` for every regular run,
+    which /fchg omits for S-Bahn. Used to compute real arrival delay.
+    Values are the raw DB time string ``YYMMDDHHMM`` (Europe/Berlin).
+    """
+    out: dict[str, str] = {}
+    for s in plan_xml.findall(".//s"):
+        key = trip_prefix(s.get("id") or "")
+        if not key:
+            continue
+        ar = s.find("ar")
+        if ar is None:
+            continue
+        pt = ar.get("pt")
+        if pt:
+            out[key] = pt
+    return out
+
+
 def _is_cancelled(entry: etree._Element) -> bool:
     """True iff this station's <ar> (or <dp> fallback) carries cs="c"."""
     ar = entry.find("ar")

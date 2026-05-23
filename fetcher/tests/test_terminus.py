@@ -434,3 +434,23 @@ def test_update_terminus_for_window_returns_zero_when_no_pending(tmp_path):
     now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
     assert update_terminus_for_window(conn, client, now=now) == 0
     assert client.calls == []
+
+
+def test_build_plan_pt_index_keys_by_trip_prefix_and_uses_ar_pt():
+    from s7bb_fetcher.terminus import _build_plan_pt_index
+    idx = _build_plan_pt_index(_load("terminus_munich_plan.xml"))
+    assert idx == {TRIP_PREFIX: "2605051340"}
+
+
+def test_build_plan_pt_index_skips_blocks_without_ar_or_id():
+    from s7bb_fetcher.terminus import _build_plan_pt_index
+    xml = etree.fromstring(
+        b'<timetable>'
+        b'  <s id=""><ar pt="2605051340"/></s>'           # bad id
+        b'  <s id="single"><ar pt="2605051340"/></s>'     # no separator
+        b'  <s id="42-2605051200-22"></s>'                # no ar
+        b'  <s id="42-2605051200-22"><ar/></s>'           # ar without pt
+        b'</timetable>',
+        parser=_PARSER,
+    )
+    assert _build_plan_pt_index(xml) == {}
