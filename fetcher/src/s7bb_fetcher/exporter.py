@@ -141,11 +141,11 @@ def export_latest(conn: sqlite3.Connection, out_path: Path, window_days: int = 7
     today_agg, week_agg, today_slots = _build_aggregates(rows, today_rows)
 
     health_cur = conn.execute(
-        "SELECT eva, zero_match_streak, updated_at FROM terminus_health ORDER BY eva"
+        "SELECT bucket, zero_match_streak, updated_at FROM terminus_health ORDER BY bucket"
     )
     terminus_health = [
-        {"eva": eva, "zero_match_streak": streak, "updated_at": updated_at}
-        for eva, streak, updated_at in health_cur.fetchall()
+        {"bucket": bucket, "zero_match_streak": streak, "updated_at": updated_at}
+        for bucket, streak, updated_at in health_cur.fetchall()
     ]
 
     payload = {

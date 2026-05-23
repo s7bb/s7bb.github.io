@@ -362,7 +362,10 @@ def test_update_terminus_for_window_writes_arrived(tmp_path):
         train_id=BAIERBRUNN_ID,
         scheduled_time="2026-05-05T10:30:00+00:00",
     )])
-    client = _FakeClient({"8098261": "terminus_munich_arrived"})
+    client = _FakeClient({
+        "8098261": "terminus_munich_arrived",
+        "8098263": "empty_fchg",
+    })
     now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
     n = update_terminus_for_window(conn, client, now=now)
     assert n == 1
@@ -374,7 +377,9 @@ def test_update_terminus_for_window_writes_arrived(tmp_path):
 
 def test_update_terminus_for_window_skips_quiet_directions(tmp_path):
     """Only directions with pending trains are polled. With one Wolfratshausen-
-    bound pending train, München's /fchg must not be fetched."""
+    bound pending train, NEITHER München EVA (8098261 surface, 8098263 tief)
+    must be fetched — the multi-EVA poll must not iterate the muenchen tuple
+    when its `by_bucket` group is empty."""
     from s7bb_fetcher.terminus import update_terminus_for_window
     conn = open_db(tmp_path / "t.db")
     upsert_records(conn, [_arr(
@@ -384,25 +389,28 @@ def test_update_terminus_for_window_skips_quiet_directions(tmp_path):
         scheduled_time="2026-05-05T10:30:00+00:00",
     )])
     client = _FakeClient({"8006550": "terminus_wolfratshausen_arrived"})
-    # München (8098261) is NOT in the mapping; if it were fetched the
-    # _FakeClient would assert. The test passes iff it isn't fetched.
     now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
     n = update_terminus_for_window(conn, client, now=now)
     assert n == 1
     assert "8098261" not in client.calls
+    assert "8098263" not in client.calls
 
 
 def test_update_terminus_for_window_logs_zero_match_streak(tmp_path, caplog):
-    """3 consecutive zero-match cycles with non-empty pending list logs a WARN
-    about possible EVA mismatch; the streak is persisted to terminus_health."""
+    """3 consecutive zero-match cycles with non-empty pending list logs a
+    WARN about possible EVA mismatch; the streak is persisted to
+    terminus_health keyed by BUCKET (not EVA)."""
     from s7bb_fetcher.terminus import update_terminus_for_window
     conn = open_db(tmp_path / "t.db")
-    # train_id whose prefix is NOT in the fixture → zero match
     upsert_records(conn, [_arr(
         train_id="9999-2605051200-5",
         scheduled_time="2026-05-05T10:30:00+00:00",
     )])
-    client = _FakeClient({"8098261": "terminus_munich_arrived"})  # has 42-2605051200, not 9999-*
+    # Both EVAs in the muenchen tuple return a feed without our trip.
+    client = _FakeClient({
+        "8098261": "terminus_munich_arrived",      # trip 42-, not 9999-
+        "8098263": "terminus_munich_tief_arrived", # also 42-, not 9999-
+    })
     now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
 
     with caplog.at_level("WARNING"):
@@ -411,33 +419,91 @@ def test_update_terminus_for_window_logs_zero_match_streak(tmp_path, caplog):
         update_terminus_for_window(conn, client, now=now)
 
     streak = conn.execute(
-        "SELECT zero_match_streak FROM terminus_health WHERE eva='8098261'"
+        "SELECT zero_match_streak FROM terminus_health WHERE bucket='muenchen'"
     ).fetchone()
     assert streak[0] == 3
-    assert any("0 matches against eva=8098261" in r.message for r in caplog.records)
+    assert any("muenchen" in r.message for r in caplog.records)
 
 
 def test_update_terminus_for_window_resets_streak_on_match(tmp_path):
     from s7bb_fetcher.terminus import update_terminus_for_window
     conn = open_db(tmp_path / "t.db")
-    # First: zero-match cycle (prefix 9999-* not in fixture)
     upsert_records(conn, [_arr(
         train_id="9999-2605051200-5",
         scheduled_time="2026-05-05T10:30:00+00:00",
     )])
-    client = _FakeClient({"8098261": "terminus_munich_arrived"})
+    client = _FakeClient({
+        "8098261": "terminus_munich_arrived",
+        "8098263": "terminus_munich_tief_arrived",
+    })
     now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
     update_terminus_for_window(conn, client, now=now)
-    # Then: matching cycle (42-2605051200 is in the fixture)
     upsert_records(conn, [_arr(
         train_id=BAIERBRUNN_ID,
         scheduled_time="2026-05-05T10:35:00+00:00",
     )])
     update_terminus_for_window(conn, client, now=now)
     streak = conn.execute(
-        "SELECT zero_match_streak FROM terminus_health WHERE eva='8098261'"
+        "SELECT zero_match_streak FROM terminus_health WHERE bucket='muenchen'"
     ).fetchone()
     assert streak[0] == 0
+
+
+def test_update_terminus_for_window_matches_via_tief_eva(tmp_path):
+    """Surface /fchg has no entry for the trip; tief /fchg carries it.
+    Merged index must yield a classify→arrived. Asserts that the multi-EVA
+    poll succeeds when DB routes through the Stammstrecke."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(
+        train_id=BAIERBRUNN_ID,
+        scheduled_time="2026-05-05T10:30:00+00:00",
+    )])
+    client = _FakeClient({
+        "8098261": "empty_fchg",                    # surface: empty
+        "8098263": "terminus_munich_tief_arrived",  # tief: carries the trip
+    })
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    n = update_terminus_for_window(conn, client, now=now)
+    assert n == 1
+    row = conn.execute(
+        "SELECT terminus_status FROM arrivals"
+    ).fetchone()
+    assert row[0] == "arrived"
+    # Both EVAs polled (no early-exit when first returns no entry).
+    assert set(client.calls) >= {"8098261", "8098263"}
+
+
+def test_update_terminus_for_window_single_eva_outage_no_warning(tmp_path, caplog):
+    """If one EVA in the tuple raises but the other matches the pending
+    trip, the cycle is healthy at bucket level — no zero-match increment."""
+    from s7bb_fetcher.terminus import update_terminus_for_window
+
+    class _PartialClient(_FakeClient):
+        def fetch_full_changes(self, eva):
+            if eva == "8098261":
+                raise RuntimeError("surface 5xx")
+            return super().fetch_full_changes(eva)
+
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr(
+        train_id=BAIERBRUNN_ID,
+        scheduled_time="2026-05-05T10:30:00+00:00",
+    )])
+    client = _PartialClient({"8098263": "terminus_munich_tief_arrived"})
+    now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
+    with caplog.at_level("WARNING"):
+        update_terminus_for_window(conn, client, now=now)
+    row = conn.execute(
+        "SELECT zero_match_streak FROM terminus_health WHERE bucket='muenchen'"
+    ).fetchone()
+    assert row[0] == 0
+    # The bucket matched via tief, so no zero-match WARN must fire. The
+    # surface 5xx still log.exception's at ERROR level with the bucket name;
+    # filter to WARNING-only to isolate the zero-match path under test.
+    bucket_warns = [r for r in caplog.records
+                    if r.levelname == "WARNING" and "bucket=muenchen" in r.message]
+    assert bucket_warns == []
 
 
 def test_update_terminus_for_window_returns_zero_when_no_pending(tmp_path):
@@ -569,7 +635,10 @@ def test_update_terminus_for_window_uses_plan_pt_for_delay(tmp_path):
             return _load("terminus_munich_plan.xml")
         def fetch_full_changes(self, eva):
             self.fchg_calls.append(eva)
-            return _load("terminus_munich_delayed_no_pt.xml")
+            # Surface EVA (8098261) carries the trip with delay; tief returns empty.
+            if eva == "8098261":
+                return _load("terminus_munich_delayed_no_pt.xml")
+            return etree.fromstring(b"<timetable/>", parser=_PARSER)
 
     client = FakeClient()
     # now must be after Baierbrunn departure so the pending row is in window.
@@ -577,10 +646,13 @@ def test_update_terminus_for_window_uses_plan_pt_for_delay(tmp_path):
     written = update_terminus_for_window(db, client, now=now)
 
     assert written == 1
-    # Plan was called for the München terminus EVA at the expected Berlin hour.
+    # Plan was called for both München terminus EVAs at the expected Berlin hour.
     # 10:30 UTC + 35 min = 13:05 Berlin (CEST) → hour "13"
-    assert client.plan_calls == [("8098261", "260505", "13")]
-    assert client.fchg_calls == ["8098261"]
+    assert set(client.plan_calls) == {
+        ("8098261", "260505", "13"),
+        ("8098263", "260505", "13"),
+    }
+    assert set(client.fchg_calls) == {"8098261", "8098263"}
 
     row = db.execute(
         "SELECT terminus_status, terminus_delay_minutes FROM arrivals WHERE train_id=?",
@@ -607,7 +679,9 @@ def test_update_terminus_for_window_tolerates_plan_http_error(tmp_path):
         def fetch_plan(self, *a, **kw):
             raise RuntimeError("boom")
         def fetch_full_changes(self, eva):
-            return _load("terminus_munich_delayed_no_pt.xml")
+            if eva == "8098261":
+                return _load("terminus_munich_delayed_no_pt.xml")
+            return etree.fromstring(b"<timetable/>", parser=_PARSER)
 
     now = datetime(2026, 5, 5, 11, 0, tzinfo=UTC)
     written = update_terminus_for_window(db, FakeClient(), now=now)
