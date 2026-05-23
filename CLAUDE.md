@@ -41,6 +41,7 @@ DB Timetables API (XML)
   also checks out `s7bb/s7bb-data`.
 - DB API: `apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1`, auth via `DB-Api-Key` header
 - Baierbrunn EVA number: `8000781` (overridable via `S7BB_EVA` env var)
+- **Station EVA lookups: always consult [`docs/s7-station-evas.md`](docs/s7-station-evas.md) first** — canonical table of every S7 station's EVA, DS100 code, and route position. Only hit the live `/station/{name}` endpoint when a name is missing from the doc, and append the resolved row back into the doc in the same PR. Conserves DB Timetables quota and keeps spec / code / docs in sync on one source of truth.
 - Fetch cadence: every 5 min (systemd timer)
 - Chart library: Chart.js v4
 - Site deploy is **event-driven, not scheduled**. GitHub `schedule:`
