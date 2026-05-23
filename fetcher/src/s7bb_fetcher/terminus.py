@@ -197,6 +197,7 @@ def classify(
     entry: etree._Element | None,
     now: datetime,
     drilldown,
+    planned_pt: str | None = None,
 ) -> TerminusUpdate | None:
     """Classify a single pending train.
 
@@ -227,7 +228,7 @@ def classify(
         return TerminusUpdate(
             pending.train_id, pending.scheduled_time,
             terminus_status="arrived",
-            terminus_delay_minutes=_arrival_delay_minutes(entry),
+            terminus_delay_minutes=_arrival_delay_minutes(entry, planned_pt),
             terminus_short_turn_station=None,
         )
 

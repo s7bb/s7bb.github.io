@@ -514,3 +514,18 @@ def test_arrival_delay_returns_zero_when_ct_missing():
     )
     entry = xml.find(".//s")
     assert _arrival_delay_minutes(entry, planned_pt="2605051340") == 0
+
+
+def test_classify_arrived_uses_planned_pt_for_delay():
+    from s7bb_fetcher.terminus import build_index, classify, trip_prefix
+    idx = build_index(_load("terminus_munich_delayed_no_pt.xml"))
+    pending = _pending()
+    update = classify(
+        pending,
+        idx.get(trip_prefix(pending.train_id)),
+        _BEFORE_CUTOFF,
+        drilldown=lambda *_: None,
+        planned_pt="2605051340",
+    )
+    assert update.terminus_status == "arrived"
+    assert update.terminus_delay_minutes == 5
