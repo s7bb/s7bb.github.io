@@ -176,3 +176,78 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .kpi-card__title { font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 0.2rem; }
 .kpi-card__stats { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 @media (max-width: 480px) { .kpi-strip { grid-template-columns: 1fr; } }
+
+/* Native <details> reset so the <summary> renders as a flex row identical to
+   the previous .arrival-row layout (no UA disclosure triangle, custom glyph). */
+details.arrival-row {
+  display: block;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0;
+  font-size: 0.95rem;
+}
+details.arrival-row > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 5.5rem 6rem auto;
+  align-items: center;
+  column-gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  list-style: none;
+}
+details.arrival-row > summary > .arrival-direction {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+details.arrival-row > summary > .badge-slot {
+  display: flex;
+  justify-content: center;
+}
+details.arrival-row > summary > .badge-slot > .badge { width: 100%; text-align: center; }
+details.arrival-row > summary::-webkit-details-marker { display: none; }
+details.arrival-row .chev::before { content: "▸"; color: #888; }
+details.arrival-row[open] > summary .chev::before { content: "▾"; }
+@media (max-width: 700px) {
+  details.arrival-row > summary {
+    grid-template-columns: auto minmax(0, 1fr) 4.5rem 5rem auto;
+    padding: 0.4rem 0.55rem;
+    column-gap: 0.3rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* Expand panel: tabular per-field rows. */
+.arrival-detail {
+  padding: 0 0.85rem 0.6rem;
+  font-size: 0.85rem;
+  color: #333;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.15rem 0.6rem;
+}
+.detail-row { display: contents; }
+.detail-row--note {
+  display: block;
+  grid-column: 1 / -1;
+  font-style: italic;
+  color: #666;
+}
+.detail-label { font-weight: 600; color: #555; }
+.detail-value { font-variant-numeric: tabular-nums; }
+
+/* Summary-bar terminus items: reuse palette, distinct glyph colors. */
+.summary-item--shortturn { color: var(--orange); font-weight: 600; }
+.summary-item--missed    { color: var(--red);    font-weight: 600; }
+
+/* Archive Endpunkt cell. */
+.endpunkt--ok        { color: var(--green); }
+.endpunkt--shortturn { color: var(--orange); font-weight: 600; }
+.endpunkt--missed    { color: var(--red); font-weight: 600; }
+@media (max-width: 420px) {
+  .archive-table td.endpunkt-cell, .archive-table th.endpunkt-cell {
+    font-size: 0.8rem;
+  }
+}
