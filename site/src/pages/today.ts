@@ -1,5 +1,5 @@
-import type { S7Data, UnifiedSlotRow, DirectionAggregate } from "../data.js";
-import { unifiedTodayRows, escapeHtml, terminusLabelLong } from "../data.js";
+import type { S7Data, UnifiedSlotRow, DirectionAggregate, TerminusAggregate } from "../data.js";
+import { unifiedTodayRows, escapeHtml, terminusLabelLong, terminusLabelShort, terminusAggregate } from "../data.js";
 import type { Arrival } from "../data.js";
 
 function formatTime(iso: string): string {
@@ -117,12 +117,31 @@ function detailPanel(a: Arrival): string {
   return `<div class="arrival-detail">${rows.join("")}</div>`;
 }
 
-function summaryBar(agg: DirectionAggregate): string {
+function summaryBar(
+  agg: DirectionAggregate,
+  term: TerminusAggregate,
+  bucket: "muenchen" | "wolfratshausen",
+): string {
+  const showTerm = term.arrived + term.short_turn + term.missed > 0;
+  const termItems = showTerm
+    ? [
+        term.arrived > 0
+          ? `<span class="summary-item summary-item--ok">✓ ${term.arrived} bis ${terminusLabelShort(bucket)}</span>`
+          : "",
+        term.short_turn > 0
+          ? `<span class="summary-item summary-item--shortturn">⚠ ${term.short_turn} Kurzwende</span>`
+          : "",
+        term.missed > 0
+          ? `<span class="summary-item summary-item--missed">⊘ ${term.missed} nicht angekommen</span>`
+          : "",
+      ]
+    : [];
   return [
     `<span class="summary-item summary-item--ok">✓ ${agg.on_time} pünktlich</span>`,
     `<span class="summary-item summary-item--late">⏱ ${agg.late} verspätet</span>`,
     `<span class="summary-item summary-item--cancelled">✕ ${agg.cancelled} ausgefallen</span>`,
     agg.missing > 0 ? `<span class="summary-item summary-item--missing">? ${agg.missing} keine Daten</span>` : "",
+    ...termItems,
   ].filter(Boolean).join("");
 }
 
@@ -160,17 +179,19 @@ function renderRows(rows: UnifiedSlotRow[]): string {
 export function renderToday(data: S7Data, container: HTMLElement): void {
   const agg = data.aggregates.today;
   const rows = unifiedTodayRows(data);
+  const termM = terminusAggregate(data.arrivals, "muenchen");
+  const termW = terminusAggregate(data.arrivals, "wolfratshausen");
 
   container.innerHTML = `
     <h2>Heute — S7 Baierbrunn</h2>
     <div class="today-grid">
       <div class="direction-col">
         <h3>Richtung München</h3>
-        <div class="summary-bar">${summaryBar(agg.by_direction.muenchen)}</div>
+        <div class="summary-bar">${summaryBar(agg.by_direction.muenchen, termM, "muenchen")}</div>
       </div>
       <div class="direction-col">
         <h3>Richtung Wolfratshausen</h3>
-        <div class="summary-bar">${summaryBar(agg.by_direction.wolfratshausen)}</div>
+        <div class="summary-bar">${summaryBar(agg.by_direction.wolfratshausen, termW, "wolfratshausen")}</div>
       </div>
     </div>
     ${rows.length

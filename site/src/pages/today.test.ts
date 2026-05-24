@@ -281,3 +281,41 @@ describe("expand panel content", () => {
     expect(detailValue(panelOf(c), "Grund")).toBe("Streik");
   });
 });
+
+describe("summary bar terminus items", () => {
+  it("shows 'bis München' count when arrived > 0", () => {
+    const c = renderInto([
+      arrival({ direction_bucket: "muenchen", terminus_status: "arrived" }),
+      arrival({ scheduled_time: "2026-05-01T08:30:00", direction_bucket: "muenchen", terminus_status: "arrived" }),
+    ]);
+    const bar = c.querySelectorAll(".direction-col")[0].querySelector(".summary-bar")!;
+    expect(bar.textContent).toContain("2 bis München");
+  });
+
+  it("shows '⚠ N Kurzwende' when short_turn > 0", () => {
+    const c = renderInto([arrival({ direction_bucket: "muenchen", terminus_status: "short_turn", terminus_short_turn_station: "Solln" })]);
+    const bar = c.querySelectorAll(".direction-col")[0].querySelector(".summary-bar")!;
+    expect(bar.textContent).toContain("1 Kurzwende");
+  });
+
+  it("shows '⊘ N nicht angekommen' when missed (cancelled terminus) > 0", () => {
+    const c = renderInto([arrival({ direction_bucket: "muenchen", terminus_status: "cancelled" })]);
+    const bar = c.querySelectorAll(".direction-col")[0].querySelector(".summary-bar")!;
+    expect(bar.textContent).toContain("1 nicht angekommen");
+  });
+
+  it("suppresses all three terminus items when arrived+short_turn+missed = 0", () => {
+    const c = renderInto([arrival({ direction_bucket: "muenchen", terminus_status: "pending" })]);
+    const bar = c.querySelectorAll(".direction-col")[0].querySelector(".summary-bar")!;
+    expect(bar.textContent).not.toContain("bis");
+    expect(bar.textContent).not.toContain("Kurzwende");
+    expect(bar.textContent).not.toContain("nicht angekommen");
+  });
+
+  it("uses 'Wolfratshausen' as terminus label for wolfratshausen bucket", () => {
+    const c = renderInto([arrival({ direction_bucket: "wolfratshausen", terminus_status: "arrived" })]);
+    // wolfratshausen is the right column.
+    const bar = c.querySelectorAll(".direction-col")[1].querySelector(".summary-bar")!;
+    expect(bar.textContent).toContain("1 bis Wolfratshausen");
+  });
+});
