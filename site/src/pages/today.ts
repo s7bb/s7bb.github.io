@@ -13,33 +13,27 @@ export function nextUpdate(generatedAt: string): Date {
   return d;
 }
 
-// Inline outcome line: exception bias — silent when terminus arrival was OK,
-// visible when something went wrong or is still pending. Returns "" for the
-// silent cases (caller inserts no element).
+// Terminus badge: same shape + palette as the departure status badge.
+// Silent for null terminus_status (no data) and for Baierbrunn-cancelled
+// (departure badge already says "ausgefallen"). Full detail is in the panel.
 function terminusLine(a: Arrival): string {
   if (a.cancelled) return "";
-  const long = a.direction_bucket === "muenchen" || a.direction_bucket === "wolfratshausen"
-    ? terminusLabelLong(a.direction_bucket)
-    : "";
   switch (a.terminus_status) {
     case "arrived": {
       const m = Math.max(0, a.terminus_delay_minutes ?? 0);
-      if (m <= 0) return "";
-      const cls = m >= 5 ? "terminus-line--late" : "terminus-line--late-mild";
-      return `<span class="terminus-line ${cls}">→ ${escapeHtml(long)} +${m} min</span>`;
+      if (m > 0) return `<span class="badge badge--late">+${m} min</span>`;
+      return `<span class="badge badge--ok">pünktlich</span>`;
     }
-    case "short_turn": {
+    case "short_turn":
       if (!a.terminus_short_turn_station) {
-        // Phase-1 contract violation; log + fall through to missed.
         console.warn("terminus_status=short_turn with null station for train", a.train_id);
-        return `<span class="terminus-line terminus-line--missed">→ nicht in ${escapeHtml(long.replace(/ Hbf$/, ""))} angekommen</span>`;
+        return `<span class="badge badge--cancelled">ausgefallen</span>`;
       }
-      return `<span class="terminus-line terminus-line--shortturn">→ nur bis ${escapeHtml(a.terminus_short_turn_station)}</span>`;
-    }
+      return `<span class="badge badge--late">Kurzwende</span>`;
     case "cancelled":
-      return `<span class="terminus-line terminus-line--missed">→ nicht in ${escapeHtml(long.replace(/ Hbf$/, ""))} angekommen</span>`;
+      return `<span class="badge badge--cancelled">ausgefallen</span>`;
     case "pending":
-      return `<span class="terminus-line terminus-line--pending">→ unterwegs …</span>`;
+      return `<span class="badge badge--missing">unterwegs</span>`;
     default:
       return "";
   }
@@ -160,8 +154,8 @@ function rowFor(slot: string, a: Arrival | null): string {
       <summary>
         <span class="arrival-time">${time}</span>
         <span class="arrival-direction">${escapeHtml(a.direction)}</span>
-        ${statusBadge(a)}
-        ${terminusLine(a)}
+        <span class="badge-slot badge-slot--dep">${statusBadge(a)}</span>
+        <span class="badge-slot badge-slot--term">${terminusLine(a)}</span>
         <span class="chev" aria-hidden="true"></span>
       </summary>
       ${detailPanel(a)}

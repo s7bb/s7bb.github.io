@@ -82,63 +82,79 @@ describe("nextUpdate", () => {
   });
 });
 
-describe("terminus inline line", () => {
-  it("renders no terminus line when terminus_status is arrived and terminus_delay_minutes <= 0", () => {
+// terminusLine renders as a second .badge inside the summary, after the
+// departure badge. Helper picks the trailing one out of the two-badge row.
+function terminusBadge(c: HTMLElement): HTMLElement | null {
+  const badges = c.querySelectorAll("details.arrival-row > summary .badge");
+  return badges.length >= 2 ? (badges[badges.length - 1] as HTMLElement) : null;
+}
+
+describe("terminus inline badge", () => {
+  it("renders green 'pünktlich' badge when arrived and terminus_delay_minutes <= 0", () => {
     const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: 0 })]);
-    expect(c.querySelector(".terminus-line")).toBeNull();
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("pünktlich");
+    expect(el?.classList.contains("badge--ok")).toBe(true);
   });
 
-  it("renders 'München Hbf +7 min' with --late class when arrived and terminus delay >= 5", () => {
+  it("renders '+7 min' badge with badge--late when arrived and terminus delay > 0", () => {
     const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: 7 })]);
-    const el = c.querySelector(".terminus-line");
-    expect(el?.textContent).toContain("→ München Hbf +7 min");
-    expect(el?.classList.contains("terminus-line--late")).toBe(true);
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("+7 min");
+    expect(el?.classList.contains("badge--late")).toBe(true);
   });
 
-  it("renders '+2 min' with --late-mild class when arrived and 0 < terminus delay < 5", () => {
+  it("renders '+2 min' badge with badge--late when arrived and terminus delay between 1 and 5", () => {
     const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: 2 })]);
-    const el = c.querySelector(".terminus-line");
-    expect(el?.textContent).toContain("→ München Hbf +2 min");
-    expect(el?.classList.contains("terminus-line--late-mild")).toBe(true);
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("+2 min");
+    expect(el?.classList.contains("badge--late")).toBe(true);
   });
 
-  it("renders 'nur bis Solln' with --shortturn class when terminus_status is short_turn", () => {
+  it("floors negative terminus delays to 'pünktlich'", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: -3 })]);
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("pünktlich");
+    expect(el?.classList.contains("badge--ok")).toBe(true);
+  });
+
+  it("renders 'Kurzwende' badge with badge--late when terminus_status is short_turn", () => {
     const c = renderInto([arrival({ terminus_status: "short_turn", terminus_short_turn_station: "Solln" })]);
-    const el = c.querySelector(".terminus-line");
-    expect(el?.textContent).toContain("→ nur bis Solln");
-    expect(el?.classList.contains("terminus-line--shortturn")).toBe(true);
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("Kurzwende");
+    expect(el?.classList.contains("badge--late")).toBe(true);
   });
 
-  it("renders 'nicht in München angekommen' with --missed class when terminus_status is cancelled", () => {
+  it("renders 'ausgefallen' badge with badge--cancelled when terminus_status is cancelled", () => {
     const c = renderInto([arrival({ terminus_status: "cancelled" })]);
-    const el = c.querySelector(".terminus-line");
-    expect(el?.textContent).toContain("→ nicht in München angekommen");
-    expect(el?.classList.contains("terminus-line--missed")).toBe(true);
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("ausgefallen");
+    expect(el?.classList.contains("badge--cancelled")).toBe(true);
   });
 
-  it("renders 'unterwegs' with --pending class when terminus_status is pending", () => {
+  it("renders 'unterwegs' badge with badge--missing when terminus_status is pending", () => {
     const c = renderInto([arrival({ terminus_status: "pending" })]);
-    const el = c.querySelector(".terminus-line");
-    expect(el?.textContent).toContain("→ unterwegs");
-    expect(el?.classList.contains("terminus-line--pending")).toBe(true);
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("unterwegs");
+    expect(el?.classList.contains("badge--missing")).toBe(true);
   });
 
-  it("renders no terminus line when terminus_status is null", () => {
+  it("renders no terminus badge when terminus_status is null", () => {
     const c = renderInto([arrival({ terminus_status: null })]);
-    expect(c.querySelector(".terminus-line")).toBeNull();
+    expect(terminusBadge(c)).toBeNull();
   });
 
-  it("renders no terminus line when train is Baierbrunn-cancelled (existing strike-through preserved)", () => {
+  it("renders no terminus badge when train is Baierbrunn-cancelled (departure badge already says ausgefallen)", () => {
     const c = renderInto([arrival({ cancelled: true, terminus_status: "cancelled" })]);
-    expect(c.querySelector(".terminus-line")).toBeNull();
+    expect(terminusBadge(c)).toBeNull();
     expect(c.querySelector(".arrival-row--cancelled")).not.toBeNull();
   });
 
-  it("falls back to missed line when short_turn but terminus_short_turn_station is null", () => {
+  it("falls back to 'ausgefallen' badge when short_turn but terminus_short_turn_station is null", () => {
     const c = renderInto([arrival({ terminus_status: "short_turn", terminus_short_turn_station: null })]);
-    const el = c.querySelector(".terminus-line");
-    expect(el?.textContent).toContain("→ nicht in München angekommen");
-    expect(el?.classList.contains("terminus-line--missed")).toBe(true);
+    const el = terminusBadge(c);
+    expect(el?.textContent?.trim()).toBe("ausgefallen");
+    expect(el?.classList.contains("badge--cancelled")).toBe(true);
   });
 });
 

@@ -188,31 +188,36 @@ details.arrival-row {
   font-size: 0.95rem;
 }
 details.arrival-row > summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 5.5rem 6rem auto;
   align-items: center;
-  gap: 0.5rem;
+  column-gap: 0.5rem;
   padding: 0.55rem 0.85rem;
   cursor: pointer;
   list-style: none;
-  flex-wrap: wrap;
 }
-details.arrival-row > summary::-webkit-details-marker { display: none; }
-details.arrival-row .chev::before { content: "▸"; color: #888; margin-left: auto; }
-details.arrival-row[open] > summary .chev::before { content: "▾"; }
-@media (max-width: 700px) {
-  details.arrival-row > summary { padding: 0.4rem 0.55rem; gap: 0.35rem; font-size: 0.85rem; }
-}
-
-/* Inline terminus outcome line — exception bias, color + arrow + word. */
-.terminus-line {
-  font-size: 0.85rem;
+details.arrival-row > summary > .arrival-direction {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.terminus-line--shortturn { color: var(--orange); }
-.terminus-line--missed    { color: var(--red); }
-.terminus-line--late      { color: var(--red); }
-.terminus-line--late-mild { color: #444; }
-.terminus-line--pending   { color: #888; font-style: italic; }
+details.arrival-row > summary > .badge-slot {
+  display: flex;
+  justify-content: center;
+}
+details.arrival-row > summary > .badge-slot > .badge { width: 100%; text-align: center; }
+details.arrival-row > summary::-webkit-details-marker { display: none; }
+details.arrival-row .chev::before { content: "▸"; color: #888; }
+details.arrival-row[open] > summary .chev::before { content: "▾"; }
+@media (max-width: 700px) {
+  details.arrival-row > summary {
+    grid-template-columns: auto minmax(0, 1fr) 4.5rem 5rem auto;
+    padding: 0.4rem 0.55rem;
+    column-gap: 0.3rem;
+    font-size: 0.85rem;
+  }
+}
 
 /* Expand panel: tabular per-field rows. */
 .arrival-detail {
