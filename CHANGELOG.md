@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-24
+
 ### Added
 
 - **Site:** Terminus arrival surface on today + archive pages — inline outcome line ("→ nur bis Solln", "→ +N min", "→ unterwegs …"), tap-to-expand detail panel per row, "bis München / Kurzwende / nicht angekommen" counters in the summary bar, new Endpunkt column on the monthly archive table. Surfaces `terminus_status` / `terminus_delay_minutes` / `terminus_short_turn_station` populated by Phase 1 (v0.7.0+).
+
+### Fixed
+
+- **Site dev container:** `dev-entrypoint.sh` no longer shifts every `scheduled_time` / `actual_time` / `expected_slot` by +1 minute. The shift compensated for a stale committed sample data file; the dev pipeline now mounts the live `s7bb-data` tip via `s7bb-data-init`, so the shift double-corrected and rendered every dev departure 1 minute off the deployed site. Replaced the node transform with a verbatim `cp`.
 
 ## [0.8.3] - 2026-05-23
 
