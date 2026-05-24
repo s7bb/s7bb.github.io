@@ -51,6 +51,72 @@ function statusBadge(a: Arrival): string {
   return `<span class="badge badge--ok">pünktlich</span>`;
 }
 
+function fmtDeparture(a: Arrival): string {
+  if (a.cancelled) return "ausgefallen";
+  const t = formatTime(a.scheduled_time);
+  const m = a.delay_minutes ?? 0;
+  if (m > 0) return `${t} (+${m} min)`;
+  return `${t} (planmäßig)`;
+}
+
+function fmtTerminusArrival(a: Arrival): string {
+  // arrived: HH:MM (+N min) with N = floor(terminus_delay_minutes, 0), or "planmäßig" if null.
+  // cancelled: "nicht angekommen". pending: "noch unterwegs".
+  switch (a.terminus_status) {
+    case "arrived": {
+      const m = a.terminus_delay_minutes;
+      if (m === null || m === undefined) return "planmäßig";
+      const floored = Math.max(0, m);
+      // No reliable terminus actual_time on Arrival — show delay only (matches spec example for null-actual case, generalised).
+      const sched = formatTime(a.scheduled_time);
+      // Compute display-only arrival time by adding scheduled departure offset — we don't have it.
+      // Per spec the value examples include "07:17 (+3 min)"; spec note says when terminus_delay_minutes is null we display "planmäßig" only.
+      // The Arrival type does not currently carry a terminus actual time; show "(+N min)" without computed HH:MM, prefixed by Soll-Ankunft? Spec ambiguous; we render delay only since no terminus actual exists in the data model.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      void sched;
+      return floored > 0 ? `+${floored} min` : `+0 min`;
+    }
+    case "short_turn":
+    case "cancelled":
+      return "nicht angekommen";
+    case "pending":
+      return "noch unterwegs";
+    default:
+      return "";
+  }
+}
+
+function detailRow(label: string, value: string): string {
+  return `<div class="detail-row"><span class="detail-label">${escapeHtml(label)}:</span><span class="detail-value">${escapeHtml(value)}</span></div>`;
+}
+
+function detailPanel(a: Arrival): string {
+  const rows: string[] = [];
+  rows.push(detailRow("Abfahrt Baierbrunn", fmtDeparture(a)));
+
+  if (a.cancelled) {
+    if (!a.reason) {
+      rows.push(`<div class="detail-row detail-row--note">Zug ausgefallen — keine Fahrt</div>`);
+    }
+  } else if (a.terminus_status) {
+    const long = a.direction_bucket === "muenchen" || a.direction_bucket === "wolfratshausen"
+      ? terminusLabelLong(a.direction_bucket)
+      : "";
+    rows.push(detailRow(`Ankunft ${long}`, fmtTerminusArrival(a)));
+  }
+
+  if (a.terminus_status === "short_turn" && a.terminus_short_turn_station) {
+    rows.push(detailRow("Endete in", `${a.terminus_short_turn_station} (Kurzwende)`));
+  }
+  if (a.train_number) {
+    rows.push(detailRow("Zug", `S ${a.train_number}`));
+  }
+  if (a.reason) {
+    rows.push(detailRow("Grund", a.reason));
+  }
+  return `<div class="arrival-detail">${rows.join("")}</div>`;
+}
+
 function summaryBar(agg: DirectionAggregate): string {
   return [
     `<span class="summary-item summary-item--ok">✓ ${agg.on_time} pünktlich</span>`,
@@ -71,13 +137,16 @@ function rowFor(slot: string, a: Arrival | null): string {
   }
   const cancelledCls = a.cancelled ? " arrival-row--cancelled" : "";
   return `
-    <div class="arrival-row${cancelledCls}">
-      <span class="arrival-time">${time}</span>
-      <span class="arrival-direction">${escapeHtml(a.direction)}</span>
-      ${statusBadge(a)}
-      ${terminusLine(a)}
-      ${a.reason ? `<span class="arrival-reason">${escapeHtml(a.reason)}</span>` : ""}
-    </div>`;
+    <details class="arrival-row${cancelledCls}">
+      <summary>
+        <span class="arrival-time">${time}</span>
+        <span class="arrival-direction">${escapeHtml(a.direction)}</span>
+        ${statusBadge(a)}
+        ${terminusLine(a)}
+        <span class="chev" aria-hidden="true"></span>
+      </summary>
+      ${detailPanel(a)}
+    </details>`;
 }
 
 function renderRows(rows: UnifiedSlotRow[]): string {

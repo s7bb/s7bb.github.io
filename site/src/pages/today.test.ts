@@ -141,3 +141,143 @@ describe("terminus inline line", () => {
     expect(el?.classList.contains("terminus-line--missed")).toBe(true);
   });
 });
+
+describe("arrival row <details> wrapper", () => {
+  it("wraps each non-empty row in a details element with a summary", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: 0 })]);
+    const det = c.querySelector("details.arrival-row");
+    expect(det).not.toBeNull();
+    expect(det?.querySelector(":scope > summary")).not.toBeNull();
+    expect(det?.querySelector(":scope > .arrival-detail")).not.toBeNull();
+  });
+
+  it("keeps empty (no-record) slots as plain div without details wrapper", () => {
+    // Force a missing slot: expected_slots includes a time, arrivals is empty.
+    const data = fixture([]);
+    data.expected_slots.today.muenchen = ["2026-05-01T07:00:00"];
+    const c = document.createElement("div");
+    renderToday(data, c);
+    expect(c.querySelector("details.arrival-row")).toBeNull();
+    expect(c.querySelector(".arrival-row--empty")).not.toBeNull();
+  });
+
+  it("default state is collapsed (no [open] attribute on initial render)", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived" })]);
+    const det = c.querySelector("details.arrival-row");
+    expect(det?.hasAttribute("open")).toBe(false);
+  });
+
+  it("summary always contains time, direction, status badge", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: 0 })]);
+    const sum = c.querySelector("details.arrival-row > summary")!;
+    expect(sum.querySelector(".arrival-time")).not.toBeNull();
+    expect(sum.querySelector(".arrival-direction")).not.toBeNull();
+    expect(sum.querySelector(".badge")).not.toBeNull();
+  });
+
+  it("summary contains chevron with aria-hidden", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived" })]);
+    const chev = c.querySelector("details.arrival-row > summary .chev");
+    expect(chev).not.toBeNull();
+    expect(chev?.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+function panelOf(c: HTMLElement): HTMLElement {
+  return c.querySelector("details.arrival-row > .arrival-detail") as HTMLElement;
+}
+
+function detailValue(panel: HTMLElement, label: string): string | undefined {
+  const rows = panel.querySelectorAll(".detail-row");
+  for (const r of rows) {
+    if (r.querySelector(".detail-label")?.textContent?.trim().startsWith(label)) {
+      return r.querySelector(".detail-value")?.textContent?.trim();
+    }
+  }
+  return undefined;
+}
+
+describe("expand panel content", () => {
+  it("Abfahrt Baierbrunn shows HH:MM (planmäßig) when on time", () => {
+    const c = renderInto([arrival({ scheduled_time: "2026-05-01T08:42:00", delay_minutes: 0, terminus_status: "arrived" })]);
+    expect(detailValue(panelOf(c), "Abfahrt Baierbrunn")).toBe("08:42 (planmäßig)");
+  });
+
+  it("Abfahrt Baierbrunn shows HH:MM (+N min) when delayed", () => {
+    const c = renderInto([arrival({ scheduled_time: "2026-05-01T08:42:00", delay_minutes: 3, terminus_status: "arrived" })]);
+    expect(detailValue(panelOf(c), "Abfahrt Baierbrunn")).toBe("08:42 (+3 min)");
+  });
+
+  it("Abfahrt Baierbrunn shows 'ausgefallen' for Baierbrunn-cancelled", () => {
+    const c = renderInto([arrival({ scheduled_time: "2026-05-01T08:42:00", cancelled: true })]);
+    expect(detailValue(panelOf(c), "Abfahrt Baierbrunn")).toBe("ausgefallen");
+  });
+
+  it("Ankunft uses terminus_delay_minutes, not Baierbrunn delay", () => {
+    const c = renderInto([arrival({
+      scheduled_time: "2026-05-01T08:42:00",
+      delay_minutes: 0,
+      terminus_status: "arrived",
+      actual_time: "2026-05-01T08:42:00",
+      terminus_delay_minutes: 3,
+    })]);
+    expect(detailValue(panelOf(c), "Ankunft München Hbf")).toMatch(/\+3 min/);
+  });
+
+  it("Ankunft floors negative terminus delays at 0", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: -2 })]);
+    expect(detailValue(panelOf(c), "Ankunft München Hbf")).toMatch(/\+0 min/);
+  });
+
+  it("Ankunft shows 'planmäßig' with no time when arrived and terminus_delay_minutes is null", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: null })]);
+    expect(detailValue(panelOf(c), "Ankunft München Hbf")).toBe("planmäßig");
+  });
+
+  it("Ankunft shows 'noch unterwegs' when pending", () => {
+    const c = renderInto([arrival({ terminus_status: "pending" })]);
+    expect(detailValue(panelOf(c), "Ankunft München Hbf")).toBe("noch unterwegs");
+  });
+
+  it("Ankunft shows 'nicht angekommen' when cancelled", () => {
+    const c = renderInto([arrival({ terminus_status: "cancelled" })]);
+    expect(detailValue(panelOf(c), "Ankunft München Hbf")).toBe("nicht angekommen");
+  });
+
+  it("Ankunft row omitted when terminus_status is null", () => {
+    const c = renderInto([arrival({ terminus_status: null })]);
+    expect(detailValue(panelOf(c), "Ankunft")).toBeUndefined();
+  });
+
+  it("Endete in row only when short_turn", () => {
+    const cs = renderInto([arrival({ terminus_status: "short_turn", terminus_short_turn_station: "München-Solln" })]);
+    expect(detailValue(panelOf(cs), "Endete in")).toBe("München-Solln (Kurzwende)");
+    const ca = renderInto([arrival({ terminus_status: "arrived" })]);
+    expect(detailValue(panelOf(ca), "Endete in")).toBeUndefined();
+  });
+
+  it("Zug row only when train_number is present", () => {
+    const c1 = renderInto([arrival({ terminus_status: "arrived", train_number: "6824" })]);
+    expect(detailValue(panelOf(c1), "Zug")).toBe("S 6824");
+    const c2 = renderInto([arrival({ terminus_status: "arrived", train_number: null })]);
+    expect(detailValue(panelOf(c2), "Zug")).toBeUndefined();
+  });
+
+  it("Grund row appears in panel and is removed from summary row when reason is set", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived", reason: "Signalstörung" })]);
+    expect(detailValue(panelOf(c), "Grund")).toBe("Signalstörung");
+    expect(c.querySelector("details.arrival-row > summary .arrival-reason")).toBeNull();
+  });
+
+  it("Baierbrunn-cancelled with reason=null shows 'Zug ausgefallen — keine Fahrt' line and no separate Grund row", () => {
+    const c = renderInto([arrival({ cancelled: true, reason: null })]);
+    const panel = panelOf(c);
+    expect(panel.textContent).toContain("Zug ausgefallen — keine Fahrt");
+    expect(detailValue(panel, "Grund")).toBeUndefined();
+  });
+
+  it("Baierbrunn-cancelled with reason shows reason in Grund row", () => {
+    const c = renderInto([arrival({ cancelled: true, reason: "Streik" })]);
+    expect(detailValue(panelOf(c), "Grund")).toBe("Streik");
+  });
+});
