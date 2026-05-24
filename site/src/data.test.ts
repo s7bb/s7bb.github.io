@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { last7DaysByDayBothDirections } from "./data.js";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  last7DaysByDayBothDirections,
+  terminusLabelLong,
+  terminusLabelShort,
+  terminusAggregate,
+} from "./data.js";
 import type { S7Data, Arrival } from "./data.js";
 
 function arrival(overrides: Partial<Arrival>): Arrival {
@@ -92,5 +97,74 @@ describe("last7DaysByDayBothDirections", () => {
       arrival({ scheduled_time: "2026-05-01T08:00:00", direction_bucket: "muenchen", cancelled: true, delay_minutes: null }),
     ]);
     expect(last7DaysByDayBothDirections(data)[0].muenchen).toEqual({ avg_delay: 0, cancelled: 1, scheduled: 1 });
+  });
+});
+
+describe("terminusLabelLong", () => {
+  it("returns 'München Hbf' for muenchen", () => {
+    expect(terminusLabelLong("muenchen")).toBe("München Hbf");
+  });
+  it("returns 'Wolfratshausen' for wolfratshausen", () => {
+    expect(terminusLabelLong("wolfratshausen")).toBe("Wolfratshausen");
+  });
+});
+
+describe("terminusLabelShort", () => {
+  it("returns 'München' for muenchen", () => {
+    expect(terminusLabelShort("muenchen")).toBe("München");
+  });
+  it("returns 'Wolfratshausen' for wolfratshausen", () => {
+    expect(terminusLabelShort("wolfratshausen")).toBe("Wolfratshausen");
+  });
+});
+
+describe("terminusAggregate", () => {
+  // Tests use VITE_DEV_NOW-free `arrival` factory; aggregator filters by
+  // Berlin "today" — fix system clock via vi.setSystemTime so dates compare.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-01T12:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("counts arrived, short_turn, missed (=cancelled), pending per bucket", () => {
+    const arrivals = [
+      arrival({ scheduled_time: "2026-05-01T08:00:00", direction_bucket: "muenchen", terminus_status: "arrived" }),
+      arrival({ scheduled_time: "2026-05-01T08:30:00", direction_bucket: "muenchen", terminus_status: "arrived" }),
+      arrival({ scheduled_time: "2026-05-01T09:00:00", direction_bucket: "muenchen", terminus_status: "short_turn", terminus_short_turn_station: "München-Solln" }),
+      arrival({ scheduled_time: "2026-05-01T09:30:00", direction_bucket: "muenchen", terminus_status: "cancelled" }),
+      arrival({ scheduled_time: "2026-05-01T10:00:00", direction_bucket: "muenchen", terminus_status: "pending" }),
+    ];
+    const agg = terminusAggregate(arrivals, "muenchen");
+    expect(agg).toEqual({ arrived: 2, short_turn: 1, missed: 1, pending: 1 });
+  });
+
+  it("excludes Baierbrunn-cancelled rows entirely", () => {
+    const arrivals = [
+      arrival({ scheduled_time: "2026-05-01T08:00:00", direction_bucket: "muenchen", cancelled: true, terminus_status: "cancelled" }),
+      arrival({ scheduled_time: "2026-05-01T09:00:00", direction_bucket: "muenchen", terminus_status: "arrived" }),
+    ];
+    expect(terminusAggregate(arrivals, "muenchen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
+  });
+
+  it("excludes rows with null/undefined terminus_status", () => {
+    const arrivals = [
+      arrival({ scheduled_time: "2026-05-01T08:00:00", direction_bucket: "muenchen", terminus_status: null }),
+      arrival({ scheduled_time: "2026-05-01T08:30:00", direction_bucket: "muenchen" }), // undefined
+      arrival({ scheduled_time: "2026-05-01T09:00:00", direction_bucket: "muenchen", terminus_status: "arrived" }),
+    ];
+    expect(terminusAggregate(arrivals, "muenchen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
+  });
+
+  it("filters by Berlin 'today' date and by direction_bucket", () => {
+    const arrivals = [
+      arrival({ scheduled_time: "2026-04-30T20:00:00Z", direction_bucket: "muenchen", terminus_status: "arrived" }), // not today (April 30 in Berlin)
+      arrival({ scheduled_time: "2026-05-01T08:00:00", direction_bucket: "muenchen", terminus_status: "arrived" }),
+      arrival({ scheduled_time: "2026-05-01T08:00:00", direction_bucket: "wolfratshausen", terminus_status: "arrived" }),
+    ];
+    expect(terminusAggregate(arrivals, "muenchen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
+    expect(terminusAggregate(arrivals, "wolfratshausen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
   });
 });

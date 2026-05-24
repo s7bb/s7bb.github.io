@@ -223,3 +223,39 @@ export function last7DaysByDayBothDirections(data: S7Data): DayDirRow[] {
       wolfratshausen: toStats(wolfratshausen),
     }));
 }
+
+export function terminusLabelLong(bucket: "muenchen" | "wolfratshausen"): string {
+  return bucket === "muenchen" ? "München Hbf" : "Wolfratshausen";
+}
+
+export function terminusLabelShort(bucket: "muenchen" | "wolfratshausen"): string {
+  return bucket === "muenchen" ? "München" : "Wolfratshausen";
+}
+
+export interface TerminusAggregate {
+  arrived: number;
+  short_turn: number;
+  missed: number;   // terminus_status === "cancelled"
+  pending: number;
+}
+
+export function terminusAggregate(
+  arrivals: Arrival[],
+  bucket: "muenchen" | "wolfratshausen",
+): TerminusAggregate {
+  const today = berlinDate(nowForFiltering());
+  const out: TerminusAggregate = { arrived: 0, short_turn: 0, missed: 0, pending: 0 };
+  for (const a of arrivals) {
+    if (a.direction_bucket !== bucket) continue;
+    if (berlinDate(a.scheduled_time) !== today) continue;
+    if (a.cancelled) continue;
+    switch (a.terminus_status) {
+      case "arrived":    out.arrived++;    break;
+      case "short_turn": out.short_turn++; break;
+      case "cancelled":  out.missed++;     break;
+      case "pending":    out.pending++;    break;
+      default: /* null/undefined: excluded */ break;
+    }
+  }
+  return out;
+}
