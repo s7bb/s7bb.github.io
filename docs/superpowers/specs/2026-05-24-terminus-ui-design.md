@@ -36,15 +36,19 @@ No new dependencies. No fetcher / exporter changes.
 
 For each `Arrival`, the rendered surface is determined by combining departure state and `terminus_status`:
 
+"Departure" column covers all non-cancelled Baierbrunn states (`pünktlich`, `+N min`, and `delay_minutes === null` — null treated same as on-time, no surface signal).
+
 | Departure | terminus_status | Inline outcome line below row | Expand panel "Ankunft" |
 |---|---|---|---|
-| pünktlich / +N | `arrived`, delay ≤ 0 | *(none)* | `planmäßig` |
-| pünktlich / +N | `arrived`, +M min | *(none)* | `+M min` |
-| pünktlich / +N | `short_turn` | `→ nur bis {station}` (orange) | `nicht angekommen` + `Endete in: {station}` |
-| pünktlich / +N | `cancelled` | `→ nicht in München angekommen` (red) | `nicht angekommen` |
-| pünktlich / +N | `pending` | `→ unterwegs …` (grey, italic) | `noch unterwegs` |
-| pünktlich / +N | `null` | *(none)* | row keeps existing rendering, no Ankunft line |
+| not-cancelled | `arrived`, terminus delay ≤ 0 (post-floor) | *(none)* | `planmäßig` |
+| not-cancelled | `arrived`, terminus delay +M min (M > 0) | `→ {terminusLabelLong} +M min` (red if M ≥ 5, else neutral) | `+M min` |
+| not-cancelled | `short_turn` | `→ nur bis {station}` (orange) | `nicht angekommen` + `Endete in: {station}` |
+| not-cancelled | `cancelled` | `→ nicht in München angekommen` (red) | `nicht angekommen` |
+| not-cancelled | `pending` | `→ unterwegs …` (grey, italic) | `noch unterwegs` |
+| not-cancelled | `null` | *(none)* | row keeps existing rendering, no Ankunft line |
 | ausgefallen at Baierbrunn | (any) | *(none — existing strike-through unchanged)* | `Zug ausgefallen — keine Fahrt` |
+
+Late-arrival inline line honors exception bias: on-time terminus = silent; late terminus = visible (matches Design principle 2, "Arrived-on-time = silent surface").
 
 Terminus name is derived from `direction_bucket` via two helpers in `data.ts`:
 
@@ -72,6 +76,8 @@ Variants and CSS:
 |---|---|---|
 | Short-turn | `terminus-line--shortturn` | `var(--orange)` |
 | Didn't arrive | `terminus-line--missed` | `var(--red)` |
+| Late arrival (M ≥ 5) | `terminus-line--late` | `var(--red)` |
+| Late arrival (0 < M < 5) | `terminus-line--late-mild` | `#444` (no color, neutral) |
 | Pending | `terminus-line--pending` | `#888`, `font-style: italic` |
 
 The line wraps to a new row on narrow screens via `flex-wrap: wrap` on `.arrival-row` (existing).
@@ -92,6 +98,12 @@ Each `arrival-row` becomes:
   <div class="arrival-detail">
     <div class="detail-row"><span class="detail-label">Abfahrt Baierbrunn:</span><span class="detail-value">06:42 (planmäßig)</span></div>
     <div class="detail-row"><span class="detail-label">Ankunft München Hbf:</span><span class="detail-value">07:17 (+3 min)</span></div>
+    <!-- value examples by case:
+         arrived on time:               "07:14 (planmäßig)"
+         arrived late (+3, post-floor): "07:17 (+3 min)"
+         arrived early (delay −2):      "07:12 (+0 min)"  ← floored per project_terminus_delay_fix
+         arrived, delay null:           "planmäßig"        ← no time, DB feed gave no actual
+    -->
     <div class="detail-row"><span class="detail-label">Endete in:</span><span class="detail-value">München-Solln (Kurzwende)</span></div>
     <div class="detail-row"><span class="detail-label">Zug:</span><span class="detail-value">S 6824</span></div>
     <div class="detail-row"><span class="detail-label">Grund:</span><span class="detail-value">Signalstörung</span></div>
@@ -105,7 +117,7 @@ Panel rules:
 - **Ankunft {terminus}** — present unless Baierbrunn-cancelled or `terminus_status` is `null`. Terminus label uses `terminusLabelLong(direction_bucket)`. Time + delay refer to **terminus arrival** (computed from `terminus_delay_minutes`, floored at 0), not Baierbrunn departure — the two delays may differ (train caught up, or lost more time downstream). When `terminus_delay_minutes === null` and status is `arrived`: show `planmäßig` only (no time, since DB feed gave no actual arrival time).
 - **Endete in** — only when `terminus_status === "short_turn"`. Value: `{terminus_short_turn_station} (Kurzwende)`.
 - **Zug** — only when `train_number` non-null. Value: `S {train_number}`.
-- **Grund** — only when `reason` non-null. Existing inline `arrival-reason` element is removed from the summary row and shown here instead.
+- **Grund** — only when `reason` non-null. Existing inline `arrival-reason` element is removed from the summary row and shown here instead. For Baierbrunn-cancelled rows with `reason === null`, panel value falls back to literal `"Zug ausgefallen — keine Fahrt"` (one short line under Abfahrt; no separate Grund row).
 
 Empty/no-data slots (`record === null` in `UnifiedSlotRow`) keep their current rendering with no `<details>` wrapper.
 
@@ -114,13 +126,15 @@ Chevron rotation via:
 ```css
 details.arrival-row[open] > summary .chev::before { content: "▾"; }
 .chev::before { content: "▸"; }
+summary { list-style: none; }
+summary::-webkit-details-marker { display: none; }
 ```
 
-Default state: collapsed. No JS state; native `<details>` toggle.
+Custom glyph chosen over native UA disclosure triangle for consistent rendering across Safari/Chrome/Firefox (UA triangle styling differs); native marker hidden via the two rules above. Default state: collapsed. No JS state; native `<details>` toggle.
 
 ## Aggregate counter
 
-`summaryBar()` in `today.ts` extended. Two new items appear when applicable:
+`summaryBar()` in `today.ts` extended. Two new items appear when applicable. Each item is `{glyph} {count} {label}` (uniform with existing bar items):
 
 ```
 ✓ 18 pünktlich · ⏱ 2 verspätet · ✕ 1 ausgefallen · ✓ 19 bis München · ⚠ 1 Kurzwende
@@ -141,13 +155,13 @@ export function terminusAggregate(
 ): TerminusAggregate;
 ```
 
-Filter: `arrivals` of today (Berlin date), matching `direction_bucket === bucket`. Counts each `terminus_status` value once. Baierbrunn-cancelled and `null` rows excluded from all four counts.
+Filter: `arrivals` of today (Berlin date), matching `direction_bucket === bucket`. Each surviving arrival contributes +1 to exactly one bucket according to its `terminus_status`. Baierbrunn-cancelled and `null`-status rows excluded entirely (contribute to no bucket).
 
-Surface rules:
+Surface rules (each item rendered as `{glyph} {count} {label}`):
 
-- `bis {terminusLabelShort(bucket)}` item rendered when `arrived > 0`: `bis München` or `bis Wolfratshausen`.
-- `⚠ N Kurzwende` rendered when `short_turn > 0`.
-- `✗ N nicht angekommen` rendered when `missed > 0`.
+- `✓ N bis {terminusLabelShort(bucket)}` when `arrived > 0` (e.g. `✓ 19 bis München`, `✓ 5 bis Wolfratshausen`).
+- `⚠ N Kurzwende` when `short_turn > 0`.
+- `⊘ N nicht angekommen` when `missed > 0` (glyph `⊘` = "not reaching"; deliberately distinct from `✕` Baierbrunn-cancelled to avoid confusion).
 - All three items suppressed when `arrived + short_turn + missed === 0` (legacy-data day or empty day) to keep the bar clean.
 - `pending` is not surfaced in the aggregate (visible only inside per-row panel via "noch unterwegs"); avoids a live-changing number on a static hourly snapshot.
 
@@ -172,6 +186,10 @@ Surface rules:
 | Baierbrunn-cancelled | `—` | (none) |
 
 No tap-to-expand on archive (table format already dense). Power users hit the JSON download link already on the page.
+
+**Mobile width:** "Wolfratshausen +N" is the widest cell content (14 chars + suffix). Archive table already horizontally scrolls on iPhone SE (375 px); no abbreviation needed. Verify during manual pass — if the column forces a second horizontal scroll, abbreviate to `Wolfrats. +N` / `München +N` via CSS-only `@media (max-width: 420px)` rule.
+
+**Visual disconnect (`Verspätung: 0 min` + `Endpunkt: nicht angekommen`):** acceptable. The two columns answer two different questions ("did it leave Baierbrunn on time?" vs. "did it reach the terminus?") and the Endpunkt cell's red `endpunkt--missed` class is loud enough to draw the eye. No row-level cross-highlighting in Phase 2.
 
 ## Data flow
 
@@ -204,8 +222,9 @@ loadMonth() → renderArchiveDetail()
 ## Accessibility
 
 - Native `<details>`/`<summary>` exposes `aria-expanded` automatically; screen readers announce open/closed state.
+- Fully keyboard-accessible via native `<details>` semantics: Tab focuses `<summary>`, Enter/Space toggles open/closed. No custom key handlers required.
 - Chevron marked `aria-hidden="true"` (decoration; state is conveyed by native semantics).
-- Color is never the sole carrier of meaning — every state has an arrow + word ("nur bis", "nicht", "unterwegs") or unicode glyph (`✓`, `⚠`, `✗`).
+- Color is never the sole carrier of meaning — every state has an arrow + word ("nur bis", "nicht", "unterwegs") or unicode glyph (`✓`, `⚠`, `⊘`).
 - Tap target ≥ 44 px height on summary via existing `.arrival-row` padding (verify on iPhone SE viewport).
 - Reduced motion: chevron rotation is a content swap (`::before`), not a CSS transition.
 
@@ -228,7 +247,9 @@ Strict TDD. All new behavior tested before implementation. Tests use the existin
 
 ### `site/src/pages/today.test.ts` (extended)
 
-- `renders no terminus line when terminus_status is arrived`
+- `renders no terminus line when terminus_status is arrived and terminus_delay_minutes <= 0`
+- `renders "{terminus} +M min" with --late class when arrived and terminus delay >= 5`
+- `renders "{terminus} +M min" with --late-mild class when arrived and 0 < terminus delay < 5`
 - `renders "nur bis Solln" with --shortturn class when terminus_status is short_turn`
 - `renders "nicht in München angekommen" with --missed class when terminus_status is cancelled`
 - `renders "unterwegs" with --pending class when terminus_status is pending`
@@ -244,7 +265,8 @@ Strict TDD. All new behavior tested before implementation. Tests use the existin
 - `summary bar shows "bis München" count of arrived terminus`
 - `summary bar shows "Kurzwende" count when short_turn > 0`
 - `summary bar suppresses terminus items when all zero`
-- `Baierbrunn-cancelled row keeps existing line-through and shows "Zug ausgefallen" in panel`
+- `Baierbrunn-cancelled row keeps existing line-through and shows "Zug ausgefallen — keine Fahrt" in panel when reason is null`
+- `Baierbrunn-cancelled row shows reason text in panel when reason is non-null`
 
 ### `site/src/data.test.ts` (extended)
 
