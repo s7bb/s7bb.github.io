@@ -67,16 +67,23 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .summary-item--late { color: var(--orange); font-weight: 600; }
 .summary-item--cancelled { color: var(--red); font-weight: 600; }
 
-/* Arrival rows: two-column outer grid pairs München (left) and
- * Wolfratshausen (right) at the same vertical row. The cells in
- * each row stretch to a shared height (align-items: stretch) so the
- * times stay aligned even when one direction's cell wraps. */
+/* Arrival rows: outer single-column list of per-slot pairs. Each
+ * .slot-pair is its own 2-column grid pairing München (left) and
+ * Wolfratshausen (right). Detail panels inside the pair span both
+ * columns (grid-column: 1 / -1) so the open panel is not clipped to
+ * one half on mobile. */
 .today-rows {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem 1rem;
-  align-items: stretch;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
   margin-bottom: 1rem;
+}
+.slot-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1rem;
+  row-gap: 0.4rem;
+  align-items: stretch;
 }
 .arrival-row {
   display: flex;
@@ -96,7 +103,7 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .arrival-empty { color: #ccc; }
 .arrival-reason { font-size: 0.8rem; color: #888; }
 @media (max-width: 700px) {
-  .today-rows { gap: 0.3rem 0.4rem; }
+  .slot-pair { column-gap: 0.4rem; row-gap: 0.3rem; }
   .arrival-row { padding: 0.4rem 0.55rem; gap: 0.35rem; font-size: 0.85rem; }
   .arrival-time { min-width: 3rem; font-size: 0.95rem; }
 }
@@ -177,41 +184,41 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .kpi-card__stats { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 @media (max-width: 480px) { .kpi-strip { grid-template-columns: 1fr; } }
 
-/* Native <details> reset so the <summary> renders as a flex row identical to
-   the previous .arrival-row layout (no UA disclosure triangle, custom glyph). */
-details.arrival-row {
-  display: block;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0;
-  font-size: 0.95rem;
-}
-details.arrival-row > summary {
+/* Interactive arrival row: <button> reset so it lays out as a grid
+   identical to the previous summary layout, with the chevron glyph
+   driven by aria-expanded on the button. */
+button.arrival-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 5.5rem 6rem auto;
   align-items: center;
   column-gap: 0.5rem;
   padding: 0.55rem 0.85rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.95rem;
+  color: inherit;
   cursor: pointer;
-  list-style: none;
+  text-align: left;
+  width: 100%;
 }
-details.arrival-row > summary > .arrival-direction {
+button.arrival-row.arrival-row--cancelled { opacity: 0.6; text-decoration: line-through; }
+button.arrival-row > .arrival-direction {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-details.arrival-row > summary > .badge-slot {
+button.arrival-row > .badge-slot {
   display: flex;
   justify-content: center;
 }
-details.arrival-row > summary > .badge-slot > .badge { width: 100%; text-align: center; }
-details.arrival-row > summary::-webkit-details-marker { display: none; }
-details.arrival-row .chev::before { content: "▸"; color: #888; }
-details.arrival-row[open] > summary .chev::before { content: "▾"; }
+button.arrival-row > .badge-slot > .badge { width: 100%; text-align: center; }
+button.arrival-row .chev::before { content: "▸"; color: #888; }
+button.arrival-row[aria-expanded="true"] .chev::before { content: "▾"; }
 @media (max-width: 700px) {
-  details.arrival-row > summary {
+  button.arrival-row {
     grid-template-columns: auto minmax(0, 1fr) 4.5rem 5rem auto;
     padding: 0.4rem 0.55rem;
     column-gap: 0.3rem;
@@ -219,15 +226,21 @@ details.arrival-row[open] > summary .chev::before { content: "▾"; }
   }
 }
 
-/* Expand panel: tabular per-field rows. */
+/* Expand panel: tabular per-field rows. Spans both columns of its
+   .slot-pair so values are not clipped by the column boundary. */
 .arrival-detail {
-  padding: 0 0.85rem 0.6rem;
+  grid-column: 1 / -1;
+  padding: 0.6rem 0.85rem;
   font-size: 0.85rem;
   color: #333;
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 0.15rem 0.6rem;
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
+.arrival-detail[hidden] { display: none; }
 .detail-row { display: contents; }
 .detail-row--note {
   display: block;

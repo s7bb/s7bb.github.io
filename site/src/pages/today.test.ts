@@ -82,10 +82,10 @@ describe("nextUpdate", () => {
   });
 });
 
-// terminusLine renders as a second .badge inside the summary, after the
+// terminusLine renders as a second .badge inside the button summary, after the
 // departure badge. Helper picks the trailing one out of the two-badge row.
 function terminusBadge(c: HTMLElement): HTMLElement | null {
-  const badges = c.querySelectorAll("details.arrival-row > summary .badge");
+  const badges = c.querySelectorAll("button.arrival-row .badge");
   return badges.length >= 2 ? (badges[badges.length - 1] as HTMLElement) : null;
 }
 
@@ -147,7 +147,7 @@ describe("terminus inline badge", () => {
   it("renders no terminus badge when train is Baierbrunn-cancelled (departure badge already says ausgefallen)", () => {
     const c = renderInto([arrival({ cancelled: true, terminus_status: "cancelled" })]);
     expect(terminusBadge(c)).toBeNull();
-    expect(c.querySelector(".arrival-row--cancelled")).not.toBeNull();
+    expect(c.querySelector("button.arrival-row.arrival-row--cancelled")).not.toBeNull();
   });
 
   it("falls back to 'ausgefallen' badge when short_turn but terminus_short_turn_station is null", () => {
@@ -158,49 +158,81 @@ describe("terminus inline badge", () => {
   });
 });
 
-describe("arrival row <details> wrapper", () => {
-  it("wraps each non-empty row in a details element with a summary", () => {
+describe("arrival row button + detail panel", () => {
+  it("renders each non-empty row as a button with a linked detail panel via aria-controls", () => {
     const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: 0 })]);
-    const det = c.querySelector("details.arrival-row");
-    expect(det).not.toBeNull();
-    expect(det?.querySelector(":scope > summary")).not.toBeNull();
-    expect(det?.querySelector(":scope > .arrival-detail")).not.toBeNull();
+    const btn = c.querySelector("button.arrival-row") as HTMLButtonElement | null;
+    expect(btn).not.toBeNull();
+    const id = btn?.getAttribute("aria-controls");
+    expect(id).toBeTruthy();
+    const panel = c.querySelector(`#${id}`);
+    expect(panel).not.toBeNull();
+    expect(panel?.classList.contains("arrival-detail")).toBe(true);
   });
 
-  it("keeps empty (no-record) slots as plain div without details wrapper", () => {
+  it("keeps empty (no-record) slots as plain div without button wrapper", () => {
     // Force a missing slot: expected_slots includes a time, arrivals is empty.
     const data = fixture([]);
     data.expected_slots.today.muenchen = ["2026-05-01T07:00:00"];
     const c = document.createElement("div");
     renderToday(data, c);
-    expect(c.querySelector("details.arrival-row")).toBeNull();
+    expect(c.querySelector("button.arrival-row")).toBeNull();
     expect(c.querySelector(".arrival-row--empty")).not.toBeNull();
   });
 
-  it("default state is collapsed (no [open] attribute on initial render)", () => {
+  it("default state is collapsed (aria-expanded=false, panel hidden)", () => {
     const c = renderInto([arrival({ terminus_status: "arrived" })]);
-    const det = c.querySelector("details.arrival-row");
-    expect(det?.hasAttribute("open")).toBe(false);
+    const btn = c.querySelector("button.arrival-row") as HTMLButtonElement;
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
+    const panel = c.querySelector(`#${btn.getAttribute("aria-controls")}`) as HTMLElement;
+    expect(panel.hasAttribute("hidden")).toBe(true);
   });
 
-  it("summary always contains time, direction, status badge", () => {
+  it("button summary contains time, direction, status badge", () => {
     const c = renderInto([arrival({ terminus_status: "arrived", terminus_delay_minutes: 0 })]);
-    const sum = c.querySelector("details.arrival-row > summary")!;
-    expect(sum.querySelector(".arrival-time")).not.toBeNull();
-    expect(sum.querySelector(".arrival-direction")).not.toBeNull();
-    expect(sum.querySelector(".badge")).not.toBeNull();
+    const btn = c.querySelector("button.arrival-row")!;
+    expect(btn.querySelector(".arrival-time")).not.toBeNull();
+    expect(btn.querySelector(".arrival-direction")).not.toBeNull();
+    expect(btn.querySelector(".badge")).not.toBeNull();
   });
 
-  it("summary contains chevron with aria-hidden", () => {
+  it("button summary contains chevron with aria-hidden", () => {
     const c = renderInto([arrival({ terminus_status: "arrived" })]);
-    const chev = c.querySelector("details.arrival-row > summary .chev");
+    const chev = c.querySelector("button.arrival-row .chev");
     expect(chev).not.toBeNull();
     expect(chev?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("detail panel sits inside .slot-pair as a sibling spanning both columns", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived" })]);
+    const pair = c.querySelector(".slot-pair")!;
+    const btn = pair.querySelector("button.arrival-row") as HTMLButtonElement;
+    const panel = pair.querySelector(".arrival-detail") as HTMLElement;
+    expect(btn.parentElement).toBe(pair);
+    expect(panel.parentElement).toBe(pair);
+    expect(panel.id).toBe(btn.getAttribute("aria-controls"));
+  });
+
+  it("click on button toggles aria-expanded and panel hidden", () => {
+    const c = renderInto([arrival({ terminus_status: "arrived" })]);
+    document.body.appendChild(c);
+    const btn = c.querySelector("button.arrival-row") as HTMLButtonElement;
+    const panel = c.querySelector(`#${btn.getAttribute("aria-controls")}`) as HTMLElement;
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
+    expect(panel.hidden).toBe(true);
+    btn.click();
+    expect(btn.getAttribute("aria-expanded")).toBe("true");
+    expect(panel.hidden).toBe(false);
+    btn.click();
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
+    expect(panel.hidden).toBe(true);
+    c.remove();
   });
 });
 
 function panelOf(c: HTMLElement): HTMLElement {
-  return c.querySelector("details.arrival-row > .arrival-detail") as HTMLElement;
+  const btn = c.querySelector("button.arrival-row") as HTMLButtonElement;
+  return c.querySelector(`#${btn.getAttribute("aria-controls")}`) as HTMLElement;
 }
 
 function detailValue(panel: HTMLElement, label: string): string | undefined {
@@ -282,7 +314,7 @@ describe("expand panel content", () => {
   it("Grund row appears in panel and is removed from summary row when reason is set", () => {
     const c = renderInto([arrival({ terminus_status: "arrived", reason: "Signalstörung" })]);
     expect(detailValue(panelOf(c), "Grund")).toBe("Signalstörung");
-    expect(c.querySelector("details.arrival-row > summary .arrival-reason")).toBeNull();
+    expect(c.querySelector("button.arrival-row .arrival-reason")).toBeNull();
   });
 
   it("Baierbrunn-cancelled with reason=null shows 'Zug ausgefallen — keine Fahrt' line and no separate Grund row", () => {
