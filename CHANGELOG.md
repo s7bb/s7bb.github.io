@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-05-26
+
 ### Fixed
 
 - **Site (mobile):** Today page detail panel no longer clips to a single column on narrow viewports. Expanded row info ("Abfahrt Baierbrunn", "Ankunft München Hbf", "Zug", "Grund") now spans both direction columns, so values are fully readable on iPhone / small Android screens. Internally the row pair was restructured (`<button>` + sibling `.arrival-detail` inside a per-slot wrapper) so the panel can span the full pair width via `grid-column: 1 / -1`.
