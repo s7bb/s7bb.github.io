@@ -84,7 +84,7 @@ function detailRow(label: string, value: string): string {
   return `<div class="detail-row"><span class="detail-label">${escapeHtml(label)}:</span><span class="detail-value">${escapeHtml(value)}</span></div>`;
 }
 
-function detailPanel(a: Arrival): string {
+function detailRowsInner(a: Arrival): string {
   const rows: string[] = [];
   rows.push(detailRow("Abfahrt Baierbrunn", fmtDeparture(a)));
 
@@ -108,7 +108,7 @@ function detailPanel(a: Arrival): string {
   if (a.reason) {
     rows.push(detailRow("Grund", a.reason));
   }
-  return `<div class="arrival-detail">${rows.join("")}</div>`;
+  return rows.join("");
 }
 
 function summaryBar(
@@ -139,35 +139,60 @@ function summaryBar(
   ].filter(Boolean).join("");
 }
 
-function rowFor(slot: string, a: Arrival | null): string {
+function slotKey(slot: string, bucket: "muenchen" | "wolfratshausen"): string {
+  return `slot-${bucket}-${slot.replace(/[^0-9]/g, "")}`;
+}
+
+type RowParts = { summary: string; detail: string };
+
+function rowFor(slot: string, a: Arrival | null, bucket: "muenchen" | "wolfratshausen"): RowParts {
   const time = formatTime(slot);
   if (!a) {
-    return `
-      <div class="arrival-row arrival-row--empty">
-        <span class="arrival-time">${time}</span>
-        <span class="arrival-empty">—</span>
-      </div>`;
+    return {
+      summary: `<div class="arrival-row arrival-row--empty"><span class="arrival-time">${time}</span><span class="arrival-empty">—</span></div>`,
+      detail: "",
+    };
   }
+  const id = slotKey(slot, bucket);
   const cancelledCls = a.cancelled ? " arrival-row--cancelled" : "";
-  return `
-    <details class="arrival-row${cancelledCls}">
-      <summary>
-        <span class="arrival-time">${time}</span>
-        <span class="arrival-direction">${escapeHtml(a.direction)}</span>
-        <span class="badge-slot badge-slot--dep">${statusBadge(a)}</span>
-        <span class="badge-slot badge-slot--term">${terminusLine(a)}</span>
-        <span class="chev" aria-hidden="true"></span>
-      </summary>
-      ${detailPanel(a)}
-    </details>`;
+  const summary = `<button type="button" class="arrival-row${cancelledCls}" aria-expanded="false" aria-controls="${id}" data-detail="${id}">` +
+    `<span class="arrival-time">${time}</span>` +
+    `<span class="arrival-direction">${escapeHtml(a.direction)}</span>` +
+    `<span class="badge-slot badge-slot--dep">${statusBadge(a)}</span>` +
+    `<span class="badge-slot badge-slot--term">${terminusLine(a)}</span>` +
+    `<span class="chev" aria-hidden="true"></span>` +
+    `</button>`;
+  const detail = `<div class="arrival-detail" id="${id}" hidden>${detailRowsInner(a)}</div>`;
+  return { summary, detail };
 }
 
 function renderRows(rows: UnifiedSlotRow[]): string {
-  // Two cells per slot in row-major order so the outer 2-col grid pairs
-  // München (left) and Wolfratshausen (right) at the same vertical row.
+  // Per-slot pair: both summary cells in row 1, both detail panels in
+  // subsequent rows spanning the full pair width. Open panel escapes its
+  // column so values are not clipped on mobile.
   return rows
-    .map((r) => rowFor(r.slot, r.muenchen) + rowFor(r.slot, r.wolfratshausen))
+    .map((r) => {
+      const m = rowFor(r.slot, r.muenchen, "muenchen");
+      const w = rowFor(r.slot, r.wolfratshausen, "wolfratshausen");
+      return `<div class="slot-pair">${m.summary}${w.summary}${m.detail}${w.detail}</div>`;
+    })
     .join("");
+}
+
+function wireDetailToggles(container: HTMLElement): void {
+  const rowsEl = container.querySelector(".today-rows");
+  if (!rowsEl) return;
+  rowsEl.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest("button.arrival-row") as HTMLButtonElement | null;
+    if (!btn) return;
+    const id = btn.getAttribute("data-detail");
+    if (!id) return;
+    const panel = container.querySelector(`#${id}`) as HTMLElement | null;
+    if (!panel) return;
+    const open = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", open ? "false" : "true");
+    panel.hidden = open;
+  });
 }
 
 export function renderToday(data: S7Data, container: HTMLElement): void {
@@ -196,4 +221,5 @@ export function renderToday(data: S7Data, container: HTMLElement): void {
     </details>
     <p class="data-age">Stand: ${new Date(data.generated_at).toLocaleString("de-DE")} · Nächstes Update: ${formatTime(nextUpdate(data.generated_at).toISOString())}</p>
   `;
+  wireDetailToggles(container);
 }
