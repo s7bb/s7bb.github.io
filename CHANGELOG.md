@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-05-28
+
+### Security
+
+- Bump `idna` from 3.13 to 3.15 (fetcher dep). Addresses GHSA advisory: specially crafted inputs to `idna.encode()` could bypass the CVE-2024-3651 fix. No behavior change for S7BB usage; transitive dep of `requests`.
+
 ## [0.9.1] - 2026-05-26
 
 ### Fixed
