@@ -52,7 +52,7 @@ describe("renderWeekKpiStrip", () => {
 
   it("renders em-dash placeholders when aggregate is missing", () => {
     renderWeekKpiStrip(host, undefined);
-    expect(host.textContent).toContain("Ø — min");
-    expect(host.textContent).toContain("— Ausfälle");
+    expect(host.textContent).toContain("Ø - min");
+    expect(host.textContent).toContain("- Ausfälle");
   });
 });

@@ -55,19 +55,19 @@ describe("endpunktCell", () => {
     expect(html).toContain("endpunkt--missed");
   });
 
-  it("renders '—' for pending", () => {
+  it("renders '-' for pending", () => {
     const html = endpunktCell(a({ terminus_status: "pending" }));
-    expect(html).toContain("—");
+    expect(html).toContain("-");
   });
 
-  it("renders '—' for null terminus_status", () => {
+  it("renders '-' for null terminus_status", () => {
     const html = endpunktCell(a({ terminus_status: null }));
-    expect(html).toContain("—");
+    expect(html).toContain("-");
   });
 
-  it("renders '—' for Baierbrunn-cancelled (irrespective of terminus_status)", () => {
+  it("renders '-' for Baierbrunn-cancelled (irrespective of terminus_status)", () => {
     const html = endpunktCell(a({ cancelled: true, terminus_status: "cancelled" }));
-    expect(html).toContain("—");
+    expect(html).toContain("-");
     expect(html).not.toContain("nicht angekommen");
   });
 });

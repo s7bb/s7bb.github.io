@@ -17,7 +17,7 @@ function cardHtml(label: string, agg: DirectionAggregate | undefined): string {
     return `
       <div class="kpi-card">
         <div class="kpi-card__title">→ ${label}</div>
-        <div class="kpi-card__stats">Ø — min · — Ausfälle</div>
+        <div class="kpi-card__stats">Ø - min · - Ausfälle</div>
       </div>
     `;
   }

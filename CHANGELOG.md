@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Site:** Terminus arrival surface on today + archive pages — inline outcome line ("→ nur bis Solln", "→ +N min", "→ unterwegs …"), tap-to-expand detail panel per row, "bis München / Kurzwende / nicht angekommen" counters in the summary bar, new Endpunkt column on the monthly archive table. Surfaces `terminus_status` / `terminus_delay_minutes` / `terminus_short_turn_station` populated by Phase 1 (v0.7.0+).
+- **Site:** Terminus arrival surface on today + archive pages - inline outcome line ("→ nur bis Solln", "→ +N min", "→ unterwegs …"), tap-to-expand detail panel per row, "bis München / Kurzwende / nicht angekommen" counters in the summary bar, new Endpunkt column on the monthly archive table. Surfaces `terminus_status` / `terminus_delay_minutes` / `terminus_short_turn_station` populated by Phase 1 (v0.7.0+).
 
 ### Fixed
 
@@ -42,8 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Stammstrecke (Höhenkirchen-Siegertsbrunn / Kreuzstraße / Aying).
 - Drilldown walk truncates at the first München Hbf variant in
   `dp.ppth`; eastern Stammstrecke stations (München Ost,
-  Höhenkirchen-Siegertsbrunn, Kreuzstraße, Aying, …) — none of which
-  are in `STATION_NAME_TO_EVA` — no longer reach the name-lookup
+  Höhenkirchen-Siegertsbrunn, Kreuzstraße, Aying, …) - none of which
+  are in `STATION_NAME_TO_EVA` - no longer reach the name-lookup
   branch, eliminating spurious `unknown intermediate` WARNs per cycle.
 - `terminus_health` re-keyed from `eva` to `bucket`. The exporter
   emits `bucket` instead of `eva` in `latest.json[].terminus_health`.
@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Migration notes
 
 - One-shot SQLite migration drops and recreates `terminus_health`
-  on first start under v0.8.3. Health is a derived 3-cycle streak —
+  on first start under v0.8.3. Health is a derived 3-cycle streak -
   the bucket-level row reaccrues within ~15 minutes.
 - Rows for `direction_bucket = "muenchen"` on **2026-05-23** are
   not backfilled: the majority ended up `terminus_status = null`,
@@ -100,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returned by `/plan/{terminus_eva}/{date}/{hour}` when the `/fchg`
   feed omits `pt` (the live behaviour for every S-Bahn arrival).
   Previously `terminus_delay_minutes` was always 0 for rows in the
-  `arrived` state. Historical rows are not retroactively corrected —
+  `arrived` state. Historical rows are not retroactively corrected -
   re-evaluation only applies to the freshest pending window.
   ([#51](https://github.com/s7bb/s7bb.github.io/issues/51))
 
@@ -154,7 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   captured going forward and exposed as a nullable `train_number` field
   in SQLite, `latest.json`, and `archive/*.json`. Rows observed before
   this release stay `null` (the plan endpoint has no history). No UI
-  change — the field is data-only.
+  change - the field is data-only.
 
 ### Changed
 
@@ -163,7 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `workflow_dispatch` API) instead of an hourly `schedule:` cron, which
   GitHub silently dropped under load (multi-hour gaps observed). The
   cross-repo dispatch token is `Actions: write`-only and lives in
-  s7bb-data secrets, not on the VM — the VM's data-repo PAT is unchanged.
+  s7bb-data secrets, not on the VM - the VM's data-repo PAT is unchanged.
 
 ## [0.5.2] - 2026-05-15
 
@@ -177,7 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `./data` regenerates the JSON), but the clone is no longer needlessly
   exposed and is now directly inspectable on the host. `s7bb-repo-init`
   additionally logs a `WARN` when its `reset --hard origin/main`
-  discards unpushed local bot commits — observability only; the
+  discards unpushed local bot commits - observability only; the
   deliberate reset is unchanged and the data is reconstructable from the
   persistent `/data` on the next export / `startup_sync` push.
 
@@ -204,7 +204,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Schedule JSON moved to a dedicated single-writer repository
   `s7bb/s7bb-data`. The VM is its sole writer, so hourly data pushes no
-  longer compete with Dependabot/PR merges on `main` for fast-forward —
+  longer compete with Dependabot/PR merges on `main` for fast-forward -
   this removes the silent non-fast-forward push-rejection class that
   left the site serving stale data after `main` activity. The bot PAT
   is scoped to `s7bb/s7bb-data` only and cannot touch code.
@@ -212,7 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Exporter SQL: `ORDER BY scheduled_time, train_id` (deterministic
-  tie-break) — byte-stable hourly archive rewrites, smaller git deltas.
+  tie-break) - byte-stable hourly archive rewrites, smaller git deltas.
 - Build workflow checks out both this repo and `s7bb/s7bb-data`;
   fallback rebuild cron shifted to `:10`.
 - `docker-compose.yml`: new `s7bb-data-init` (profile `dev`) clones the
@@ -228,7 +228,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data file changes were staged. Previously commits could accumulate
   locally for hours while logs reported success.
 - `startup_sync` log message reflects whether `push_data` actually pushed.
-  No more `action=push ... — pushed` when nothing was pushed.
+  No more `action=push ... - pushed` when nothing was pushed.
 - Hourly push failures now log at ERROR with a `PUSH_FAILED` prefix and a
   consecutive-failure counter, instead of being buried among generic
   `export_job step push failed` lines.
@@ -237,7 +237,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Parser no longer shifts `dp pt` / `dp ct` by +1 minute. The 0.4.2 shift was based on a wrong premise: DB Timetables `pt` is already the public planned departure time. Empirically (production DB, week of 2026-05-05 to 2026-05-10), raw `dp pt` matches the public S7 board, so the +1 shift made every `scheduled_time` and `actual_time` one minute too late. Reverts `_PUBLIC_OFFSET` in `parser.py` and the two parser tests that asserted the shift. The SQLite migration `scripts/migrate_shift_public_times.py` is removed — it never ran on production (`PRAGMA user_version = 0`), so historical rows are untouched and no rollback is needed. The Docker image no longer copies the `scripts/` directory.
+- Parser no longer shifts `dp pt` / `dp ct` by +1 minute. The 0.4.2 shift was based on a wrong premise: DB Timetables `pt` is already the public planned departure time. Empirically (production DB, week of 2026-05-05 to 2026-05-10), raw `dp pt` matches the public S7 board, so the +1 shift made every `scheduled_time` and `actual_time` one minute too late. Reverts `_PUBLIC_OFFSET` in `parser.py` and the two parser tests that asserted the shift. The SQLite migration `scripts/migrate_shift_public_times.py` is removed - it never ran on production (`PRAGMA user_version = 0`), so historical rows are untouched and no rollback is needed. The Docker image no longer copies the `scripts/` directory.
 
 ## [0.4.3] - 2026-05-10
 
@@ -258,7 +258,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.1] - 2026-05-10
 
 ### Fixed
-- Heute view: scheduled times in the row list now display in the user's local time zone correctly. Previously the slot keys had their timezone suffix sliced off before being passed to `new Date()`, which JavaScript then interpreted as the *browser's* local time — shifting every shown time by the browser's UTC offset (e.g. an early-morning train at `00:19` Berlin appeared as `22:19` because the underlying UTC instant `2026-05-09T22:19+00:00` was re-parsed as local).
+- Heute view: scheduled times in the row list now display in the user's local time zone correctly. Previously the slot keys had their timezone suffix sliced off before being passed to `new Date()`, which JavaScript then interpreted as the *browser's* local time - shifting every shown time by the browser's UTC offset (e.g. an early-morning train at `00:19` Berlin appeared as `22:19` because the underlying UTC instant `2026-05-09T22:19+00:00` was re-parsed as local).
 
 ## [0.4.0] - 2026-05-10
 
@@ -318,10 +318,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vulnerable code paths only run in `vite dev`; the deployed static site
   was never exposed.
 - Bumped fetcher dependencies to address Dependabot alerts:
-  - `lxml` 5.2.2 → 6.1.0 (GHSA-vfmq-68hx-4jfw — XXE via default `iterparse()`/`ETCompatXMLParser()` settings)
+  - `lxml` 5.2.2 → 6.1.0 (GHSA-vfmq-68hx-4jfw - XXE via default `iterparse()`/`ETCompatXMLParser()` settings)
   - `requests` 2.32.3 → 2.33.1 (GHSA-9hjg-9r4m-mvj7 `.netrc` credential leak; GHSA-gc5v-m9x4-r6x2 insecure temp-file reuse in `extract_zipped_paths`)
   - `gitpython` 3.1.47 → 3.1.49
-  - dev: `pytest` 8.2.2 → 9.0.3 (GHSA-6w46-j5rx-g56g — vulnerable tmpdir handling)
+  - dev: `pytest` 8.2.2 → 9.0.3 (GHSA-6w46-j5rx-g56g - vulnerable tmpdir handling)
 - Hardened DB Timetables XML parsing: `api.py` now uses an explicit
   `lxml.etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)`
   for all `fromstring` calls, defence-in-depth against malicious XML even

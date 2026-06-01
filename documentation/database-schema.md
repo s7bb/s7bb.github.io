@@ -1,4 +1,4 @@
-# SQLite Schema — `data/s7bb.db`
+# SQLite Schema - `data/s7bb.db`
 
 Single-file SQLite database written by `s7bb-fetch` and read by `s7bb-export`. Stays on the VM, never committed. WAL journal mode (`*.db-shm`, `*.db-wal` sidecar files appear at runtime).
 
@@ -44,12 +44,12 @@ Future schema changes follow the same pattern: idempotent `ALTER TABLE` guarded 
 
 ## How specific cases are stored
 
-- **On time** — `actual_time = scheduled_time`, `delay_minutes = 0`, `cancelled = 0`.
-- **Delayed** — `actual_time > scheduled_time`, `delay_minutes > 0`. No cap; very large delays stored as-is.
-- **Early** — `actual_time < scheduled_time`, `delay_minutes < 0`. Aggregator counts as on time (`> 0` test).
-- **Cancelled** — `cancelled = 1`, `actual_time = NULL`, `delay_minutes = NULL`.
-- **Bunching / next train delayed past following slot** — Each train keeps its own row keyed by its own `train_id` + `scheduled_time`. No row collision; no merge. Two trains arriving close together appear as two independent rows with their true individual delays.
-- **Train fully missing from plan XML** — No row inserted. Counted as `missing` by exporter when comparing observed rows to inferred 20-min slot grid.
+- **On time** - `actual_time = scheduled_time`, `delay_minutes = 0`, `cancelled = 0`.
+- **Delayed** - `actual_time > scheduled_time`, `delay_minutes > 0`. No cap; very large delays stored as-is.
+- **Early** - `actual_time < scheduled_time`, `delay_minutes < 0`. Aggregator counts as on time (`> 0` test).
+- **Cancelled** - `cancelled = 1`, `actual_time = NULL`, `delay_minutes = NULL`.
+- **Bunching / next train delayed past following slot** - Each train keeps its own row keyed by its own `train_id` + `scheduled_time`. No row collision; no merge. Two trains arriving close together appear as two independent rows with their true individual delays.
+- **Train fully missing from plan XML** - No row inserted. Counted as `missing` by exporter when comparing observed rows to inferred 20-min slot grid.
 
 ## Querying
 

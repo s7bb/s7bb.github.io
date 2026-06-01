@@ -35,7 +35,7 @@ export function renderStats(data: S7Data, container: HTMLElement): void {
   })();
 
   container.innerHTML = `
-    <h2>Statistik — S7 Baierbrunn (7 Tage)</h2>
+    <h2>Statistik - S7 Baierbrunn (7 Tage)</h2>
     ${renderDirectionStats(data, "muenchen")}
     <hr class="section-divider">
     ${renderDirectionStats(data, "wolfratshausen")}

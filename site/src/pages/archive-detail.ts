@@ -22,11 +22,11 @@ function archiveJsonUrl(period: string): string {
 
 export function endpunktCell(a: Arrival): string {
   if (a.cancelled) {
-    return `<td class="endpunkt-cell">—</td>`;
+    return `<td class="endpunkt-cell">-</td>`;
   }
   const bucket = a.direction_bucket;
   if (bucket !== "muenchen" && bucket !== "wolfratshausen") {
-    return `<td class="endpunkt-cell">—</td>`;
+    return `<td class="endpunkt-cell">-</td>`;
   }
   const short = terminusLabelShort(bucket);
   switch (a.terminus_status) {
@@ -43,7 +43,7 @@ export function endpunktCell(a: Arrival): string {
       return `<td class="endpunkt-cell endpunkt--missed">nicht angekommen</td>`;
     case "pending":
     default:
-      return `<td class="endpunkt-cell">—</td>`;
+      return `<td class="endpunkt-cell">-</td>`;
   }
 }
 
@@ -64,7 +64,7 @@ export async function renderArchiveDetail(period: string, container: HTMLElement
   const agg = arc.aggregates;
 
   container.innerHTML = `
-    <h2>${germanMonth(period)} — S7 Baierbrunn ${arc.finalized ? "" : "<em>(läuft)</em>"}</h2>
+    <h2>${germanMonth(period)} - S7 Baierbrunn ${arc.finalized ? "" : "<em>(läuft)</em>"}</h2>
     <div class="summary-bar">
       <span class="summary-item summary-item--ok">✓ ${agg.on_time} pünktlich</span>
       <span class="summary-item summary-item--late">⏱ ${agg.late} verspätet</span>
@@ -86,7 +86,7 @@ export async function renderArchiveDetail(period: string, container: HTMLElement
             <tr>
               <td>${a.scheduled_time.slice(0, 10)}</td>
               <td>${fmtTime(a.scheduled_time)}</td>
-              <td>${a.actual_time ? fmtTime(a.actual_time) : "—"}</td>
+              <td>${a.actual_time ? fmtTime(a.actual_time) : "-"}</td>
               <td>${a.delay_minutes ?? 0} min</td>
               <td>${escapeHtml(a.direction)}</td>
               <td>${a.cancelled ? "Ausgefallen" : (a.delay_minutes && a.delay_minutes > 0 ? "Verspätet" : "Pünktlich")}</td>

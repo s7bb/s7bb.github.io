@@ -1,20 +1,20 @@
-# Docker Container — Implementation Plan
+# Docker Container - Implementation Plan
 
 ## Artefacts (in order)
 
 | # | File | Action |
 |---|------|--------|
 | 1 | `fetcher/pyproject.toml` | Add `apscheduler=3.10.4`, `gitpython=3.1.43`; add `s7bb-service` entrypoint |
-| 2 | `fetcher/src/s7bb_fetcher/pusher.py` | New — Python replacement for `push-data.sh` |
-| 3 | `fetcher/src/s7bb_fetcher/service.py` | New — long-running APScheduler entrypoint |
-| 4 | `fetcher/Dockerfile` | New — `python:3.12-slim` + `apt install git` + `pip install .` |
-| 5 | `docker-compose.yml` | New — `s7bb-fetcher` service + `s7bb-dev` web server (profile: dev) |
-| 6 | `.env.example` | Update — add `FETCH_CRON`, `EXPORT_CRON`, `SSH_DEPLOY_KEY_PATH`, git identity vars |
-| 7 | `CHANGELOG.md` | Update — `[Unreleased]` Added + Changed sections |
+| 2 | `fetcher/src/s7bb_fetcher/pusher.py` | New - Python replacement for `push-data.sh` |
+| 3 | `fetcher/src/s7bb_fetcher/service.py` | New - long-running APScheduler entrypoint |
+| 4 | `fetcher/Dockerfile` | New - `python:3.12-slim` + `apt install git` + `pip install .` |
+| 5 | `docker-compose.yml` | New - `s7bb-fetcher` service + `s7bb-dev` web server (profile: dev) |
+| 6 | `.env.example` | Update - add `FETCH_CRON`, `EXPORT_CRON`, `SSH_DEPLOY_KEY_PATH`, git identity vars |
+| 7 | `CHANGELOG.md` | Update - `[Unreleased]` Added + Changed sections |
 
 ---
 
-## Step 1 — `fetcher/pyproject.toml`
+## Step 1 - `fetcher/pyproject.toml`
 
 ```toml
 [project.dependencies]
@@ -30,7 +30,7 @@ s7bb-service = "s7bb_fetcher.service:main"
 
 ---
 
-## Step 2 — `pusher.py`
+## Step 2 - `pusher.py`
 
 Replaces `push-data.sh`. Stages only `data/latest.json`, commits, pushes via SSH deploy key.
 
@@ -80,14 +80,14 @@ def push_latest(repo_path: Path) -> bool:
 ```
 
 **Key points:**
-- Only `data/latest.json` ever staged — nothing else
+- Only `data/latest.json` ever staged - nothing else
 - `SSH_DEPLOY_KEY_PATH` env var points to mounted key
 - Checks push result; raises on error (no silent failures)
-- `git.Repo()` raises `InvalidGitRepositoryError` on bad `REPO_PATH` — fails early
+- `git.Repo()` raises `InvalidGitRepositoryError` on bad `REPO_PATH` - fails early
 
 ---
 
-## Step 3 — `service.py`
+## Step 3 - `service.py`
 
 Long-running process; PID 1 in container.
 
@@ -160,7 +160,7 @@ def main() -> None:
     )
 
     def _shutdown(signum, frame):
-        logger.info("signal %s — shutting down", signum)
+        logger.info("signal %s - shutting down", signum)
         scheduler.shutdown(wait=False)
         sys.exit(0)
 
@@ -172,15 +172,15 @@ def main() -> None:
 ```
 
 **Key points:**
-- `BlockingScheduler` — main thread blocks; right choice for single-process container
-- `misfire_grace_time=None` — always runs missed jobs (important for hourly export)
-- `SIGTERM` handler — clean shutdown on `docker stop`
-- Jobs catch all exceptions — one failed fetch never kills the service
-- Lazy imports inside job functions — faster startup, no side-effects at module load
+- `BlockingScheduler` - main thread blocks; right choice for single-process container
+- `misfire_grace_time=None` - always runs missed jobs (important for hourly export)
+- `SIGTERM` handler - clean shutdown on `docker stop`
+- Jobs catch all exceptions - one failed fetch never kills the service
+- Lazy imports inside job functions - faster startup, no side-effects at module load
 
 ---
 
-## Step 4 — `Dockerfile`
+## Step 4 - `Dockerfile`
 
 ```dockerfile
 FROM python:3.12-slim
@@ -198,14 +198,14 @@ CMD ["s7bb-service"]
 ```
 
 **Key points:**
-- `git` required at runtime — GitPython shells out to the git binary
-- Copy only `pyproject.toml` + `src/` — no tests, systemd units, or shell scripts
-- Plain `pip install` — simpler than adding uv for a local-only image
-- `CMD` not `ENTRYPOINT` — easier to override for debugging
+- `git` required at runtime - GitPython shells out to the git binary
+- Copy only `pyproject.toml` + `src/` - no tests, systemd units, or shell scripts
+- Plain `pip install` - simpler than adding uv for a local-only image
+- `CMD` not `ENTRYPOINT` - easier to override for debugging
 
 ---
 
-## Step 5 — `docker-compose.yml`
+## Step 5 - `docker-compose.yml`
 
 ```yaml
 services:
@@ -238,15 +238,15 @@ services:
 ```
 
 **Key points:**
-- `env_file: .env` — loads all vars including crons, API keys, git identity
-- SSH key volume: `${SSH_DEPLOY_KEY_PATH}:${SSH_DEPLOY_KEY_PATH}:ro` — same path inside/outside, no translation
-- `user: "${UID}:${GID}"` — avoids root-vs-host-user permission conflict on `data/`
-- `s7bb-dev` gated by `profiles: [dev]` — not started by default `docker compose up -d`
-- `restart: unless-stopped` — survives VM reboots when started with `docker compose up -d`
+- `env_file: .env` - loads all vars including crons, API keys, git identity
+- SSH key volume: `${SSH_DEPLOY_KEY_PATH}:${SSH_DEPLOY_KEY_PATH}:ro` - same path inside/outside, no translation
+- `user: "${UID}:${GID}"` - avoids root-vs-host-user permission conflict on `data/`
+- `s7bb-dev` gated by `profiles: [dev]` - not started by default `docker compose up -d`
+- `restart: unless-stopped` - survives VM reboots when started with `docker compose up -d`
 
 ---
 
-## Step 6 — `.env.example`
+## Step 6 - `.env.example`
 
 ```bash
 # DB Timetables API credentials
@@ -257,7 +257,7 @@ DB_CLIENT_ID=your_client_id_here
 FETCH_CRON=*/5 * * * *
 EXPORT_CRON=0 * * * *
 
-# SSH deploy key — absolute path on host, mounted into container at same path
+# SSH deploy key - absolute path on host, mounted into container at same path
 # File must be chmod 600
 SSH_DEPLOY_KEY_PATH=/home/s7bb/.ssh/id_ed25519_s7bb_deploy
 

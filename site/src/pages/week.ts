@@ -11,7 +11,7 @@ export async function renderWeek(data: S7Data, container: HTMLElement): Promise<
   const rows = last7DaysByDayBothDirections(data);
 
   container.innerHTML = `
-    <h2>Letzte 7 Tage — S7 Baierbrunn</h2>
+    <h2>Letzte 7 Tage - S7 Baierbrunn</h2>
     <div id="week-kpi"></div>
     <div class="chart-container">
       <h3>Ø Verspätung (Minuten)</h3>

@@ -1,4 +1,4 @@
-# S7 Line — Station List
+# S7 Line - Station List
 
 S-Bahn S7 of Munich, since the 2024 timetable split, runs between
 **Wolfratshausen** and **München Hbf (Gleise 27–36)**.
@@ -36,28 +36,28 @@ journey time end-to-end is ~40 minutes.
 - All trains stop at every station listed above (no skip-stop / express
   variants on S7).
 - Direction names used in this project's data (`direction_bucket`):
-  - `wolfratshausen` — terminus is `Wolfratshausen`.
-  - `muenchen` — terminus contains `München` (typically the literal string
+  - `wolfratshausen` - terminus is `Wolfratshausen`.
+  - `muenchen` - terminus contains `München` (typically the literal string
     `München Hbf Gl.27-36`).
-  - `unknown` — anything else (e.g. cancelled / replacement service with an
+  - `unknown` - anything else (e.g. cancelled / replacement service with an
     irregular destination).
 
 ## Direction inference (parser logic)
 
 `fetcher/src/s7bb_fetcher/parser.py::classify_direction` uses the **last
 segment** of the `<dp ppth>` attribute (departure path, pipe-separated) as
-the terminus. Mid-path matches do not count — this matters because, after
+the terminus. Mid-path matches do not count - this matters because, after
 the 2024 split, an S7 train will never legitimately have `München` mid-path
 and a non-München terminus.
 
 ## Sources
 
-- `documentation/db-api/timetables-api.md` — DB Timetables API endpoints used
+- `documentation/db-api/timetables-api.md` - DB Timetables API endpoints used
   to fetch this data live.
-- Real plan XML for Baierbrunn (`/plan/8000781/<YYMMDD>/<HH>`) — the
+- Real plan XML for Baierbrunn (`/plan/8000781/<YYMMDD>/<HH>`) - the
   authoritative source for the actual current station sequence; the table
   above was derived from `<ar ppth>` + `<dp ppth>` of S7 stops at Baierbrunn.
 - München Wiki: <https://www.muenchenwiki.de/wiki/S-Bahnlinie_7>
 - S-Bahn München (official): <https://www.s-bahn-muenchen.de/de/fahren/baustellen/s7>
-- Bayerisches Landesportal — 2024 split announcement:
+- Bayerisches Landesportal - 2024 split announcement:
   <https://www.bayern.de/neue-s-bahnlinie-s5-teilung-der-s7/>

@@ -44,16 +44,16 @@ The goal of this feature is to **shrink that blast radius to "append/replace `da
 ### Non-goals
 - Re-architecting the data flow (e.g. moving fetching into GitHub Actions). The DB API key must stay off CI per `CLAUDE.md`.
 - Signing commits / verifying signatures end-to-end. Out of scope; can be added later.
-- Hardening the GitHub Pages site itself (CSP, SRI, etc.) — separate concern.
+- Hardening the GitHub Pages site itself (CSP, SRI, etc.) - separate concern.
 - Secret management infrastructure (Vault, Doppler, …). The credential lives in `.env` like all other secrets today.
 
 ---
 
 ## 3. Threat Model (short)
 
-- **Adversary A — host compromise:** root on the VM. Outcome: any credential on disk is lost. Mitigation goal: reduce damage that can be done with the leaked credential.
-- **Adversary B — container escape / supply chain:** code execution inside the fetcher container. Same outcome as A for credentials mounted into the container.
-- **Adversary C — repo collaborator compromise:** out of scope here; controlled by GitHub account 2FA / org policy.
+- **Adversary A - host compromise:** root on the VM. Outcome: any credential on disk is lost. Mitigation goal: reduce damage that can be done with the leaked credential.
+- **Adversary B - container escape / supply chain:** code execution inside the fetcher container. Same outcome as A for credentials mounted into the container.
+- **Adversary C - repo collaborator compromise:** out of scope here; controlled by GitHub account 2FA / org policy.
 
 The design therefore assumes the credential **will** leak eventually. It optimises for **what an attacker can do with the leaked credential**, not for preventing the leak.
 
@@ -63,7 +63,7 @@ The design therefore assumes the credential **will** leak eventually. It optimis
 
 Three live candidates plus the status quo. Each entry lists how it scopes authority, its operational cost, and what it does *not* solve.
 
-### Option 0 — Status quo: SSH deploy key (rejected)
+### Option 0 - Status quo: SSH deploy key (rejected)
 
 - **Auth:** SSH key, repo-scoped, write-enabled.
 - **Path/branch scope:** none. Anything goes.
@@ -71,14 +71,14 @@ Three live candidates plus the status quo. Each entry lists how it scopes author
 - **Cost:** zero (already deployed).
 - **Why rejected:** scope is the problem statement.
 
-### Option A — Fine-grained Personal Access Token (PAT)
+### Option A - Fine-grained Personal Access Token (PAT)
 
 GitHub fine-grained PATs are scoped per-repository and per-permission. Smallest viable scope: `Contents: Read and write` on this repo only.
 
 - **Auth:** HTTPS push with `https://x-access-token:${PAT}@github.com/<owner>/<repo>.git`.
 - **Path/branch scope:** none at the token layer; tightened via *push rulesets* (see §5).
 - **Lifetime:** max 1 year, must be rotated. GitHub emails the owner before expiry.
-- **Identity:** acts as the human user who created the PAT — commits authored by the bot identity in `.env` but pushes audit-logged under the human account.
+- **Identity:** acts as the human user who created the PAT - commits authored by the bot identity in `.env` but pushes audit-logged under the human account.
 - **Cost:** ~30 min to set up, recurring rotation work, drop the SSH stack from container/compose.
 - **Pros:**
   - Simplest swap. One env var change, no JWT plumbing.
@@ -89,7 +89,7 @@ GitHub fine-grained PATs are scoped per-repository and per-permission. Smallest 
   - 1-year hard expiry → recurring manual work.
   - GitHub audit log shows the human, not the automation.
 
-### Option B — GitHub App with installation token (recommended)
+### Option B - GitHub App with installation token (recommended)
 
 A purpose-built GitHub App installed on the repo. The fetcher exchanges an App private key (JWT) for short-lived installation access tokens (~1 hour TTL) at push time.
 
@@ -107,7 +107,7 @@ A purpose-built GitHub App installed on the repo. The fetcher exchanges an App p
   - Two secrets on the VM (App ID + private key) instead of one PAT, though the private key never travels.
   - Slightly more code: JWT signing (PyJWT) and token-exchange request, ~30 lines.
 
-### Option C — Keep SSH deploy key, add GitHub push ruleset (defense-in-depth only)
+### Option C - Keep SSH deploy key, add GitHub push ruleset (defense-in-depth only)
 
 Use GitHub *push rulesets* (Repo Settings → Rules → Rulesets) on `main` to:
 
@@ -119,9 +119,9 @@ Use GitHub *push rulesets* (Repo Settings → Rules → Rulesets) on `main` to:
 - **Cost:** ~10 min in the GitHub UI. No code changes.
 - **Why not on its own:** still leaves the credential overly powerful at the *auth* layer; if push rulesets are ever loosened or bypassed, the SSH key still allows everything. Best treated as an additive layer on top of A or B, not a replacement.
 
-### Option D — VM does not push at all (rejected)
+### Option D - VM does not push at all (rejected)
 
-Move the publish to a GitHub Actions workflow triggered via `repository_dispatch`; VM only signals "new data available". Rejected because GitHub would then need a copy of `data/latest.json` to commit, and the only place it exists is the VM — so the VM still needs to upload it (back to the same auth problem) or GH would need to re-fetch from the DB API (forbidden by `CLAUDE.md`: API key must stay off CI).
+Move the publish to a GitHub Actions workflow triggered via `repository_dispatch`; VM only signals "new data available". Rejected because GitHub would then need a copy of `data/latest.json` to commit, and the only place it exists is the VM - so the VM still needs to upload it (back to the same auth problem) or GH would need to re-fetch from the DB API (forbidden by `CLAUDE.md`: API key must stay off CI).
 
 ---
 
@@ -131,7 +131,7 @@ Move the publish to a GitHub Actions workflow triggered via `repository_dispatch
 
 Rationale: B fixes the lifetime problem (no calendar rotation), the identity problem (no human dependency), and the scope problem (per-permission). C constrains the damage even if B's private key leaks, by making the *server side* refuse anything that is not the expected change.
 
-If the team decides the App setup cost is not worth it right now, fall back to Option A (fine-grained PAT) — same push code path, just a different way to get the bearer token. The push ruleset (C) is independent of A vs B and should be applied either way.
+If the team decides the App setup cost is not worth it right now, fall back to Option A (fine-grained PAT) - same push code path, just a different way to get the bearer token. The push ruleset (C) is independent of A vs B and should be applied either way.
 
 ---
 
@@ -179,9 +179,9 @@ If the team decides the App setup cost is not worth it right now, fall back to O
 | `fetcher/src/s7bb_fetcher/github_auth.py` *(new)* | Mint short-lived installation tokens | `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_PRIVATE_KEY_PATH` | bearer token string + expiry |
 | `fetcher/src/s7bb_fetcher/pusher.py` *(modified)* | Stage, commit, push `data/latest.json` | repo path, token from `github_auth` | push result |
 | `docker-compose.yml` *(modified)* | Mount `.pem` read-only; remove SSH key mount | host paths from `.env` | container env |
-| `.env.example` *(modified)* | Document new vars; mark SSH vars deprecated | — | — |
+| `.env.example` *(modified)* | Document new vars; mark SSH vars deprecated | - | - |
 | GitHub App `s7bb-publisher` *(new, in GitHub UI)* | Provide identity + permissions | private key (downloaded once) | App ID, Installation ID |
-| Repo push ruleset *(new, in GitHub UI)* | Server-side path/branch enforcement | — | rejects out-of-scope pushes |
+| Repo push ruleset *(new, in GitHub UI)* | Server-side path/branch enforcement | - | rejects out-of-scope pushes |
 
 ### 6.2 Authentication flow
 
@@ -207,7 +207,7 @@ Repo Settings → Rules → Rulesets → New branch ruleset:
 - **Target:** `main`.
 - **Bypass list:** empty.
 - **Restrict updates:** require linear history; block force pushes; block branch deletion.
-- **Restrict file paths:** allow only `data/latest.json` and `data/archive/**`. Everything else on `main` must come through a PR (which the bot will not be able to open or merge — its scope is `Contents` only, not `Pull requests`).
+- **Restrict file paths:** allow only `data/latest.json` and `data/archive/**`. Everything else on `main` must come through a PR (which the bot will not be able to open or merge - its scope is `Contents` only, not `Pull requests`).
 
 Human contributors continue to push via PRs reviewed in the GitHub UI; the ruleset applies to direct pushes only and the App does not bypass it.
 
@@ -215,7 +215,7 @@ Human contributors continue to push via PRs reviewed in the GitHub UI; the rules
 
 - The App private key (`.pem`) lives at `${GITHUB_APP_PRIVATE_KEY_PATH}` on the host with `chmod 600`, owned by the user that runs `docker compose`.
 - It is bind-mounted **read-only** into the container, mirroring the SSH key pattern that exists today (`docker-compose.yml:15`).
-- It is referenced by absolute path so rootless containerd/nerdctl can resolve the same path inside and outside the container — same constraint that already drives `user: "0:0"` in `docker-compose.yml:11`.
+- It is referenced by absolute path so rootless containerd/nerdctl can resolve the same path inside and outside the container - same constraint that already drives `user: "0:0"` in `docker-compose.yml:11`.
 - It is **not** committed, **not** baked into the image, and **not** logged.
 
 ---
@@ -240,7 +240,7 @@ After:   exporter → latest.json → git commit → mint installation token
 | `.pem` missing or unreadable | `github_auth` raises `FileNotFoundError`/`PermissionError` | log error, skip this hour's push, retry next hour |
 | Token mint API call fails (network, 401, App uninstalled) | non-2xx from GitHub | log status + body, skip this hour's push |
 | Token expires mid-push | very rare (60 s safety margin) | catch 401 from `git push`, mint a fresh token once, retry |
-| Push rejected by ruleset (e.g. accidental scope creep in `pusher.py`) | `git push` exits non-zero with ruleset message | raise — this is a code bug, not a transient error; do not silently swallow |
+| Push rejected by ruleset (e.g. accidental scope creep in `pusher.py`) | `git push` exits non-zero with ruleset message | raise - this is a code bug, not a transient error; do not silently swallow |
 | Network blip | `git push` exits non-zero | log; next hour retries |
 
 The existing `_export_job` `except Exception: logger.exception(...)` in `service.py:49-50` already isolates push failures from fetch and export.
@@ -259,7 +259,7 @@ Each step is independently revertible.
 6. **Modify `pusher.py`** to use bearer-token HTTPS push behind a feature flag: if `GITHUB_APP_ID` is set, use App auth; else fall back to existing SSH path.
 7. **Update `docker-compose.yml`** to mount `.pem` (still keep the SSH mount for one release).
 8. **Update `.env.example`** with the new variables and a deprecation note on `SSH_DEPLOY_KEY_PATH`.
-9. **Update `Dockerfile`** — keep `openssh-client` for now; remove in a follow-up after burn-in.
+9. **Update `Dockerfile`** - keep `openssh-client` for now; remove in a follow-up after burn-in.
 10. **Cut over** by setting the App vars in `.env` and restarting the container. Verify the next hourly push succeeds and is authored by the App.
 11. **Burn-in for ~1 week.** Watch logs.
 12. **Remove the SSH deploy key** from the GitHub repo settings; remove `SSH_DEPLOY_KEY_PATH` and the SSH mount from `docker-compose.yml`; remove the SSH fallback branch from `pusher.py`; remove `openssh-client` from the Dockerfile.
@@ -269,8 +269,8 @@ Each step is independently revertible.
 
 ## 10. Testing
 
-- **Unit:** `tests/test_github_auth.py` — JWT claims (iss, iat, exp), RS256 signature verifies with public key extracted from the test key, token caching honours expiry, mocked HTTP exchange.
-- **Unit:** `tests/test_pusher.py` *(new)* — exercise the App-auth branch with a mocked token provider and a temp git repo; cover the SSH fallback branch until removal step 12.
+- **Unit:** `tests/test_github_auth.py` - JWT claims (iss, iat, exp), RS256 signature verifies with public key extracted from the test key, token caching honours expiry, mocked HTTP exchange.
+- **Unit:** `tests/test_pusher.py` *(new)* - exercise the App-auth branch with a mocked token provider and a temp git repo; cover the SSH fallback branch until removal step 12.
 - **Integration (manual, once):** push a no-op commit from the VM after step 10 of the migration; confirm GitHub shows the commit authored as `s7bb-publisher[bot]`.
 - **Negative integration (manual, once):** locally craft a commit that touches `site/index.html` and attempt to push with the App token; confirm the push ruleset rejects it. Document the rejection message in `features/secure-github-access/migration-notes.md`.
 
@@ -287,7 +287,7 @@ Each step is independently revertible.
 
 ## 12. Out of Scope (for follow-up features)
 
-- Commit signing with the App's GPG key (GitHub auto-signs App commits if enabled — cheap win, separate task).
+- Commit signing with the App's GPG key (GitHub auto-signs App commits if enabled - cheap win, separate task).
 - Migrating other automations (e.g. release tagging) to the same App.
 - Alerting on consecutive push failures (Healthchecks.io ping or similar).
 - Rotating the App private key on a schedule rather than on suspicion.

@@ -1,4 +1,4 @@
-# S7BB — S7 Baierbrunn Pünktlichkeit
+# S7BB - S7 Baierbrunn Pünktlichkeit
 
 Tracks on-time performance of the Deutsche Bahn S7 S-Bahn line at Baierbrunn station (Munich). Shows live delays, cancellations, and weekly statistics. Published as a static site on GitHub Pages, updated hourly.
 
@@ -37,7 +37,7 @@ S7BB uses the **DB Timetables API** from the DB API Marketplace.
    - **Client ID** (`DB-Client-Id`)
    - **API Key** (`DB-Api-Key`)
 
-Both are required. Keep them secret — never commit them to the repository.
+Both are required. Keep them secret - never commit them to the repository.
 
 ### API details
 
@@ -50,10 +50,10 @@ Both are required. Keep them secret — never commit them to the repository.
 
 Endpoints used:
 
-- `GET /plan/{eva}/{YYMMDD}/{HH}` — planned timetable for a station/date/hour
-- `GET /fchg/{eva}` — full set of current changes (actual vs. planned times, cancellations)
+- `GET /plan/{eva}/{YYMMDD}/{HH}` - planned timetable for a station/date/hour
+- `GET /fchg/{eva}` - full set of current changes (actual vs. planned times, cancellations)
 
-### Operational notes — construction work
+### Operational notes - construction work
 
 The DB Timetables API does **not** always label S7 trains as `S7`. During
 Munich Stammstrecke construction the S7-Süd service is operationally
@@ -65,7 +65,7 @@ and `S5` for Baierbrunn arrivals.
 
 For the same reason, a Munich-direction departure from Baierbrunn may
 list a terminus east of the city (e.g. `Höhenkirchen-Siegertsbrunn`,
-`Aying`, `Kreuzstraße`) instead of `München Hbf Gl.27-36` — the train
+`Aying`, `Kreuzstraße`) instead of `München Hbf Gl.27-36` - the train
 really does run that whole route during the closure. The site still
 groups these as "Richtung München" because München appears in the
 mid-path; the displayed terminus shows the train's actual final stop.
@@ -87,13 +87,13 @@ S7BB does not currently ingest it.
 
 - Python 3.11+ with [uv](https://docs.astral.sh/uv/) (`pip install uv`)
 - Node.js 22+
-- A VM with internet access. The fetcher pushes via HTTPS using a fine-grained GitHub Personal Access Token (no SSH key required — see §5)
+- A VM with internet access. The fetcher pushes via HTTPS using a fine-grained GitHub Personal Access Token (no SSH key required - see §5)
 
 ### 1. Clone and configure
 
 Clone this code repo (it carries `docker-compose.yml` and the fetcher
 image source). The data-repo working tree at `/repo` is **provisioned
-automatically** — `docker compose` runs a one-shot `s7bb-repo-init`
+automatically** - `docker compose` runs a one-shot `s7bb-repo-init`
 service that clones `s7bb/s7bb-data` into the gitignored host directory
 `./data-repo` (bind-mounted; survives `docker volume prune`) before
 `s7bb-fetcher` starts. You do **not** clone the data repo by hand.
@@ -105,7 +105,7 @@ cp .env.example .env
 ```
 
 `REPO_PATH=/repo` is the auto-provisioned s7bb-data clone (host directory
-`./data-repo`, bind-mounted, gitignored — survives `docker volume
+`./data-repo`, bind-mounted, gitignored - survives `docker volume
 prune`). The DB and generated JSON live under `/data` (host bind-mount,
 untracked). Each hourly cycle the exporter writes
 `/data/{latest.json,archive/*.json}`, the service copies them into
@@ -150,12 +150,12 @@ Both cron expressions and the GitHub PAT (`GITHUB_PAT`) are configured via `.env
 **Startup sequence.** `s7bb-repo-init` runs first (clone, or `git fetch`
 + `reset --hard origin/main`) and must exit 0 before `s7bb-fetcher`
 starts. A container restart discards any local bot commits that never
-pushed — they are regenerated from the persistent SQLite DB on the next
+pushed - they are regenerated from the persistent SQLite DB on the next
 export (single writer, so the remote is authoritative). The `s7bb-fetcher`
 container then runs preflight checks and a startup sync against the s7bb-data
 `main`: if local `latest.json` is newer than the published copy it is
 pushed immediately; if remote is newer, the remote bytes overwrite the
-local file. The scheduler does not start until all succeed — any error
+local file. The scheduler does not start until all succeed - any error
 aborts startup so an operator notices the divergence.
 
 ### Diagnosing startup problems
@@ -168,14 +168,14 @@ docker compose run --rm s7bb-fetcher s7bb-preflight
 
 The CLI prints one line per check. `[OK]` is healthy, `[WARN]` is a soft failure (the service would still start), `[FAIL]` is a hard failure (the service aborts). Common fixes:
 
-- `repo_ownership [FAIL]: dubious ownership` — set `GIT_SAFE_DIRECTORY=/repo` in `.env` or align host UID with the container's `UID`/`GID`.
-- `data_writable [FAIL]: permission denied` — the bind-mounted `data/` directory is not writable by the container user.
-- `github [WARN]: bad or expired GITHUB_PAT` — issue a new fine-grained PAT and update `.env`.
+- `repo_ownership [FAIL]: dubious ownership` - set `GIT_SAFE_DIRECTORY=/repo` in `.env` or align host UID with the container's `UID`/`GID`.
+- `data_writable [FAIL]: permission denied` - the bind-mounted `data/` directory is not writable by the container user.
+- `github [WARN]: bad or expired GITHUB_PAT` - issue a new fine-grained PAT and update `.env`.
 
 ### 4. Configure GitHub Pages
 
 1. Repo **Settings → Pages → Source → GitHub Actions**.
-2. No secrets needed — the deploy workflow uses OIDC (`id-token: write`).
+2. No secrets needed - the deploy workflow uses OIDC (`id-token: write`).
 3. On the next data push to `s7bb/s7bb-data` (or a manual `workflow_dispatch`), GitHub Actions will build and deploy the site automatically.
 
 The build workflow checks out **both** this repo (site code) and
@@ -213,7 +213,7 @@ The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)
    - **Contents:** Read and write
    - **Metadata:** Read-only (auto-selected, cannot be deselected)
    - All others: **No access**
-7. **Generate token.** Copy it immediately — GitHub shows it only once.
+7. **Generate token.** Copy it immediately - GitHub shows it only once.
 
 #### 5c. Install the token on the VM
 
@@ -242,7 +242,7 @@ The token is delivered to `git push` via a per-push `GIT_ASKPASS` helper. It nev
 
 1. **Revoke the PAT immediately** in GitHub Settings.
 2. Generate a replacement, update `.env`, restart the container.
-3. Audit recent commits on `main` for unexpected paths — the push ruleset should have blocked anything off-scope; verify in the repo's commit history.
+3. Audit recent commits on `main` for unexpected paths - the push ruleset should have blocked anything off-scope; verify in the repo's commit history.
 
 ---
 
@@ -274,7 +274,7 @@ pushes). The `dev` profile's `s7bb-data-init` → `./.data-checkout` is
 
 **One-time VM migration (0.5.1 → next):** after `git pull` and
 `docker compose up -d`, `s7bb-repo-init` re-clones `s7bb/s7bb-data` into
-`./data-repo` (remote is authoritative, SQLite in `./data` persists — no
+`./data-repo` (remote is authoritative, SQLite in `./data` persists - no
 data risk). The orphaned old named volumes may then be removed:
 
     docker volume rm s7bb-repo s7bb-data-checkout
@@ -314,9 +314,9 @@ The dev server reads `../data/latest.json` directly. Run `s7bb-export` first to 
 
 | Path | Description |
 |---|---|
-| `/data/s7bb.db` | SQLite database — **VM only, never committed**. Schema: [`documentation/database-schema.md`](documentation/database-schema.md) |
-| `/data/latest.json` | Last 7 days of arrivals + aggregates — copied to the s7bb-data root and pushed hourly |
-| `/data/archive/YYYY-MM.json` | Monthly dumps — pushed to s7bb-data `archive/` on the 1st of each month |
+| `/data/s7bb.db` | SQLite database - **VM only, never committed**. Schema: [`documentation/database-schema.md`](documentation/database-schema.md) |
+| `/data/latest.json` | Last 7 days of arrivals + aggregates - copied to the s7bb-data root and pushed hourly |
+| `/data/archive/YYYY-MM.json` | Monthly dumps - pushed to s7bb-data `archive/` on the 1st of each month |
 
 To export a monthly archive manually:
 
@@ -331,9 +331,9 @@ uv run s7bb-export --archive 2026-05
 This project was designed and scaffolded using [Claude Code](https://claude.ai/code) (Anthropic's AI coding assistant). The architecture, Python fetcher, TypeScript site, GitHub Actions workflows, and all initial code were generated in a collaborative planning + implementation session.
 
 The AI-assisted workflow:
-1. **Architecture planning** — open decisions (storage format, API choice, deploy strategy, chart library) were resolved via a structured plan before any code was written.
-2. **Scaffolding** — all files generated from the approved plan in a single session.
-3. **Ongoing development** — Claude Code used for subsequent changes, refactoring, and documentation.
+1. **Architecture planning** - open decisions (storage format, API choice, deploy strategy, chart library) were resolved via a structured plan before any code was written.
+2. **Scaffolding** - all files generated from the approved plan in a single session.
+3. **Ongoing development** - Claude Code used for subsequent changes, refactoring, and documentation.
 
 ---
 
