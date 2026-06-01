@@ -120,7 +120,7 @@ describe("terminusLabelShort", () => {
 
 describe("terminusAggregate", () => {
   // Tests use VITE_DEV_NOW-free `arrival` factory; aggregator filters by
-  // Berlin "today" — fix system clock via vi.setSystemTime so dates compare.
+  // Berlin "today" - fix system clock via vi.setSystemTime so dates compare.
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-01T12:00:00Z"));

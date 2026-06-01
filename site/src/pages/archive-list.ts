@@ -20,7 +20,7 @@ export async function renderArchiveList(container: HTMLElement): Promise<void> {
   const last12 = idx.months.slice(-12);
 
   container.innerHTML = `
-    <h2>Archiv — S7 Baierbrunn</h2>
+    <h2>Archiv - S7 Baierbrunn</h2>
     <section class="months-overview">
       <h3>Letzte 12 Monate</h3>
       <div class="chart-container">

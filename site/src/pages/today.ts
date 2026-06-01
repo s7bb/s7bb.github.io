@@ -61,9 +61,9 @@ function fmtTerminusArrival(a: Arrival): string {
       const m = a.terminus_delay_minutes;
       if (m === null || m === undefined) return "planmäßig";
       const floored = Math.max(0, m);
-      // No reliable terminus actual_time on Arrival — show delay only (matches spec example for null-actual case, generalised).
+      // No reliable terminus actual_time on Arrival - show delay only (matches spec example for null-actual case, generalised).
       const sched = formatTime(a.scheduled_time);
-      // Compute display-only arrival time by adding scheduled departure offset — we don't have it.
+      // Compute display-only arrival time by adding scheduled departure offset - we don't have it.
       // Per spec the value examples include "07:17 (+3 min)"; spec note says when terminus_delay_minutes is null we display "planmäßig" only.
       // The Arrival type does not currently carry a terminus actual time; show "(+N min)" without computed HH:MM, prefixed by Soll-Ankunft? Spec ambiguous; we render delay only since no terminus actual exists in the data model.
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -90,7 +90,7 @@ function detailRowsInner(a: Arrival): string {
 
   if (a.cancelled) {
     if (!a.reason) {
-      rows.push(`<div class="detail-row detail-row--note">Zug ausgefallen — keine Fahrt</div>`);
+      rows.push(`<div class="detail-row detail-row--note">Zug ausgefallen - keine Fahrt</div>`);
     }
   } else if (a.terminus_status) {
     const long = a.direction_bucket === "muenchen" || a.direction_bucket === "wolfratshausen"
@@ -149,7 +149,7 @@ function rowFor(slot: string, a: Arrival | null, bucket: "muenchen" | "wolfratsh
   const time = formatTime(slot);
   if (!a) {
     return {
-      summary: `<div class="arrival-row arrival-row--empty"><span class="arrival-time">${time}</span><span class="arrival-empty">—</span></div>`,
+      summary: `<div class="arrival-row arrival-row--empty"><span class="arrival-time">${time}</span><span class="arrival-empty">-</span></div>`,
       detail: "",
     };
   }
@@ -202,7 +202,7 @@ export function renderToday(data: S7Data, container: HTMLElement): void {
   const termW = terminusAggregate(data.arrivals, "wolfratshausen");
 
   container.innerHTML = `
-    <h2>Heute — S7 Baierbrunn</h2>
+    <h2>Heute - S7 Baierbrunn</h2>
     <div class="today-grid">
       <div class="direction-col">
         <h3>Richtung München</h3>

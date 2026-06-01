@@ -1,4 +1,4 @@
-# DB Timetables API v1 — Reference
+# DB Timetables API v1 - Reference
 
 Source pages:
 - https://developers.deutschebahn.com/db-api-marketplace/apis/product/timetables
@@ -100,7 +100,7 @@ Response: XML `<timetable>` element with `<s>` (stop) children.
 
 ### GET /fchg/{evaNo}
 
-Returns the **full set of current changes** for a station — all deviations from plan currently known (delays, cancellations, platform changes). This is the complete snapshot, not incremental.
+Returns the **full set of current changes** for a station - all deviations from plan currently known (delays, cancellations, platform changes). This is the complete snapshot, not incremental.
 
 | Parameter | Location | Type | Format | Description |
 |-----------|----------|------|--------|-------------|
@@ -155,7 +155,7 @@ Root element: `<timetable station="{name}" eva="{evaNo}">`
 
 Each stop is an `<s>` element with `id` attribute. Relevant children:
 
-**`<tl>` — Train Line**
+**`<tl>` - Train Line**
 
 | Attribute | Description |
 |-----------|-------------|
@@ -165,7 +165,7 @@ Each stop is an `<s>` element with `id` attribute. Relevant children:
 | `c` | Class/category (e.g. `S`) |
 | `n` | Line number (e.g. `7` for S7) |
 
-**`<ar>` — Arrival**
+**`<ar>` - Arrival**
 
 | Attribute | Description |
 |-----------|-------------|
@@ -174,7 +174,7 @@ Each stop is an `<s>` element with `id` attribute. Relevant children:
 | `l` | Line number |
 | `ppth` | Pipe-separated list of previous stops (origin path) |
 
-**`<dp>` — Departure**
+**`<dp>` - Departure**
 
 | Attribute | Description |
 |-----------|-------------|

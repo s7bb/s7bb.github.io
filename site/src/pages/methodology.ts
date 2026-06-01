@@ -14,9 +14,9 @@ export function renderMethodology(container: HTMLElement): void {
       <dt>Was bedeuten die Statusangaben?</dt>
       <dd>
         <ul>
-          <li><strong>Pünktlich</strong> — weniger als 1 Minute Abweichung</li>
-          <li><strong>Verspätet (+N min)</strong> — tatsächliche Ankunft N Minuten nach Fahrplan</li>
-          <li><strong>Ausgefallen</strong> — Zug wurde von der DB als ausgefallen gemeldet</li>
+          <li><strong>Pünktlich</strong> - weniger als 1 Minute Abweichung</li>
+          <li><strong>Verspätet (+N min)</strong> - tatsächliche Ankunft N Minuten nach Fahrplan</li>
+          <li><strong>Ausgefallen</strong> - Zug wurde von der DB als ausgefallen gemeldet</li>
         </ul>
       </dd>
 
@@ -27,7 +27,7 @@ export function renderMethodology(container: HTMLElement): void {
           <li>Der Abruf war zum Zeitpunkt des Zuges ausgefallen</li>
           <li>Die DB-API hat diesen Zug nicht zurückgeliefert</li>
         </ul>
-        Ein Zug ohne Daten ist <em>nicht</em> dasselbe wie ein ausgefallener Zug —
+        Ein Zug ohne Daten ist <em>nicht</em> dasselbe wie ein ausgefallener Zug -
         er erscheint hier nur als Lücke im 20-Minuten-Raster.</dd>
 
       <dt>Werden alle Züge erfasst?</dt>

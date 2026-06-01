@@ -317,10 +317,10 @@ describe("expand panel content", () => {
     expect(c.querySelector("button.arrival-row .arrival-reason")).toBeNull();
   });
 
-  it("Baierbrunn-cancelled with reason=null shows 'Zug ausgefallen — keine Fahrt' line and no separate Grund row", () => {
+  it("Baierbrunn-cancelled with reason=null shows 'Zug ausgefallen - keine Fahrt' line and no separate Grund row", () => {
     const c = renderInto([arrival({ cancelled: true, reason: null })]);
     const panel = panelOf(c);
-    expect(panel.textContent).toContain("Zug ausgefallen — keine Fahrt");
+    expect(panel.textContent).toContain("Zug ausgefallen - keine Fahrt");
     expect(detailValue(panel, "Grund")).toBeUndefined();
   });
 

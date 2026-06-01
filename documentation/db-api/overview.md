@@ -1,4 +1,4 @@
-# DB API Marketplace — Overview
+# DB API Marketplace - Overview
 
 Source: https://developers.deutschebahn.com/db-api-marketplace/apis/start
 Retrieved: 2026-05-05
@@ -15,10 +15,10 @@ The portal requires JavaScript to be enabled. Most technical API documentation (
 
 ## Registration and Onboarding (4-step process)
 
-1. **Register** — Create a DB Kundenkonto (DB customer account) via the marketplace login page. Registration involves email verification and an OAuth redirect back to the marketplace.
-2. **Create Application** — An "application" functions as a technical OAuth client. Upon creation, the portal generates a **Client ID** and a **Client Secret (API Key)**. The secret is shown exactly once and must be saved immediately.
-3. **Subscribe** — Browse the catalog (`/product`), select a product, choose a subscription plan, and associate it with the created application.
-4. **Call the API** — Use the "Versuch es!" (Try it out!) tab in the portal, or call externally using `DB-Client-Id` and `DB-Api-Key` headers.
+1. **Register** - Create a DB Kundenkonto (DB customer account) via the marketplace login page. Registration involves email verification and an OAuth redirect back to the marketplace.
+2. **Create Application** - An "application" functions as a technical OAuth client. Upon creation, the portal generates a **Client ID** and a **Client Secret (API Key)**. The secret is shown exactly once and must be saved immediately.
+3. **Subscribe** - Browse the catalog (`/product`), select a product, choose a subscription plan, and associate it with the created application.
+4. **Call the API** - Use the "Versuch es!" (Try it out!) tab in the portal, or call externally using `DB-Client-Id` and `DB-Api-Key` headers.
 
 ---
 
@@ -44,13 +44,13 @@ curl 'https://apis.deutschebahn.com/db-api-marketplace/apis/open-station/v1/nete
 
 ### Portal Login: OAuth 2.0 Authorization Code Flow
 
-The marketplace portal itself uses OAuth 2.0 (`response_type=code`) delegating to Deutsche Bahn's identity provider. The login page shows "Weiter mit DB Kundenkonto" (Continue with DB customer account) — there are no username/password fields on the marketplace login page itself.
+The marketplace portal itself uses OAuth 2.0 (`response_type=code`) delegating to Deutsche Bahn's identity provider. The login page shows "Weiter mit DB Kundenkonto" (Continue with DB customer account) - there are no username/password fields on the marketplace login page itself.
 
 ### x509 Client Certificates
 
 **No x509 client certificate requirement has been documented** for any of the publicly available APIs on the DB API Marketplace. The portal login page has no certificate upload field. The application creation flow uses OAuth/API key credentials only.
 
-Some restricted APIs (e.g., RIS::Transports, ISR Data Service) require authorization from DB and have contractual access controls, but these controls operate through account-level approval — not x509 certificates presented at the TLS layer.
+Some restricted APIs (e.g., RIS::Transports, ISR Data Service) require authorization from DB and have contractual access controls, but these controls operate through account-level approval - not x509 certificates presented at the TLS layer.
 
 The `username` field visible in some portal screenshots refers to the DB Kundenkonto login, not a certificate Common Name.
 
@@ -80,22 +80,22 @@ There is **no separate sandbox hostname** documented publicly. The marketplace o
 | **RIS::Transports** | 4.4.1135 | Reisendeninformation / RIS-API | Vehicle sequence (Wagenreihung), platform positioning, combined journeys, car equipment features. |
 | **ISR Data Service** | 5.0.448 | Infrastructure | Infrastructure registry data: platforms (Bahnsteige), operating points (Betriebsstellen), track sections (Streckenabschnitte), tunnels. |
 
-### RIS::Transports — Access Restriction
+### RIS::Transports - Access Restriction
 Access is **restricted to rail operators (Eisenbahnverkehrsunternehmen) and selected authorized third parties** with DB approval. Subscription plans range from free test access (max 2 months, 1,000 tx/day, 10/min) to paid packages (XS–XL, €4,200–€84,000/year, 5,000–500,000 calls/day).
 
-### ISR Data Service — Access Restriction
+### ISR Data Service - Access Restriction
 Access requires authorization under ERegG § 1 Abs. 12. Must specify consumer organization name during product order in IPID. €1,846/year, up to 1,000 queries/day, 10/s. Daily maintenance window starting 20:00.
 
 ---
 
 ## Subscription Plans (representative examples)
 
-### Timetables — Free Plan
+### Timetables - Free Plan
 - Cost: free
 - Rate limit: 60 calls/minute
 - SLA: 24/7 operation, no service guarantee
 
-### RIS::Stations — Tiered Plans
+### RIS::Stations - Tiered Plans
 
 | Plan | Annual Cost | Monthly Requests | Req/sec |
 |------|-------------|-----------------|---------|

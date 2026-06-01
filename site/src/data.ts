@@ -118,7 +118,7 @@ function nowForFiltering(): Date {
 // Canonical UTC ISO key. Different sources emit the same instant in
 // different formats (e.g. "2026-05-09T22:19:00+00:00" vs ".000Z"); a
 // canonical key lets Set/Map dedupe them. Critically, do NOT slice off
-// the timezone — `new Date("...T22:19:00")` (no TZ) is parsed as the
+// the timezone - `new Date("...T22:19:00")` (no TZ) is parsed as the
 // browser's *local* time, which would shift the displayed value by the
 // browser's UTC offset.
 function isoKey(iso: string): string {

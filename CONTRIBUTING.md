@@ -1,6 +1,6 @@
 # Contributing
 
-## Commit messages — Conventional Commits
+## Commit messages - Conventional Commits
 
 All commits must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
@@ -34,18 +34,18 @@ feat!: rename delay field in latest.json
 BREAKING CHANGE: `delay` renamed to `delay_minutes` in all JSON output.
 ```
 
-## Changelog — Keep a Changelog
+## Changelog - Keep a Changelog
 
 Every user-facing change must be recorded in `CHANGELOG.md` under `[Unreleased]` **before** merging.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Use these sections as needed:
 
-- **Added** — new features
-- **Changed** — changes to existing behaviour
-- **Deprecated** — features that will be removed
-- **Removed** — removed features
-- **Fixed** — bug fixes
-- **Security** — security fixes
+- **Added** - new features
+- **Changed** - changes to existing behaviour
+- **Deprecated** - features that will be removed
+- **Removed** - removed features
+- **Fixed** - bug fixes
+- **Security** - security fixes
 
 Write entries from the user's perspective, not the code's. Describe what changed, not how.
 
@@ -56,13 +56,13 @@ Write entries from the user's perspective, not the code's. Describe what changed
 - Delay shown as 0 for cancelled trains instead of "ausgefallen"
 ```
 
-## Versioning — Semantic Versioning
+## Versioning - Semantic Versioning
 
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (`MAJOR.MINOR.PATCH`):
 
-- **MAJOR** — breaking change to `latest.json` schema or CLI interface
-- **MINOR** — new feature, backwards compatible
-- **PATCH** — bug fix, backwards compatible
+- **MAJOR** - breaking change to `latest.json` schema or CLI interface
+- **MINOR** - new feature, backwards compatible
+- **PATCH** - bug fix, backwards compatible
 
 ## Release process
 

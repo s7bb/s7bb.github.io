@@ -1,8 +1,8 @@
-# S7 station EVAs — canonical reference
+# S7 station EVAs - canonical reference
 
 **Use this file first for any EVA lookup.** Avoid hitting
 `/station/{name}` on the DB Timetables API when the answer is already
-here — quota is finite and every avoidable call is wasted budget.
+here - quota is finite and every avoidable call is wasted budget.
 
 Only query the API when:
 - a station name appears in `dp_ppth` that is not listed below, or
@@ -42,7 +42,7 @@ Route order south to north along the Isartal line into München.
 
 | EVA       | DS100  | Name                          | Notes                          |
 |-----------|--------|-------------------------------|--------------------------------|
-| `8071272` | —      | Buchenhain                    | No DS100 in API response.      |
+| `8071272` | -      | Buchenhain                    | No DS100 in API response.      |
 | `8002899` | MHRK   | Höllriegelskreuth             |                                |
 | `8004899` | MPUL   | Pullach                       |                                |
 | `8002422` | MGOI   | Großhesselohe Isartalbf       |                                |
@@ -53,23 +53,23 @@ Route order south to north along the Isartal line into München.
 | `8005419` | MHP    | München Heimeranplatz         |                                |
 | `8004128` | MMDN   | München Donnersbergerbrücke   |                                |
 
-### München Hbf — multi-EVA terminus
+### München Hbf - multi-EVA terminus
 
 All three Hbf entities share `meta="270002|8000261|8098261|8098262|8098263"`
 in the API response. The `8000261` (long-distance) variant is NOT used
-by the S7 — kept here only as a "do not poll" pointer.
+by the S7 - kept here only as a "do not poll" pointer.
 
 | EVA       | DS100  | Name                  | Use                                                  |
 |-----------|--------|-----------------------|------------------------------------------------------|
 | `8098261` | MH  N  | München Hbf Gl.27-36  | Surface S-Bahn platforms. Original `muenchen` terminus EVA. |
 | `8098263` | MHT    | München Hbf (tief)    | Stammstrecke S-Bahn. Added 2026-05-23 (`muenchen` multi-EVA fix). |
 | `8098262` | MH  S  | München Hbf Gl.5-10   | Additional surface platforms, NOT on S7 routing. **Do not poll.** |
-| `8000261` | MH     | München Hbf           | Long-distance platforms (ICE / IC / EC). **Do not poll** — was the original misconfiguration that caused the v0.6.x terminus tracking bug. |
+| `8000261` | MH     | München Hbf           | Long-distance platforms (ICE / IC / EC). **Do not poll** - was the original misconfiguration that caused the v0.6.x terminus tracking bug. |
 
 ### Stammstrecke (München Hbf tief → Ostbahnhof)
 
 Underground east of Hbf. S7 calls at all of these when routed via
-tief. Currently not in `STATION_NAME_TO_EVA` in code — only Hbf-tief
+tief. Currently not in `STATION_NAME_TO_EVA` in code - only Hbf-tief
 itself is added in v0.8.3. Listed here for the drilldown cap design
 in [muenchen-hbf-multi-eva-design](superpowers/specs/2026-05-23-muenchen-hbf-multi-eva-design.md):
 stations east of Hbf are intentionally truncated from drilldown
@@ -86,7 +86,7 @@ here in case future work (e.g. reachability tiers) needs them.
 
 ### S7-Ost: Ostbahnhof → Kreuzstraße / Aying
 
-East of Ostbahnhof the S7 splits — most trains run all the way to
+East of Ostbahnhof the S7 splits - most trains run all the way to
 Kreuzstraße; some short-turn at Höhenkirchen-Siegertsbrunn or Aying.
 Not in `STATION_NAME_TO_EVA`; the drilldown cap at Hbf means these
 are never walked.
@@ -114,7 +114,7 @@ are never walked.
 `fetcher/src/s7bb_fetcher/terminus.py` holds the runtime subset
 (`STATION_NAME_TO_EVA` + `MUENCHEN_HBF_EVA` / `WOLFRATSHAUSEN_EVA` /
 `MUENCHEN_HBF_TIEF_EVA` constants). When adding a station to that
-map, copy the `name` string verbatim from the table above — it must
+map, copy the `name` string verbatim from the table above - it must
 match what DB emits in `dp_ppth`, including diacritics and "(tief)"
 parenthetical.
 
