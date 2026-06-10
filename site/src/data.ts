@@ -62,6 +62,14 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// Numeric fields in latest.json / archive JSON are typed as number but come
+// from the bot-writable s7bb-data repo. Coerce before innerHTML interpolation
+// so a tampered value can never carry markup.
+export function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function directionLabel(bucket: DirectionBucket): string {
   if (bucket === "muenchen") return "München";
   if (bucket === "wolfratshausen") return "Wolfratshausen";

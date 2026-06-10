@@ -4,6 +4,7 @@ import {
   terminusLabelLong,
   terminusLabelShort,
   terminusAggregate,
+  num,
 } from "./data.js";
 import type { S7Data, Arrival } from "./data.js";
 
@@ -166,5 +167,27 @@ describe("terminusAggregate", () => {
     ];
     expect(terminusAggregate(arrivals, "muenchen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
     expect(terminusAggregate(arrivals, "wolfratshausen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
+  });
+});
+
+describe("num", () => {
+  it("passes finite numbers through unchanged, including negatives and floats", () => {
+    expect(num(5)).toBe(5);
+    expect(num(-3)).toBe(-3);
+    expect(num(1.2)).toBe(1.2);
+    expect(num(0)).toBe(0);
+  });
+
+  it("coerces numeric strings", () => {
+    expect(num("7")).toBe(7);
+  });
+
+  it("returns 0 for injection payloads, NaN, Infinity, null, undefined, objects", () => {
+    expect(num('<img src=x onerror=alert(1)>')).toBe(0);
+    expect(num(NaN)).toBe(0);
+    expect(num(Infinity)).toBe(0);
+    expect(num(null)).toBe(0);
+    expect(num(undefined)).toBe(0);
+    expect(num({})).toBe(0);
   });
 });
