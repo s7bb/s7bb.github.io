@@ -5,6 +5,7 @@ import {
   terminusLabelShort,
   terminusAggregate,
   num,
+  germanMonth,
 } from "./data.js";
 import type { S7Data, Arrival } from "./data.js";
 
@@ -189,5 +190,24 @@ describe("num", () => {
     expect(num(null)).toBe(0);
     expect(num(undefined)).toBe(0);
     expect(num({})).toBe(0);
+  });
+});
+
+describe("germanMonth", () => {
+  it("formats a valid period", () => {
+    expect(germanMonth("2026-04")).toBe("April 2026");
+    expect(germanMonth("2026-01")).toBe("Januar 2026");
+    expect(germanMonth("2026-12")).toBe("Dezember 2026");
+  });
+
+  it("returns the input unchanged for out-of-range months", () => {
+    expect(germanMonth("2026-00")).toBe("2026-00");
+    expect(germanMonth("2026-13")).toBe("2026-13");
+  });
+
+  it("returns the input unchanged for non-period strings (incl. payloads)", () => {
+    expect(germanMonth("<img src=x onerror=alert(1)>")).toBe("<img src=x onerror=alert(1)>");
+    expect(germanMonth("2026-4")).toBe("2026-4");
+    expect(germanMonth("")).toBe("");
   });
 });

@@ -70,6 +70,19 @@ export function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Renders "April 2026" for "2026-04". Returns the input verbatim when it is
+// not a valid YYYY-MM period (month 01-12) - callers must escapeHtml the
+// result, since the passthrough may be attacker-controlled.
+export function germanMonth(period: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
+  if (!match) return period;
+  const idx = parseInt(match[2], 10);
+  const months = ["", "Januar", "Februar", "März", "April", "Mai", "Juni",
+                  "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  if (idx < 1 || idx > 12) return period;
+  return `${months[idx]} ${match[1]}`;
+}
+
 export function directionLabel(bucket: DirectionBucket): string {
   if (bucket === "muenchen") return "München";
   if (bucket === "wolfratshausen") return "Wolfratshausen";
