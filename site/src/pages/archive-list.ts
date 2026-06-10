@@ -1,12 +1,6 @@
 import { loadIndex } from "../archive.js";
+import { escapeHtml, germanMonth, num } from "../data.js";
 import { renderMonthsBar } from "../charts/monthsBar.js";
-
-function germanMonth(period: string): string {
-  const [y, m] = period.split("-");
-  const months = ["", "Januar", "Februar", "März", "April", "Mai", "Juni",
-                  "Juli", "August", "September", "Oktober", "November", "Dezember"];
-  return `${months[parseInt(m, 10)]} ${y}`;
-}
 
 export async function renderArchiveList(container: HTMLElement): Promise<void> {
   let idx;
@@ -32,9 +26,9 @@ export async function renderArchiveList(container: HTMLElement): Promise<void> {
       <ul class="month-links">
         ${idx.months.slice().reverse().map((m) => `
           <li>
-            <a href="#archiv/${m.period}">${germanMonth(m.period)}</a>
+            <a href="#archiv/${escapeHtml(m.period)}">${escapeHtml(germanMonth(m.period))}</a>
             <span class="month-summary">
-              ${m.total} Züge · ${m.on_time} pünktlich · ${m.late} verspätet · ${m.cancelled} ausgefallen
+              ${num(m.total)} Züge · ${num(m.on_time)} pünktlich · ${num(m.late)} verspätet · ${num(m.cancelled)} ausgefallen
               ${m.finalized ? "" : " <em>(läuft)</em>"}
             </span>
           </li>`).join("")}
