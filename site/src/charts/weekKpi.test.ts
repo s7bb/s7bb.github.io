@@ -56,3 +56,18 @@ describe("renderWeekKpiStrip", () => {
     expect(host.textContent).toContain("- Ausfälle");
   });
 });
+
+describe("hostile aggregates", () => {
+  it("never injects markup and does not throw on tampered fields", () => {
+    const hostile: any = {
+      muenchen:       { avg_delay_min: '<img src=x onerror="window.__pwned=1">', cancelled: "<script>1</script>" },
+      wolfratshausen: { avg_delay_min: 1.5, cancelled: 2 },
+    };
+    renderWeekKpiStrip(host, hostile);
+    expect(host.querySelector("img")).toBeNull();
+    expect(host.querySelector("script")).toBeNull();
+    expect((window as { __pwned?: number }).__pwned).toBeUndefined();
+    expect(host.textContent).toContain("Ø 0,0 min");
+    expect(host.textContent).toContain("Ø 1,5 min");
+  });
+});
