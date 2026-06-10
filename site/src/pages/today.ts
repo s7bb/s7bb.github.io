@@ -1,5 +1,5 @@
 import type { S7Data, UnifiedSlotRow, DirectionAggregate, TerminusAggregate } from "../data.js";
-import { unifiedTodayRows, escapeHtml, terminusLabelLong, terminusLabelShort, terminusAggregate } from "../data.js";
+import { unifiedTodayRows, escapeHtml, terminusLabelLong, terminusLabelShort, terminusAggregate, num } from "../data.js";
 import type { Arrival } from "../data.js";
 
 function formatTime(iso: string): string {
@@ -41,14 +41,15 @@ function terminusLine(a: Arrival): string {
 
 function statusBadge(a: Arrival): string {
   if (a.cancelled) return `<span class="badge badge--cancelled">ausgefallen</span>`;
-  if ((a.delay_minutes ?? 0) > 0) return `<span class="badge badge--late">+${a.delay_minutes} min</span>`;
+  const m = num(a.delay_minutes);
+  if (m > 0) return `<span class="badge badge--late">+${m} min</span>`;
   return `<span class="badge badge--ok">pünktlich</span>`;
 }
 
 function fmtDeparture(a: Arrival): string {
   if (a.cancelled) return "ausgefallen";
   const t = formatTime(a.scheduled_time);
-  const m = a.delay_minutes ?? 0;
+  const m = num(a.delay_minutes);
   if (m > 0) return `${t} (+${m} min)`;
   return `${t} (planmäßig)`;
 }
@@ -130,11 +131,12 @@ function summaryBar(
           : "",
       ]
     : [];
+  const missing = num(agg.missing);
   return [
-    `<span class="summary-item summary-item--ok">✓ ${agg.on_time} pünktlich</span>`,
-    `<span class="summary-item summary-item--late">⏱ ${agg.late} verspätet</span>`,
-    `<span class="summary-item summary-item--cancelled">✕ ${agg.cancelled} ausgefallen</span>`,
-    agg.missing > 0 ? `<span class="summary-item summary-item--missing">? ${agg.missing} keine Daten</span>` : "",
+    `<span class="summary-item summary-item--ok">✓ ${num(agg.on_time)} pünktlich</span>`,
+    `<span class="summary-item summary-item--late">⏱ ${num(agg.late)} verspätet</span>`,
+    `<span class="summary-item summary-item--cancelled">✕ ${num(agg.cancelled)} ausgefallen</span>`,
+    missing > 0 ? `<span class="summary-item summary-item--missing">? ${missing} keine Daten</span>` : "",
     ...termItems,
   ].filter(Boolean).join("");
 }
@@ -217,7 +219,7 @@ export function renderToday(data: S7Data, container: HTMLElement): void {
       ? `<div class="today-rows">${renderRows(rows)}</div>`
       : `<p>Keine Daten für heute.</p>`}
     <details class="today-combined">
-      <summary>Gesamt heute: ${agg.total} Züge · Ø ${agg.avg_delay_min} min Verspätung</summary>
+      <summary>Gesamt heute: ${num(agg.total)} Züge · Ø ${num(agg.avg_delay_min)} min Verspätung</summary>
     </details>
     <p class="data-age">Stand: ${new Date(data.generated_at).toLocaleString("de-DE")} · Nächstes Update: ${formatTime(nextUpdate(data.generated_at).toISOString())}</p>
   `;

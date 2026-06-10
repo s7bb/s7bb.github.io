@@ -1,4 +1,4 @@
-import type { DirectionAggregate } from "../data.js";
+import { num, type DirectionAggregate } from "../data.js";
 
 type KpiInput =
   | { muenchen: DirectionAggregate; wolfratshausen: DirectionAggregate }
@@ -21,10 +21,11 @@ function cardHtml(label: string, agg: DirectionAggregate | undefined): string {
       </div>
     `;
   }
+  const cancelled = num(agg.cancelled);
   return `
     <div class="kpi-card">
       <div class="kpi-card__title">→ ${label}</div>
-      <div class="kpi-card__stats">Ø ${formatMin(agg.avg_delay_min)} min · ${agg.cancelled} ${ausfallWord(agg.cancelled)}</div>
+      <div class="kpi-card__stats">Ø ${formatMin(num(agg.avg_delay_min))} min · ${cancelled} ${ausfallWord(cancelled)}</div>
     </div>
   `;
 }

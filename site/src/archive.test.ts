@@ -56,6 +56,32 @@ describe("loadIndex", () => {
     );
     await expect(loadIndex()).rejects.toThrow();
   });
+
+  it("drops months whose period is not a valid YYYY-MM string", async () => {
+    const hostile = {
+      ...indexJson,
+      months: [
+        ...indexJson.months,
+        { ...indexJson.months[0], period: '"><img src=x onerror=alert(1)>' },
+        { ...indexJson.months[0], period: 42 },
+        { ...indexJson.months[0], period: "2026-4" },
+      ],
+    };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(hostile), { status: 200 }) as Response,
+    );
+    const idx = await loadIndex();
+    expect(idx.months).toHaveLength(1);
+    expect(idx.months[0].period).toBe("2026-04");
+  });
+
+  it("tolerates a missing months array", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ generated_at: "x", station: "Baierbrunn" }), { status: 200 }) as Response,
+    );
+    const idx = await loadIndex();
+    expect(idx.months).toEqual([]);
+  });
 });
 
 describe("loadMonth", () => {

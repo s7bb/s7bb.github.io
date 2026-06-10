@@ -48,7 +48,13 @@ export async function loadIndex(): Promise<ArchiveIndex> {
       const url = `${archiveBase()}/index.json`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Failed to load archive index: ${resp.status}`);
-      return resp.json() as Promise<ArchiveIndex>;
+      const idx = (await resp.json()) as ArchiveIndex;
+      // index.json comes from the bot-writable s7bb-data repo: never let a
+      // non-YYYY-MM period reach a renderer (stored-XSS containment).
+      idx.months = Array.isArray(idx.months)
+        ? idx.months.filter((m) => typeof m.period === "string" && _PERIOD_RE.test(m.period))
+        : [];
+      return idx;
     })().catch((e) => { _indexCache = null; throw e; });
   }
   return _indexCache;

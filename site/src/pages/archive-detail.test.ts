@@ -1,6 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { endpunktCell } from "./archive-detail.js";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { endpunktCell, renderArchiveDetail } from "./archive-detail.js";
+import { _resetCache } from "../archive.js";
 import type { Arrival } from "../data.js";
+
+vi.mock("../charts/dailyByDirection.js", () => ({ renderDailyByDirection: vi.fn() }));
 
 function a(overrides: Partial<Arrival>): Arrival {
   return {
@@ -69,5 +72,46 @@ describe("endpunktCell", () => {
     const html = endpunktCell(a({ cancelled: true, terminus_status: "cancelled" }));
     expect(html).toContain("-");
     expect(html).not.toContain("nicht angekommen");
+  });
+});
+
+describe("renderArchiveDetail hostile JSON", () => {
+  beforeEach(() => {
+    _resetCache();
+    vi.restoreAllMocks();
+  });
+
+  it("never injects markup from tampered aggregate or arrival fields", async () => {
+    const hostile = {
+      generated_at: "x", station: "Baierbrunn", line: "S7",
+      period: "2026-04", finalized: true,
+      arrivals: [a({
+        scheduled_time: '<img src=x onerror="window.__pwned=1">T<svg>',
+        actual_time: "<script>1</script>T<b>x</b>",
+        delay_minutes: '<img src=x onerror="window.__pwned=1">' as unknown as number,
+      })],
+      aggregates: {
+        total: 1, on_time: '<img src=x onerror="window.__pwned=1">',
+        late: "<script>1</script>", cancelled: 0, avg_delay_min: {},
+        by_direction: {
+          muenchen:       { total: 1, on_time: 1, late: 0, cancelled: 0, avg_delay_min: 0 },
+          wolfratshausen: { total: 0, on_time: 0, late: 0, cancelled: 0, avg_delay_min: 0 },
+        },
+      },
+      daily: [],
+      daily_by_direction: { muenchen: [], wolfratshausen: [] },
+    };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(hostile), { status: 200 }) as Response,
+    );
+    const c = document.createElement("div");
+    await renderArchiveDetail("2026-04", c);
+    expect(c.querySelector("img")).toBeNull();
+    expect(c.querySelector("script")).toBeNull();
+    expect(c.querySelector("svg")).toBeNull();
+    expect(c.querySelector("table b")).toBeNull();
+    expect((window as { __pwned?: number }).__pwned).toBeUndefined();
+    expect(c.textContent).toContain("0 pünktlich");
+    expect(c.textContent).toContain("April 2026");
   });
 });

@@ -4,6 +4,8 @@ import {
   terminusLabelLong,
   terminusLabelShort,
   terminusAggregate,
+  num,
+  germanMonth,
 } from "./data.js";
 import type { S7Data, Arrival } from "./data.js";
 
@@ -166,5 +168,46 @@ describe("terminusAggregate", () => {
     ];
     expect(terminusAggregate(arrivals, "muenchen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
     expect(terminusAggregate(arrivals, "wolfratshausen")).toEqual({ arrived: 1, short_turn: 0, missed: 0, pending: 0 });
+  });
+});
+
+describe("num", () => {
+  it("passes finite numbers through unchanged, including negatives and floats", () => {
+    expect(num(5)).toBe(5);
+    expect(num(-3)).toBe(-3);
+    expect(num(1.2)).toBe(1.2);
+    expect(num(0)).toBe(0);
+  });
+
+  it("coerces numeric strings", () => {
+    expect(num("7")).toBe(7);
+  });
+
+  it("returns 0 for injection payloads, NaN, Infinity, null, undefined, objects", () => {
+    expect(num('<img src=x onerror=alert(1)>')).toBe(0);
+    expect(num(NaN)).toBe(0);
+    expect(num(Infinity)).toBe(0);
+    expect(num(null)).toBe(0);
+    expect(num(undefined)).toBe(0);
+    expect(num({})).toBe(0);
+  });
+});
+
+describe("germanMonth", () => {
+  it("formats a valid period", () => {
+    expect(germanMonth("2026-04")).toBe("April 2026");
+    expect(germanMonth("2026-01")).toBe("Januar 2026");
+    expect(germanMonth("2026-12")).toBe("Dezember 2026");
+  });
+
+  it("returns the input unchanged for out-of-range months", () => {
+    expect(germanMonth("2026-00")).toBe("2026-00");
+    expect(germanMonth("2026-13")).toBe("2026-13");
+  });
+
+  it("returns the input unchanged for non-period strings (incl. payloads)", () => {
+    expect(germanMonth("<img src=x onerror=alert(1)>")).toBe("<img src=x onerror=alert(1)>");
+    expect(germanMonth("2026-4")).toBe("2026-4");
+    expect(germanMonth("")).toBe("");
   });
 });

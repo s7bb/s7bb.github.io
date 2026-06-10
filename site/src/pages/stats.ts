@@ -1,5 +1,5 @@
 import type { S7Data } from "../data.js";
-import { last7DaysByDay, directionLabel, escapeHtml } from "../data.js";
+import { last7DaysByDay, directionLabel, escapeHtml, num } from "../data.js";
 import { renderStatusPie } from "../charts/statusPie.js";
 import { renderAvgDelayLine } from "../charts/avgDelayLine.js";
 
@@ -9,7 +9,7 @@ function renderDirectionStats(data: S7Data, bucket: "muenchen" | "wolfratshausen
   return `
     <div class="direction-stats">
       <h3>Richtung ${label}</h3>
-      <p class="stats-summary">${agg.total} Züge · Ø ${agg.avg_delay_min} min · ${agg.missing} ohne Daten</p>
+      <p class="stats-summary">${num(agg.total)} Züge · Ø ${num(agg.avg_delay_min)} min · ${num(agg.missing)} ohne Daten</p>
       <div class="charts-grid">
         <div class="chart-box">
           <h4>Pünktlichkeit</h4>
@@ -46,7 +46,7 @@ export function renderStats(data: S7Data, container: HTMLElement): void {
         ${topReasons.map(([r, n]) => `<li>${escapeHtml(r)} <em>(${n}×)</em></li>`).join("")}
       </ul>
     </div>` : ""}
-    <p class="data-age">Zeitraum: letzte ${data.window_days} Tage · ${agg.total} Züge erfasst</p>
+    <p class="data-age">Zeitraum: letzte ${num(data.window_days)} Tage · ${num(agg.total)} Züge erfasst</p>
   `;
 
   renderStatusPie("chart-pie-muenchen", data.aggregates.last_7_days.by_direction.muenchen);
