@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-06-10
+
 ### Fixed
 
 - Stored XSS via the s7bb-data repo: archive index periods are now validated at load, and all JSON-derived strings/numerics rendered into `innerHTML` are escaped or coerced (`archive-list`, `archive-detail`, `today`, `stats`, week KPI strip).
