@@ -367,3 +367,29 @@ describe("summary bar terminus items", () => {
     expect(bar.textContent).toContain("1 bis Wolfratshausen");
   });
 });
+
+describe("hostile aggregates from latest.json", () => {
+  it("never injects markup from tampered numeric fields", () => {
+    const data = fixture([arrival({})]);
+    const pwn = '<img src=x onerror="window.__pwned=1">';
+    const agg = data.aggregates.today as any;
+    agg.total = pwn;
+    agg.avg_delay_min = "<script>1</script>";
+    agg.by_direction.muenchen.on_time = pwn;
+    agg.by_direction.muenchen.late = pwn;
+    agg.by_direction.muenchen.cancelled = pwn;
+    const c = document.createElement("div");
+    renderToday(data, c);
+    expect(c.querySelector("img")).toBeNull();
+    expect(c.querySelector("script")).toBeNull();
+    expect((window as { __pwned?: number }).__pwned).toBeUndefined();
+    expect(c.textContent).toContain("0 pünktlich");
+    expect(c.textContent).toContain("0 Züge");
+  });
+
+  it("never injects markup from a tampered per-train delay", () => {
+    const c = renderInto([arrival({ delay_minutes: '"><img src=x onerror="window.__pwned=1">' as any })]);
+    expect(c.querySelector("img")).toBeNull();
+    expect((window as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+});
