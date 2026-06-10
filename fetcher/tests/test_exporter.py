@@ -2,12 +2,24 @@ import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from s7bb_fetcher.exporter import _expected_slots, export_latest, export_monthly_archive
 from s7bb_fetcher.parser import ArrivalRecord
 from s7bb_fetcher.storage import open_db, upsert_records
+
+# Match exporter's local-date bucketing (Europe/Berlin). Stamping fixture
+# rows in UTC made "today" diverge from the Berlin date in the late-UTC
+# evening window, flaking test_per_direction_aggregates in CI.
+_DE_TZ = ZoneInfo("Europe/Berlin")
+
+
+def _de_today_iso(hh: int, mm: int) -> str:
+    """ISO timestamp at HH:MM Berlin wall-clock on the current Berlin date."""
+    today = datetime.now(_DE_TZ).date()
+    return datetime(today.year, today.month, today.day, hh, mm, tzinfo=_DE_TZ).isoformat()
 
 
 def _make_arrival(train_id: str, scheduled: str, direction_bucket: str, **kwargs) -> ArrivalRecord:
@@ -23,17 +35,16 @@ def _make_arrival(train_id: str, scheduled: str, direction_bucket: str, **kwargs
 @pytest.fixture
 def populated_db(tmp_path: Path) -> sqlite3.Connection:
     conn = open_db(tmp_path / "test.db")
-    today = datetime.now(UTC).strftime("%Y-%m-%d")
 
     records = [
         # München direction: 10:00, 10:20, 10:40, 11:00 (four slots, none missing)
-        _make_arrival("m1", f"{today}T10:00:00+00:00", "muenchen"),
-        _make_arrival("m2", f"{today}T10:20:00+00:00", "muenchen"),
-        _make_arrival("m3", f"{today}T10:40:00+00:00", "muenchen"),
-        _make_arrival("m4", f"{today}T11:00:00+00:00", "muenchen"),
-        # Wolfratshausen: 10:13, 10:53 — 10:33 missing
-        _make_arrival("w1", f"{today}T10:13:00+00:00", "wolfratshausen"),
-        _make_arrival("w2", f"{today}T10:53:00+00:00", "wolfratshausen"),
+        _make_arrival("m1", _de_today_iso(10, 0), "muenchen"),
+        _make_arrival("m2", _de_today_iso(10, 20), "muenchen"),
+        _make_arrival("m3", _de_today_iso(10, 40), "muenchen"),
+        _make_arrival("m4", _de_today_iso(11, 0), "muenchen"),
+        # Wolfratshausen: 10:13, 10:53 - 10:33 missing
+        _make_arrival("w1", _de_today_iso(10, 13), "wolfratshausen"),
+        _make_arrival("w2", _de_today_iso(10, 53), "wolfratshausen"),
     ]
     upsert_records(conn, records)
     return conn
