@@ -206,3 +206,29 @@ def test_extract_malformed_window_bound_becomes_none():
     assert d.category == "Störung"
     assert d.window_from is None
     assert d.window_to == "2026-06-10T06:30:00+00:00"
+
+
+def test_parse_sets_disruption_on_disrupted_row(tmp_path):
+    # Build a changes XML carrying a HIM message + cause code for an existing plan trip id.
+    plan = _load("plan.xml")
+    sid = "trip-S7-001-2605051200"
+    changes = _s(
+        f'<timetable><s id="{sid}">'
+        '<m t="h" from="2605051150" to="2605051300" cat="Störung"/>'
+        '<ar l="S7"><m t="d" c="34"/></ar>'
+        '<dp l="S7" ct="2605051207"/>'
+        "</s></timetable>"
+    )
+    records = parse_timetable(plan, changes)
+    r = next(r for r in records if r.train_id == sid)
+    assert r.disruption is not None
+    assert r.disruption.category == "Störung"
+    assert r.disruption.cause_code == 34
+    assert r.reason is None  # legacy field retired, always None
+
+
+def test_parse_disruption_none_for_on_time():
+    records = parse_timetable(_load("plan.xml"), _load("changes_empty.xml"))
+    on_time = next(r for r in records if r.train_id == "trip-S7-002-2605051230")
+    assert on_time.disruption is None
+    assert on_time.reason is None

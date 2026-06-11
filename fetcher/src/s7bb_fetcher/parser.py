@@ -36,6 +36,7 @@ class ArrivalRecord:
     reason: str | None
     train_number: str | None = None
     dp_ppth: str = ""        # pipe-separated path Baierbrunn → terminus
+    disruption: "Disruption | None" = None
 
 
 def _parse_db_time(raw: str) -> datetime:
@@ -180,6 +181,7 @@ def parse_timetable(
         cancelled = False
         actual_dt: datetime | None = None
         reason: str | None = None
+        disruption: Disruption | None = None
 
         change_stop = change_index.get(sid)
         if change_stop is not None:
@@ -193,10 +195,7 @@ def parse_timetable(
             ct_raw = cdp.get("ct") if cdp is not None else None
             if ct_raw and not cancelled:
                 actual_dt = _parse_db_time(ct_raw)
-            if cdp is not None:
-                reason = cdp.get("m") or cdp.get("msc")
-            if reason is None and car is not None:
-                reason = car.get("m") or car.get("msc")
+            disruption = extract_disruption(change_stop)
 
         delay_minutes: int | None = None
         if not cancelled and actual_dt is not None:
@@ -219,6 +218,7 @@ def parse_timetable(
             reason=reason,
             train_number=train_number,
             dp_ppth=dp_ppth,
+            disruption=disruption,
         ))
 
     return records
