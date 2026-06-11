@@ -24,7 +24,11 @@ CREATE TABLE IF NOT EXISTS arrivals (
     terminus_status              TEXT,
     terminus_delay_minutes       INTEGER,
     terminus_short_turn_station  TEXT,
-    dp_ppth                      TEXT
+    dp_ppth                      TEXT,
+    disruption_category          TEXT,
+    disruption_cause_code        INTEGER,
+    disruption_window_from       TEXT,
+    disruption_window_to         TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_dedup ON arrivals(train_id, scheduled_time);
 CREATE INDEX IF NOT EXISTS idx_scheduled ON arrivals(scheduled_time);
@@ -60,6 +64,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
          "ALTER TABLE arrivals ADD COLUMN terminus_short_turn_station TEXT"),
         ("dp_ppth",
          "ALTER TABLE arrivals ADD COLUMN dp_ppth TEXT"),
+        ("disruption_category",
+         "ALTER TABLE arrivals ADD COLUMN disruption_category TEXT"),
+        ("disruption_cause_code",
+         "ALTER TABLE arrivals ADD COLUMN disruption_cause_code INTEGER"),
+        ("disruption_window_from",
+         "ALTER TABLE arrivals ADD COLUMN disruption_window_from TEXT"),
+        ("disruption_window_to",
+         "ALTER TABLE arrivals ADD COLUMN disruption_window_to TEXT"),
     ):
         if col not in cols:
             conn.execute(ddl)
@@ -99,6 +111,13 @@ def open_db(path: Path) -> sqlite3.Connection:
 def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> int:
     """Insert or replace records. Returns number of rows affected."""
     now = datetime.now(UTC).isoformat()
+
+    def _d(r: ArrivalRecord):
+        d = r.disruption
+        if d:
+            return (d.category, d.cause_code, d.window_from, d.window_to)
+        return (None, None, None, None)
+
     rows = [
         (
             r.train_id, r.line, r.station, r.direction, r.direction_bucket,
@@ -106,6 +125,7 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
             1 if r.cancelled else 0, r.reason, r.train_number, now,
             None if r.cancelled else "pending",  # initial terminus_status
             r.dp_ppth or None,                   # store NULL for empty, not ""
+            *_d(r),
         )
         for r in records
     ]
@@ -114,8 +134,10 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
         INSERT INTO arrivals
             (train_id, line, station, direction, direction_bucket, scheduled_time,
              actual_time, delay_minutes, cancelled, reason, train_number, fetched_at,
-             terminus_status, dp_ppth)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             terminus_status, dp_ppth,
+             disruption_category, disruption_cause_code,
+             disruption_window_from, disruption_window_to)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(train_id, scheduled_time) DO UPDATE SET
             actual_time      = excluded.actual_time,
             delay_minutes    = excluded.delay_minutes,
@@ -132,7 +154,15 @@ def upsert_records(conn: sqlite3.Connection, records: list[ArrivalRecord]) -> in
             terminus_delay_minutes       = CASE WHEN excluded.cancelled = 1
                                                THEN NULL ELSE terminus_delay_minutes END,
             terminus_short_turn_station  = CASE WHEN excluded.cancelled = 1
-                                               THEN NULL ELSE terminus_short_turn_station END
+                                               THEN NULL ELSE terminus_short_turn_station END,
+            disruption_category    = COALESCE(excluded.disruption_category,
+                                              disruption_category),
+            disruption_cause_code  = COALESCE(excluded.disruption_cause_code,
+                                              disruption_cause_code),
+            disruption_window_from = COALESCE(excluded.disruption_window_from,
+                                              disruption_window_from),
+            disruption_window_to   = COALESCE(excluded.disruption_window_to,
+                                              disruption_window_to)
         """,
         rows,
     )
