@@ -15,6 +15,14 @@ _ACCEPTED_LINES = {"S7", "S5"}
 
 
 @dataclass
+class Disruption:
+    category: str | None = None       # HIM category, e.g. "Störung"
+    cause_code: int | None = None     # DB delay-cause code, e.g. 34
+    window_from: str | None = None    # ISO8601 UTC
+    window_to: str | None = None      # ISO8601 UTC
+
+
+@dataclass
 class ArrivalRecord:
     train_id: str
     line: str
@@ -67,6 +75,57 @@ def classify_direction(dp_ppth: str) -> str:
     if "München" in dp_ppth:
         return "muenchen"
     return "unknown"
+
+
+def _safe_db_time(raw: str | None) -> str | None:
+    """Parse a DB YYMMDDHHMM bound to ISO UTC, or None if absent/malformed."""
+    if not raw:
+        return None
+    try:
+        return _iso(_parse_db_time(raw))
+    except ValueError:
+        return None
+
+
+def extract_disruption(change_stop: etree._Element) -> "Disruption | None":
+    """Build a Disruption from an <s> change element, or None if no usable
+    message exists. Category + window come from the trip-level <m t="h">
+    (direct child of <s>); cause_code from the first non-zero stop-level
+    <m t="d"> on <ar> then <dp> (fixed scan order for determinism)."""
+    category: str | None = None
+    window_from: str | None = None
+    window_to: str | None = None
+
+    him = change_stop.find("m[@t='h']")
+    if him is not None:
+        category = him.get("cat")
+        window_from = _safe_db_time(him.get("from"))
+        window_to = _safe_db_time(him.get("to"))
+
+    cause_code: int | None = None
+    for parent_tag in ("ar", "dp"):           # ar first, then dp (deterministic)
+        parent = change_stop.find(parent_tag)
+        if parent is None:
+            continue
+        for m in parent.findall("m[@t='d']"):
+            raw = m.get("c")
+            if raw and raw != "0":
+                try:
+                    cause_code = int(raw)
+                except ValueError:
+                    continue
+                break
+        if cause_code is not None:
+            break
+
+    if category is None and cause_code is None:
+        return None
+    return Disruption(
+        category=category,
+        cause_code=cause_code,
+        window_from=window_from,
+        window_to=window_to,
+    )
 
 
 def parse_timetable(

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from s7bb_fetcher.parser import classify_direction, parse_timetable
+from s7bb_fetcher.parser import classify_direction, extract_disruption, parse_timetable
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -148,3 +148,61 @@ def test_dp_ppth_preserved_on_record():
     # ppth is ordered Baierbrunn → terminus, pipe-separated
     parts = r.dp_ppth.split("|")
     assert parts[-1].startswith("München"), f"last stop should be München, got {parts[-1]}"
+
+
+def _s(xml: str) -> etree._Element:
+    return etree.fromstring(xml)
+
+
+def test_extract_trip_level_him_category_and_window():
+    s = _s(
+        '<s id="x">'
+        '<m id="r1" t="h" from="2606100619" to="2606100830" cat="Störung" pr="1"/>'
+        '<ar ct="2606100735" cs="c" l="S7"/>'
+        '</s>'
+    )
+    d = extract_disruption(s)
+    assert d.category == "Störung"
+    # 2606100619 Europe/Berlin (CEST, +02:00) -> 04:19 UTC
+    assert d.window_from == "2026-06-10T04:19:00+00:00"
+    assert d.window_to == "2026-06-10T06:30:00+00:00"
+
+
+def test_extract_stop_level_cause_code():
+    s = _s(
+        '<s id="x"><ar l="S7">'
+        '<m id="r2" t="d" c="34"/>'
+        '<m id="r3" t="f" c="0"/>'
+        '</ar></s>'
+    )
+    d = extract_disruption(s)
+    assert d.cause_code == 34
+    assert d.category is None
+
+
+def test_extract_ignores_f_and_zero_codes():
+    s = _s('<s id="x"><dp l="S7"><m t="f" c="0"/><m t="d" c="0"/></dp></s>')
+    assert extract_disruption(s) is None
+
+
+def test_extract_ar_wins_over_dp_for_cause_code():
+    s = _s(
+        '<s id="x">'
+        '<ar l="S7"><m t="d" c="34"/></ar>'
+        '<dp l="S7"><m t="d" c="44"/></dp>'
+        '</s>'
+    )
+    assert extract_disruption(s).cause_code == 34
+
+
+def test_extract_none_when_no_messages():
+    s = _s('<s id="x"><ar l="S7"/><dp l="S7"/></s>')
+    assert extract_disruption(s) is None
+
+
+def test_extract_malformed_window_bound_becomes_none():
+    s = _s('<s id="x"><m t="h" from="garbage" to="2606100830" cat="Störung"/></s>')
+    d = extract_disruption(s)
+    assert d.category == "Störung"
+    assert d.window_from is None
+    assert d.window_to == "2026-06-10T06:30:00+00:00"
