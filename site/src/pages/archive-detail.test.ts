@@ -16,7 +16,7 @@ function a(overrides: Partial<Arrival>): Arrival {
     actual_time: null,
     delay_minutes: 0,
     cancelled: false,
-    reason: null,
+    disruption: null,
     train_number: null,
     terminus_status: null,
     terminus_delay_minutes: null,
