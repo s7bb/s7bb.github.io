@@ -84,7 +84,18 @@ can change later without touching the data pipeline.
 ### 1. parser.py - fix extraction
 
 Replace the attribute read at `parser.py:138-140` with a child `<m>`
-walk. New helper, e.g. `extract_disruption(change_stop) -> Disruption | None`:
+walk. New helper, e.g. `extract_disruption(change_stop) -> Disruption | None`,
+where `change_stop` is the `<s>` element (the same node already returned
+by `change_index.get(sid)` and used for `.find("dp")`/`.find("ar")`).
+
+**Element levels (do not confuse them).** The two `<m>` kinds live at
+different depths in the `<s>` subtree:
+
+- `<m t="h">` is a **direct child of `<s>`**, sibling to `<ar>`/`<dp>`
+  (see the example XML above). Read it with `change_stop.find("m[@t='h']")`
+  (or iterate `change_stop` direct children), **not** from inside
+  `ar`/`dp`.
+- `<m t="d">` / `<m t="f">` are **children of `<ar>` / `<dp>`**.
 
 - **Category + window** from the trip-level `<m t="h">`:
   - `category` = `m.get("cat")` (e.g. "Störung").
@@ -93,30 +104,64 @@ walk. New helper, e.g. `extract_disruption(change_stop) -> Disruption | None`:
     existing `_parse_db_time` helper.
 - **Cause code** from the stop-level `<m t="d">` on `ar`/`dp`:
   - `cause_code` = first `int(m.get("c"))` where `t="d"` and `c != "0"`.
+  - **Scan order is fixed for determinism:** `<ar>` children first, then
+    `<dp>` children; within each, document order; first non-`"0"` wins.
+    (A train can carry `t="d"` codes on both `ar` and `dp`; without a
+    fixed order the captured code would vary between refetches.)
   - Ignore `t="f"` and `c="0"`.
 - Returns `None` when no `t="h"` and no usable `t="d"` code exist (the
   on-time path is unchanged).
 
 The `ArrivalRecord` dataclass gains the fields (or a nested
 `disruption` sub-object - implementer's choice, but keep it serialisable
-for storage). This replaces the old single `reason` string.
+for storage). The old `reason` field is **retained on the dataclass,
+always `None`** (parser stops setting it) - see storage note below for
+why it is not removed outright.
 
 ### 2. storage.py - schema + persistence
 
 Add four columns to `arrivals` via the existing forward-migration
-pattern (`storage.py:59` shows the `ALTER TABLE ADD COLUMN` idempotent
-style):
+pattern (the idempotent `for col, ddl in (...)` ALTER loop at
+`storage.py:54-65`):
 
 - `disruption_category      TEXT`
 - `disruption_cause_code     INTEGER`
 - `disruption_window_from    TEXT`   (ISO UTC)
 - `disruption_window_to      TEXT`   (ISO UTC)
 
-Carry them through the `INSERT ... ON CONFLICT` upsert. Unlike the
-`terminus_*` columns, these are **not** wiped on a cancel-flip - a
-disruption reason remains valid (and more relevant) when a train flips
-to cancelled. The legacy `reason` column is left in place but no longer
-written or exported (it was always `NULL`; dropping the export is safe).
+Carry them through the `INSERT ... ON CONFLICT` upsert using
+`COALESCE(excluded.x, x)` for all four columns - **once captured, a
+value is never overwritten by a later `NULL`.** Unlike the `terminus_*`
+columns (which use `CASE WHEN ... THEN NULL` to wipe), disruption
+columns are sticky:
+
+```sql
+disruption_category    = COALESCE(excluded.disruption_category, disruption_category),
+disruption_cause_code  = COALESCE(excluded.disruption_cause_code, disruption_cause_code),
+disruption_window_from = COALESCE(excluded.disruption_window_from, disruption_window_from),
+disruption_window_to   = COALESCE(excluded.disruption_window_to, disruption_window_to),
+```
+
+Rationale: the trip-level `<m t="h">` HIM element (category + window) is
+dropped from `/fchg` once its `to` time passes, so a refetch after the
+window would otherwise null-overwrite a previously captured reason. With
+`COALESCE` the reason persists - and remains valid (and more relevant)
+when a train flips to cancelled. Tradeoff (accepted): a value can only be
+*replaced* by a non-`NULL`, never retracted to `NULL`. Reasons are
+refined, not withdrawn, so this is correct; cause-code refinement
+(`NULL`->`34`, `34`->`44`) still applies since those are non-`NULL`.
+
+**Legacy `reason` column - keep writing NULL, drop from export only.**
+The physical `reason` column stays in the schema and the INSERT/ON
+CONFLICT keep referencing it (`storage.py:106` passes `r.reason`,
+`:115-117` lists it, `:123` does `reason = excluded.reason`); since
+`ArrivalRecord.reason` is now always `None`, every write stores `NULL`.
+This avoids touching the upsert SQL or the dataclass write path. The
+**exporter** stops selecting and emitting `reason` (the two `SELECT`s at
+`exporter.py:40` and `:195`, plus the output dict). It was always
+`NULL`, so dropping the export is safe and no consumer depended on it.
+(SQLite cannot cheaply drop a column; leaving it inert is the lowest-risk
+choice.)
 
 ### 3. cause_codes.py - decode table (new module)
 
@@ -199,6 +244,7 @@ route through the existing escape helper.
 - cancelled trip with trip-level `t="h"` HIM -> category + window parsed.
 - delayed trip with stop-level `t="d" c="34"` -> cause_code 34.
 - `t="f" c="0"` present -> ignored, not treated as a cause.
+- codes on **both** `ar` and `dp` -> `ar` wins (fixed scan order).
 - on-time trip, no `<m>` -> `disruption is None`.
 - `from`/`to` converted Europe/Berlin -> UTC correctly.
 
