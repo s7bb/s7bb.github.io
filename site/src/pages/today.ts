@@ -1,6 +1,6 @@
 import type { S7Data, UnifiedSlotRow, DirectionAggregate, TerminusAggregate } from "../data.js";
 import { unifiedTodayRows, escapeHtml, terminusLabelLong, terminusLabelShort, terminusAggregate, num } from "../data.js";
-import type { Arrival } from "../data.js";
+import type { Arrival, Disruption } from "../data.js";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
@@ -81,6 +81,23 @@ function fmtTerminusArrival(a: Arrival): string {
   }
 }
 
+// Compact disruption badge. Bot-written values -> escape before innerHTML.
+function disruptionBadge(a: Arrival): string {
+  const d = a.disruption;
+  if (!d || !d.category) return "";
+  return `<span class="badge badge--disruption">⚠ ${escapeHtml(d.category)}</span>`;
+}
+
+function fmtWindowBerlin(window: Disruption["window"]): string {
+  if (!window) return "";
+  const hm = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "";
+  const from = hm(window.from);
+  const to = hm(window.to);
+  if (!from && !to) return "";
+  return `${from}-${to}`;
+}
+
 function detailRow(label: string, value: string): string {
   return `<div class="detail-row"><span class="detail-label">${escapeHtml(label)}:</span><span class="detail-value">${escapeHtml(value)}</span></div>`;
 }
@@ -89,11 +106,9 @@ function detailRowsInner(a: Arrival): string {
   const rows: string[] = [];
   rows.push(detailRow("Abfahrt Baierbrunn", fmtDeparture(a)));
 
-  if (a.cancelled) {
-    if (!a.reason) {
-      rows.push(`<div class="detail-row detail-row--note">Zug ausgefallen - keine Fahrt</div>`);
-    }
-  } else if (a.terminus_status) {
+  if (a.cancelled && !a.disruption?.category) {
+    rows.push(`<div class="detail-row detail-row--note">Zug ausgefallen - keine Fahrt</div>`);
+  } else if (!a.cancelled && a.terminus_status) {
     const long = a.direction_bucket === "muenchen" || a.direction_bucket === "wolfratshausen"
       ? terminusLabelLong(a.direction_bucket)
       : "";
@@ -106,8 +121,12 @@ function detailRowsInner(a: Arrival): string {
   if (a.train_number) {
     rows.push(detailRow("Zug", `S ${a.train_number}`));
   }
-  if (a.reason) {
-    rows.push(detailRow("Grund", a.reason));
+  if (a.disruption?.category || a.disruption?.cause_text) {
+    const d = a.disruption;
+    if (d.category) rows.push(detailRow("Grund", d.category));
+    if (d.cause_text) rows.push(detailRow("Ursache", d.cause_text));
+    const win = fmtWindowBerlin(d.window);
+    if (win) rows.push(detailRow("Zeitraum", win));
   }
   return rows.join("");
 }
@@ -162,6 +181,7 @@ function rowFor(slot: string, a: Arrival | null, bucket: "muenchen" | "wolfratsh
     `<span class="arrival-direction">${escapeHtml(a.direction)}</span>` +
     `<span class="badge-slot badge-slot--dep">${statusBadge(a)}</span>` +
     `<span class="badge-slot badge-slot--term">${terminusLine(a)}</span>` +
+    `<span class="badge-slot badge-slot--disruption">${disruptionBadge(a)}</span>` +
     `<span class="chev" aria-hidden="true"></span>` +
     `</button>`;
   const detail = `<div class="arrival-detail" id="${id}" hidden>${detailRowsInner(a)}</div>`;
