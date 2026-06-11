@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-11
+
 ### Added
 
 - Disruption reason capture: S7BB now records the DB disruption category, delay-cause code, and disruption window for cancelled/delayed/short-turned trains, exposed as a nested `disruption` object in `latest.json` and rendered as a tap-to-expand badge in the today and stats views.
