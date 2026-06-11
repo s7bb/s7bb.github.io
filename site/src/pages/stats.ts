@@ -29,7 +29,8 @@ export function renderStats(data: S7Data, container: HTMLElement): void {
   const topReasons = (() => {
     const counts = new Map<string, number>();
     for (const a of data.arrivals) {
-      if (a.reason) counts.set(a.reason, (counts.get(a.reason) ?? 0) + 1);
+      const label = a.disruption?.cause_text ?? a.disruption?.category;
+      if (label) counts.set(label, (counts.get(label) ?? 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   })();

@@ -13,7 +13,7 @@ function arrival(overrides: Partial<Arrival>): Arrival {
     actual_time: null,
     delay_minutes: 0,
     cancelled: false,
-    reason: null,
+    disruption: null,
     train_number: null,
     terminus_status: null,
     terminus_delay_minutes: null,
@@ -311,22 +311,39 @@ describe("expand panel content", () => {
     expect(detailValue(panelOf(c2), "Zug")).toBeUndefined();
   });
 
-  it("Grund row appears in panel and is removed from summary row when reason is set", () => {
-    const c = renderInto([arrival({ terminus_status: "arrived", reason: "Signalstörung" })]);
-    expect(detailValue(panelOf(c), "Grund")).toBe("Signalstörung");
-    expect(c.querySelector("button.arrival-row .arrival-reason")).toBeNull();
+  it("disruption badge appears in summary row and detail when disruption is set", () => {
+    const c = renderInto([arrival({
+      terminus_status: "arrived",
+      disruption: { category: "Störung", cause_code: 34,
+                    cause_text: "Verspätung eines vorausfahrenden Zuges",
+                    window: { from: "2026-06-10T04:19:00+00:00", to: "2026-06-10T06:30:00+00:00" } },
+    })]);
+    expect(c.querySelector(".badge--disruption")?.textContent).toContain("Störung");
+    expect(c.querySelector(".arrival-detail")?.textContent).toContain("Verspätung eines vorausfahrenden Zuges");
+    // window rendered HH:MM-HH:MM in Europe/Berlin (06:19-08:30)
+    expect(c.querySelector(".arrival-detail")?.textContent).toContain("06:19-08:30");
   });
 
-  it("Baierbrunn-cancelled with reason=null shows 'Zug ausgefallen - keine Fahrt' line and no separate Grund row", () => {
-    const c = renderInto([arrival({ cancelled: true, reason: null })]);
-    const panel = panelOf(c);
-    expect(panel.textContent).toContain("Zug ausgefallen - keine Fahrt");
-    expect(detailValue(panel, "Grund")).toBeUndefined();
+  it("no disruption badge when disruption is null", () => {
+    const c = renderInto([arrival({ disruption: null })]);
+    expect(c.querySelector(".badge--disruption")).toBeNull();
   });
 
-  it("Baierbrunn-cancelled with reason shows reason in Grund row", () => {
-    const c = renderInto([arrival({ cancelled: true, reason: "Streik" })]);
-    expect(detailValue(panelOf(c), "Grund")).toBe("Streik");
+  it("escapes XSS payload in category and cause_text", () => {
+    const c = renderInto([arrival({
+      disruption: { category: "<img src=x onerror=alert(1)>", cause_code: null,
+                    cause_text: "<script>alert(2)</script>", window: null },
+    })]);
+    expect(c.querySelector("img")).toBeNull();
+    expect(c.querySelector("script")).toBeNull();
+    expect(c.innerHTML).toContain("&lt;img");
+  });
+
+  it("category-only disruption shows badge, no cause line", () => {
+    const c = renderInto([arrival({
+      disruption: { category: "Störung", cause_code: null, cause_text: null, window: null },
+    })]);
+    expect(c.querySelector(".badge--disruption")?.textContent).toContain("Störung");
   });
 });
 

@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from s7bb_fetcher.exporter import _expected_slots, export_latest, export_monthly_archive
-from s7bb_fetcher.parser import ArrivalRecord
+from s7bb_fetcher.parser import ArrivalRecord, Disruption
 from s7bb_fetcher.storage import open_db, upsert_records
 
 # Match exporter's local-date bucketing (Europe/Berlin). Stamping fixture
@@ -437,3 +437,47 @@ def test_terminus_health_populated_sorted_by_bucket(tmp_path):
         {"bucket": "muenchen",        "zero_match_streak":  0, "updated_at": "2026-05-23T07:42:11+00:00"},
         {"bucket": "wolfratshausen",  "zero_match_streak": 12, "updated_at": "2026-05-23T07:42:11+00:00"},
     ]
+
+
+def test_disruption_object_assembled(populated_db, tmp_path):
+    upsert_records(populated_db, [_make_arrival(
+        "dx", _de_today_iso(9, 0), "muenchen",
+        disruption=Disruption(category="Störung", cause_code=34,
+                              window_from="2026-06-10T04:19:00+00:00",
+                              window_to="2026-06-10T06:30:00+00:00"),
+    )])
+    out = tmp_path / "latest.json"
+    export_latest(populated_db, out)
+    data = json.loads(out.read_text())
+    row = next(a for a in data["arrivals"] if a["train_id"] == "dx")
+    assert row["disruption"] == {
+        "category": "Störung",
+        "cause_code": 34,
+        "cause_text": "Verspätung eines vorausfahrenden Zuges",
+        "window": {"from": "2026-06-10T04:19:00+00:00", "to": "2026-06-10T06:30:00+00:00"},
+    }
+    assert "reason" not in row
+
+
+def test_disruption_null_when_clean(populated_db, tmp_path):
+    out = tmp_path / "latest.json"
+    export_latest(populated_db, out)
+    data = json.loads(out.read_text())
+    row = next(a for a in data["arrivals"] if a["train_id"] == "m1")
+    assert row["disruption"] is None
+    assert "reason" not in row
+
+
+def test_disruption_unknown_code_keeps_number_drops_text(populated_db, tmp_path):
+    upsert_records(populated_db, [_make_arrival(
+        "dz", _de_today_iso(9, 20), "muenchen",
+        disruption=Disruption(cause_code=99999),
+    )])
+    out = tmp_path / "latest.json"
+    export_latest(populated_db, out)
+    data = json.loads(out.read_text())
+    row = next(a for a in data["arrivals"] if a["train_id"] == "dz")
+    assert row["disruption"]["cause_code"] == 99999
+    assert row["disruption"]["cause_text"] is None
+    assert row["disruption"]["category"] is None
+    assert row["disruption"]["window"] is None

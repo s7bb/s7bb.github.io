@@ -9,9 +9,31 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .cause_codes import decode_cause
+
 _DE_TZ = ZoneInfo("Europe/Berlin")
 
 _PERIOD_RE = re.compile(r"^(\d{4})-(\d{2})$")
+
+
+def _attach_disruption(r: dict) -> None:
+    """Replace the four disruption_* columns + legacy reason with a nested
+    `disruption` object (or None). Mutates r in place."""
+    cat = r.pop("disruption_category", None)
+    code = r.pop("disruption_cause_code", None)
+    wfrom = r.pop("disruption_window_from", None)
+    wto = r.pop("disruption_window_to", None)
+    r.pop("reason", None)
+    if cat is None and code is None:
+        r["disruption"] = None
+        return
+    window = None if (wfrom is None and wto is None) else {"from": wfrom, "to": wto}
+    r["disruption"] = {
+        "category": cat,
+        "cause_code": code,
+        "cause_text": decode_cause(code),
+        "window": window,
+    }
 
 
 def _atomic_write_json(path: Path, payload: object) -> None:
@@ -37,8 +59,10 @@ def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
     cur = conn.execute(
         """
         SELECT train_id, line, station, direction, direction_bucket, scheduled_time,
-               actual_time, delay_minutes, cancelled, reason, train_number,
-               terminus_status, terminus_delay_minutes, terminus_short_turn_station
+               actual_time, delay_minutes, cancelled, train_number,
+               terminus_status, terminus_delay_minutes, terminus_short_turn_station,
+               disruption_category, disruption_cause_code,
+               disruption_window_from, disruption_window_to
         FROM arrivals
         WHERE scheduled_time >= ?
         ORDER BY scheduled_time, train_id
@@ -49,6 +73,7 @@ def _query_window(conn: sqlite3.Connection, days: int) -> list[dict]:
     out = [dict(zip(cols, row)) for row in cur.fetchall()]
     for r in out:
         r["cancelled"] = bool(r["cancelled"])
+        _attach_disruption(r)
     return out
 
 
@@ -192,8 +217,10 @@ def export_monthly_archive(
     cur = conn.execute(
         """
         SELECT train_id, line, station, direction, direction_bucket, scheduled_time,
-               actual_time, delay_minutes, cancelled, reason, train_number,
-               terminus_status, terminus_delay_minutes, terminus_short_turn_station
+               actual_time, delay_minutes, cancelled, train_number,
+               terminus_status, terminus_delay_minutes, terminus_short_turn_station,
+               disruption_category, disruption_cause_code,
+               disruption_window_from, disruption_window_to
         FROM arrivals
         WHERE scheduled_time >= ? AND scheduled_time < ?
         ORDER BY scheduled_time, train_id
@@ -204,6 +231,7 @@ def export_monthly_archive(
     rows = [dict(zip(cols, row)) for row in cur.fetchall()]
     for r in rows:
         r["cancelled"] = bool(r["cancelled"])
+        _attach_disruption(r)
 
     muenchen_rows = [r for r in rows if r["direction_bucket"] == "muenchen"]
     wolfratshausen_rows = [r for r in rows if r["direction_bucket"] == "wolfratshausen"]

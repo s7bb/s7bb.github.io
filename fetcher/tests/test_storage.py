@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from s7bb_fetcher.parser import ArrivalRecord
+from s7bb_fetcher.parser import ArrivalRecord, Disruption
 from s7bb_fetcher.storage import open_db, update_terminus_fields, upsert_records
 
 
@@ -383,3 +383,44 @@ def test_update_terminus_fields_only_matches_exact_scheduled_time(tmp_db):
         "SELECT train_id, terminus_status FROM arrivals ORDER BY train_id"
     ).fetchall())
     assert rows == {"d1": "arrived", "d2": "pending"}
+
+
+def _arr(train_id, scheduled, **kw):
+    defaults = dict(
+        line="S7", station="Baierbrunn", direction="Wolfratshausen",
+        direction_bucket="wolfratshausen", actual_time=scheduled,
+        delay_minutes=0, cancelled=False, reason=None,
+    )
+    return ArrivalRecord(train_id=train_id, scheduled_time=scheduled, **{**defaults, **kw})
+
+
+def test_disruption_columns_persist_and_are_sticky(tmp_path):
+    conn = open_db(tmp_path / "t.db")
+    # First upsert: full disruption captured.
+    upsert_records(conn, [_arr(
+        "d1", "2026-06-10T08:00:00+00:00",
+        disruption=Disruption(category="Störung", cause_code=34,
+                              window_from="2026-06-10T04:19:00+00:00",
+                              window_to="2026-06-10T06:30:00+00:00"),
+    )])
+    # Refetch after window rolled off: disruption is None -> must NOT wipe.
+    upsert_records(conn, [_arr("d1", "2026-06-10T08:00:00+00:00", disruption=None)])
+    row = conn.execute(
+        "SELECT disruption_category, disruption_cause_code, "
+        "disruption_window_from, disruption_window_to FROM arrivals "
+        "WHERE train_id='d1'"
+    ).fetchone()
+    assert row == ("Störung", 34, "2026-06-10T04:19:00+00:00", "2026-06-10T06:30:00+00:00")
+
+
+def test_disruption_cause_code_refines_on_non_null(tmp_path):
+    conn = open_db(tmp_path / "t.db")
+    upsert_records(conn, [_arr("d2", "2026-06-10T08:00:00+00:00", disruption=None)])
+    upsert_records(conn, [_arr(
+        "d2", "2026-06-10T08:00:00+00:00",
+        disruption=Disruption(cause_code=44),
+    )])
+    code = conn.execute(
+        "SELECT disruption_cause_code FROM arrivals WHERE train_id='d2'"
+    ).fetchone()[0]
+    assert code == 44
