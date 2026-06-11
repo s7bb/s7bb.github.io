@@ -113,6 +113,7 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .badge--ok { background: #d4f5e2; color: var(--green); }
 .badge--late { background: #ffe8c8; color: var(--orange); }
 .badge--cancelled { background: #fdd; color: var(--red); }
+.badge--disruption { background: #ffe8c8; color: var(--orange); }
 
 /* Chart containers */
 .chart-container { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem; max-height: 320px; }
