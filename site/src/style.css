@@ -101,7 +101,6 @@ h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #555; }
 .arrival-time { font-weight: 700; font-size: 1.05rem; min-width: 3.5rem; font-variant-numeric: tabular-nums; }
 .arrival-direction { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arrival-empty { color: #ccc; }
-.arrival-reason { font-size: 0.8rem; color: #888; }
 @media (max-width: 700px) {
   .slot-pair { column-gap: 0.4rem; row-gap: 0.3rem; }
   .arrival-row { padding: 0.4rem 0.55rem; gap: 0.35rem; font-size: 0.85rem; }
