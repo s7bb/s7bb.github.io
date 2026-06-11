@@ -18,7 +18,7 @@ function arrival(overrides: Partial<Arrival>): Arrival {
     actual_time: null,
     delay_minutes: 0,
     cancelled: false,
-    reason: null,
+    disruption: null,
     train_number: null,
     terminus_status: null,
     terminus_delay_minutes: null,
@@ -76,5 +76,21 @@ describe("hostile aggregates from latest.json", () => {
     expect((window as { __pwned?: number }).__pwned).toBeUndefined();
     // Tampered numerics coerce to 0 via num().
     expect(c.textContent).toContain("0 Züge");
+  });
+});
+
+describe("top disruption reasons", () => {
+  it("lists top disruption reasons by cause_text falling back to category", () => {
+    const data = fixture([
+      arrival({ disruption: { category: "Störung", cause_code: 34, cause_text: "Verspätung eines vorausfahrenden Zuges", window: null } }),
+      arrival({ disruption: { category: "Störung", cause_code: 34, cause_text: "Verspätung eines vorausfahrenden Zuges", window: null } }),
+      arrival({ disruption: { category: "Bauarbeiten", cause_code: null, cause_text: null, window: null } }),
+    ]);
+    const c = document.createElement("div");
+    renderStats(data, c);
+    const box = c.querySelector(".reasons-box");
+    expect(box?.textContent).toContain("Verspätung eines vorausfahrenden Zuges");
+    expect(box?.textContent).toContain("(2×)");
+    expect(box?.textContent).toContain("Bauarbeiten");
   });
 });
