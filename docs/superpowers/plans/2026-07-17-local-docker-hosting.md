@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let anyone run the S7BB site locally with `docker compose up -d --build s7bb-site`, reading published data from the s7bb-data repo, with no credentials.
+**Goal:** Let anyone run the S7BB site locally with `docker compose -f compose.local.yml up -d --build`, reading published data from the s7bb-data repo, with no credentials and no `.env`.
 
 **Architecture:** A new multi-stage `site/Dockerfile` builds the Vite bundle and serves it with nginx. The data source is a runtime setting, not a build-time bake: the container entrypoint writes `config.json` from `S7BB_DATA_BASE_URL` at startup, and the site fetches that file at boot to learn its base URL. A new `dataBase()` helper collapses the three duplicated base-URL branches into one resolution path, falling back to today's behavior when no config exists so dev workflows are unaffected.
 
@@ -14,18 +14,36 @@
 execution (not reasoning) are marked inline so you know which "Expected:" lines are
 trustworthy.
 
-## STOP: read before running any Docker command
+## STOP: read before running any container command
 
-This working copy has a real `.env` containing a **live, non-placeholder
-`GITHUB_PAT`**, and today `s7bb-repo-init` / `s7bb-fetcher` carry **no compose
-profile**, which means they start on a bare `docker compose up -d`.
+Two facts about this environment. Both are measured, not assumed.
 
-Until Task 5 lands, running `docker compose up -d` in this repo starts the **production
-fetcher**, which will push to `s7bb/s7bb-data` from your machine and break the
-single-writer invariant in CLAUDE.md.
+**1. A bare `compose up -d` against `docker-compose.yml` starts the production
+fetcher.** This working copy has a real `.env` with a **live, non-placeholder
+`GITHUB_PAT`**, and `s7bb-repo-init` / `s7bb-fetcher` carry no compose profile, so they
+are always in the default set. Starting them pushes to `s7bb/s7bb-data` from this
+machine and breaks the single-writer invariant in CLAUDE.md.
 
-**Do not run a bare `docker compose up -d` at any point in this plan.** Always name the
-service. Task 5 fixes this at the root by profiling the production services.
+**Never run a bare `compose up -d` at any point in this plan.** Local hosting lives in
+its own file and is always invoked as `-f compose.local.yml`. This plan does not fix
+the trap in `docker-compose.yml`; fixing it needs a profile change nerdctl cannot
+support, so it is deliberately left for its own change.
+
+**2. The runtime here is `nerdctl`, not `docker`.** There is no `docker` binary.
+Use `nerdctl` and `nerdctl compose` for every command in this plan. The user-facing
+docs still say `docker compose`, because that is what most readers will have and the
+compose file works under both.
+
+nerdctl's compose profile support differs from Docker's in ways that already broke one
+version of this design (measured on nerdctl 2.3.3):
+
+| Mechanism | nerdctl |
+|---|---|
+| `--profile <name>` flag | works |
+| `COMPOSE_PROFILES` env var | silently ignored |
+| naming a profiled service | fails: `no such service` |
+
+Do not reintroduce `COMPOSE_PROFILES` or add `profiles:` to any production service.
 
 ## Global Constraints
 
@@ -35,7 +53,7 @@ service. Task 5 fixes this at the root by profiling the production services.
 - **German UI, English code.** UI labels/strings in German; code, comments, and commit messages in English. The README is written in English; only quoted UI strings are German.
 - **Node 22**, per `.nvmrc`.
 - **No new npm dependencies.** Everything in this plan uses what is already installed.
-- **Production services:** Task 5 adds `profiles: [fetcher]` to `s7bb-repo-init` and `s7bb-fetcher`. That is the only permitted change to them. Their behavior when started must stay identical, and the VM's `docker compose up -d s7bb-fetcher` must keep working. Do not touch the `dev` profile services at all.
+- **Do not touch `docker-compose.yml`.** Not the production services, not the `dev` profile services, not one line. Local hosting lives entirely in a new `compose.local.yml`. The VM's `compose up -d s7bb-fetcher` must keep working untouched.
 - This is **phase 1 only**: remote mode. Do not implement `S7BB_PUSH_ENABLED`, preflight rework, or `s7bb-seed`.
 - **No auto-refresh.** The site fetches once per page load; `main.ts:34-37` memoizes `liveData` and there is no timer. This is deliberate for phase 1. Do not add one, and do not claim otherwise in docs.
 
@@ -58,8 +76,8 @@ service. Task 5 fixes this at the root by profiling the production services.
 | `site/test-entrypoint.sh` | Create | Plain-sh tests for the entrypoint. No framework, no new deps. |
 | `site/Dockerfile` | Create | Multi-stage node build -> nginx serve. |
 | `site/.dockerignore` | Create | Keep `node_modules/` out of the build context. |
-| `docker-compose.yml` | Modify | Add `s7bb-site`; add `profiles: [fetcher]` to the two production services. |
-| `.env.example` | Modify | Add the paired config block; fix the stale README pointer (Task 0). |
+| `compose.local.yml` | Create | Local hosting: the `s7bb-site` service, and nothing else. `docker-compose.yml` is untouched. |
+| `.env.example` | Modify | Document the optional `S7BB_DATA_BASE_URL` override; fix the stale README pointer (Task 0). |
 | `README.md` | Modify | New "Run it locally with Docker" section; reconcile with the existing `:21-23` note. |
 | `CHANGELOG.md` | Modify | Entry under `[Unreleased]`. |
 | `CLAUDE.md` | Modify | Local-hosting architecture note; audience note. |
@@ -828,9 +846,13 @@ git commit -m "feat(site): add nginx config and runtime config entrypoint"
 
 ## Task 4: Site Docker image
 
-**Note:** Docker was not available in the environment where this plan was written, so
-Steps 3-5 are the first genuinely unverified steps in it. Treat their expected output
-as intent, not as measured fact, and report any deviation rather than forcing a match.
+**Note:** the runtime here is `nerdctl`, not `docker` - there is no `docker` binary. The
+image build and run steps below use `nerdctl`. The Dockerfile itself is runtime-neutral
+and the user-facing docs still say `docker`, which is what most readers will have.
+
+These build/run steps were never executed while the plan was written, so treat their
+expected output as intent rather than measured fact, and report deviations instead of
+forcing a match.
 
 **Files:**
 - Create: `site/Dockerfile`
@@ -883,21 +905,21 @@ CMD ["nginx", "-g", "daemon off;"]
 
 - [ ] **Step 3: Build the image**
 
-Run: `docker build -t s7bb-site:test site/`
+Run: `nerdctl build -t s7bb-site:test site/`
 Expected: build succeeds.
 
 - [ ] **Step 4: Verify the image serves and configures correctly**
 
 ```bash
-docker run --rm -d --name s7bb-site-test -p 8081:80 \
+nerdctl run --rm -d --name s7bb-site-test -p 8081:80 \
   -e S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main \
   s7bb-site:test
 sleep 2
 curl -s http://localhost:8081/config.json; echo
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8081/
 curl -s -I http://localhost:8081/config.json | grep -i cache-control
-docker logs s7bb-site-test 2>&1 | head -5
-docker rm -f s7bb-site-test
+nerdctl logs s7bb-site-test 2>&1 | head -5
+nerdctl rm -f s7bb-site-test
 ```
 
 Expected:
@@ -910,7 +932,7 @@ Expected:
 - [ ] **Step 5: Verify fail-fast on missing config**
 
 ```bash
-docker run --rm s7bb-site:test > /tmp/s7bb-fatal.txt 2>&1
+nerdctl run --rm s7bb-site:test > /tmp/s7bb-fatal.txt 2>&1
 echo "exit=$?"
 head -3 /tmp/s7bb-fatal.txt
 ```
@@ -918,7 +940,7 @@ head -3 /tmp/s7bb-fatal.txt
 Expected: `exit=1` and `FATAL: S7BB_DATA_BASE_URL is unset or blank.`
 
 Capture to a file rather than piping to `head`: `$?` after a pipe is the exit status of
-`head`, not of `docker run`, so the piped form would always report success.
+`head`, not of `nerdctl run`, so the piped form would always report success.
 
 - [ ] **Step 6: Commit**
 
@@ -929,83 +951,63 @@ git commit -m "feat(site): add multi-stage Docker image"
 
 ---
 
-## Task 5: Compose service, production profiles, and `.env.example`
-
-This task carries the plan's one production change. Read the whole task before running
-anything.
+## Task 5: Local compose file and `.env.example`
 
 **Files:**
-- Modify: `docker-compose.yml`
+- Create: `compose.local.yml`
 - Modify: `.env.example`
 
 **Interfaces:**
 - Consumes: `site/Dockerfile` from Task 4
-- Produces: service `s7bb-site` on profiles `remote` and `fetcher`, port 8080;
-  `profiles: [fetcher]` on `s7bb-repo-init` and `s7bb-fetcher`
+- Produces: `compose.local.yml` defining one service, `s7bb-site`, on port 8080
 
-**Why the production services must be profiled.** A Compose service with no `profiles:`
-key is **always** started. `s7bb-repo-init` and `s7bb-fetcher` have none, so
-`docker compose up -d` starts the production fetcher today. Putting a profile on
-`s7bb-site` gates the site and does nothing to the fetcher. Without this change, telling
-a local user to run `up -d` starts a push-enabled fetcher on their machine: a crash loop
-with placeholder credentials, or a second writer to s7bb-data with real ones.
+**Why a separate compose file.** Two measured facts force this shape, and both were
+learned the hard way:
 
-Naming a service explicitly enables its profiles, so the VM's documented
-`docker compose up -d s7bb-fetcher` keeps working, and `s7bb-repo-init` still comes
-along via `depends_on` because it shares the `fetcher` profile.
+1. `s7bb-repo-init` and `s7bb-fetcher` in `docker-compose.yml` have no `profiles:` key,
+   and a Compose service without one is **always** in the default set. So a bare
+   `compose up -d` starts the production, push-enabled fetcher. Adding a profile to the
+   site would gate the site, not the fetcher.
+2. Profiling the production services would fix that under Docker, but **the runtime
+   here is nerdctl**, which ignores `COMPOSE_PROFILES` and fails with
+   `no such service` when you name a profiled service. It would leave the VM unable to
+   start its own fetcher.
 
-- [ ] **Step 1: Profile the two production services**
+A separate file avoids profile semantics completely: the production services are not in
+it, so no invocation of it can start them, under either runtime.
 
-In `docker-compose.yml`, add a `profiles` key to `s7bb-repo-init` (currently line 12)
-so it reads:
+**Do not** add `profiles:` anywhere, **do not** set `COMPOSE_PROFILES`, and **do not**
+edit `docker-compose.yml`.
 
-```yaml
-  s7bb-repo-init:
-    image: alpine/git:latest
-    profiles:
-      - fetcher
-    environment:
-      DATA_REPO_URL: https://github.com/s7bb/s7bb-data.git
-```
+- [ ] **Step 1: Write the local compose file**
 
-and to `s7bb-fetcher` (currently line 34) so it reads:
+Create `compose.local.yml` at the repo root:
 
 ```yaml
-  s7bb-fetcher:
-    build:
-      context: fetcher
-      dockerfile: Dockerfile
-    profiles:
-      - fetcher
-    restart: unless-stopped
-    env_file: .env
-```
-
-Change nothing else in either service.
-
-- [ ] **Step 2: Add the compose service**
-
-In `docker-compose.yml`, add this service above `s7bb-repo-init` so the user-facing
-service reads first:
-
-```yaml
-  # Static site, served by nginx. Runs in both data modes:
-  #   remote  - the browser fetches JSON straight from the s7bb-data repo
-  #   fetcher - the browser reads ./data, written by a local fetcher (phase 2)
-  # The data source is a runtime setting (S7BB_DATA_BASE_URL), so switching it
-  # needs a restart, not a rebuild.
+# Local hosting. Runs the site alone, reading published data from the
+# s7bb-data repo. Needs no credentials and no .env.
+#
+#   docker compose  -f compose.local.yml up -d --build
+#   nerdctl compose -f compose.local.yml up -d --build
+#
+# Deliberately a separate file from docker-compose.yml, not a profile:
+# the production fetcher services there have no profile and would start on a
+# bare `up -d`, and nerdctl (the runtime on the VM) ignores COMPOSE_PROFILES
+# and cannot start a profiled service by name. Keeping the site in its own
+# file means no invocation of it can reach the production services.
+services:
   s7bb-site:
     build:
       context: site
       dockerfile: Dockerfile
     restart: unless-stopped
-    profiles:
-      - remote
-      - fetcher
     ports:
-      # 8080 is also used by s7bb-dev, but its profile is disjoint from these.
+      # 8080 is also used by s7bb-dev in docker-compose.yml's dev profile.
+      # They are separate files; do not run both at once.
       - "8080:80"
     environment:
+      # Runtime setting: changing it needs a restart, not a rebuild. The
+      # default means local hosting works with no .env at all.
       S7BB_DATA_BASE_URL: ${S7BB_DATA_BASE_URL:-https://raw.githubusercontent.com/s7bb/s7bb-data/main}
     volumes:
       # Unused in remote mode and harmless there; phase 2 (local fetcher)
@@ -1013,117 +1015,95 @@ service reads first:
       - ./data:/usr/share/nginx/html/data:ro
 ```
 
-- [ ] **Step 3: Add the paired config block to `.env.example`**
+- [ ] **Step 2: Document the optional override in `.env.example`**
 
-Append to `.env.example`:
+Local hosting needs no `.env`. Append only a commented block so the knob is
+discoverable without implying it is required:
 
 ```
-# --- Local hosting: where the site reads its data from ---
-# These two settings must agree. The site warns at startup if they do not.
+# --- Local hosting (compose.local.yml) ---
+# Optional. Defaults to the published s7bb-data URL; set this only to point
+# the site somewhere else.
+# S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
 #
-# remote (default): read published data from the s7bb-data repo. No
-# credentials needed, full history, current on every page load.
-COMPOSE_PROFILES=remote
-S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
-
-# fetcher: run your own fetcher and serve its output from ./data. Requires
-# DB_API_KEY and DB_CLIENT_ID above. Not available yet - see
-# docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md (phase 2).
-# COMPOSE_PROFILES=fetcher
-# S7BB_DATA_BASE_URL=/data
+# Phase 2 (own fetcher, serving ./data): S7BB_DATA_BASE_URL=/data
 ```
 
-- [ ] **Step 4: Validate the compose file**
+Do not add `COMPOSE_PROFILES`. It is inert under nerdctl and misleading under Docker.
 
-`s7bb-fetcher` declares `env_file: .env`, which Compose requires to exist even when the
-service is not started. Create one if missing, then validate:
+- [ ] **Step 3: Validate the compose file**
 
 ```bash
-test -f .env || cp .env.example .env
-docker compose config --quiet && echo "compose OK"
+nerdctl compose -f compose.local.yml config --services
 ```
 
-Expected: `compose OK`, no warnings.
+Expected: exactly one line, `s7bb-site`. If anything else appears, stop.
 
-Note: `cp` only when `.env` is absent. If a `.env` already exists it may hold real
-credentials; never overwrite it.
+- [ ] **Step 4: Prove it cannot reach the production services**
 
-- [ ] **Step 5: Verify the profile matrix**
-
-This is the check that proves the safety fix. Run each and compare:
+This is the check that makes the whole design safe. `compose.local.yml` must not
+contain, reference, or be able to start `s7bb-fetcher` or `s7bb-repo-init`:
 
 ```bash
-docker compose config --services                      # every service, profiled or not
-echo "--- default (no profile) ---"
-COMPOSE_PROFILES= docker compose config --services --profiles 2>/dev/null || true
-echo "--- what a bare up -d would start ---"
-COMPOSE_PROFILES= docker compose up --dry-run -d 2>&1 | head -20
-echo "--- what up -d s7bb-site would start ---"
-COMPOSE_PROFILES= docker compose up --dry-run -d s7bb-site 2>&1 | head -20
-echo "--- what the VM's up -d s7bb-fetcher would start ---"
-COMPOSE_PROFILES= docker compose up --dry-run -d s7bb-fetcher 2>&1 | head -20
+grep -cE "s7bb-fetcher|s7bb-repo-init" compose.local.yml
+nerdctl compose -f compose.local.yml config --services | sort
+git diff --stat docker-compose.yml
 ```
 
 Expected:
-- bare `up -d` with no profile: starts **nothing** (no service is in the default set)
-- `up -d s7bb-site`: starts **s7bb-site only**
-- `up -d s7bb-fetcher`: starts **s7bb-fetcher and s7bb-repo-init**, exactly as the VM
-  does today
+- `0` from the grep
+- `s7bb-site` and nothing else
+- **empty output** from `git diff --stat docker-compose.yml` - the production file is
+  untouched. If it shows changes, revert them.
 
-If `up -d s7bb-fetcher` does not pull in `s7bb-repo-init`, stop. The VM depends on that
-ordering and the profiling is wrong.
-
-- [ ] **Step 6: Verify production services are otherwise untouched**
-
-Run: `git diff docker-compose.yml`
-Expected: the only changes to `s7bb-repo-init` and `s7bb-fetcher` are the added
-`profiles:` keys. No other line of theirs changed. `s7bb-dev`, `s7bb-data-init`, and
-`s7bb-site-dev` are untouched.
-
-- [ ] **Step 7: End-to-end smoke test**
+- [ ] **Step 5: End-to-end smoke test**
 
 ```bash
-docker compose up -d --build s7bb-site
+nerdctl compose -f compose.local.yml up -d --build
 sleep 3
 curl -s http://localhost:8080/config.json; echo
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/
-docker compose ps --services
+nerdctl compose -f compose.local.yml ps
+nerdctl ps --format '{{.Names}}'
 ```
 
 Expected:
-- `{"dataBaseUrl":"https://raw.githubusercontent.com/s7bb/s7bb-data/main"}`
+- `{"dataBaseUrl":"https://raw.githubusercontent.com/s7bb/s7bb-data/main"}` on one line
 - `200`
-- `docker compose ps --services` prints exactly `s7bb-site` and nothing else. If
-  `s7bb-fetcher` or `s7bb-repo-init` appear, stop immediately and run
-  `docker compose down` - the profiling in Step 1 is wrong and the fetcher may be
-  pushing to s7bb-data.
+- exactly one container running, the site
+- `nerdctl ps` shows **no** fetcher or repo-init container. If either appears, run
+  `nerdctl compose -f compose.local.yml down` immediately and stop: something has
+  started production services and they may be pushing to s7bb-data.
 
-- [ ] **Step 8: Verify the site actually renders data in a browser**
+- [ ] **Step 6: Verify the site actually renders data in a browser**
 
 Open <http://localhost:8080> and confirm the today page shows S7 arrivals rather than
 "Fehler beim Laden der Daten". In the browser devtools Network tab, confirm a request
 to `raw.githubusercontent.com` returning 200.
 
 This is the one check that proves the whole feature works. It needs a human. Do not
-skip it, and do not substitute a passing typecheck for it.
+skip it, and do not substitute a passing typecheck for it. If you cannot open a
+browser, say so plainly in your report and mark the task DONE_WITH_CONCERNS rather than
+claiming it passed.
 
-- [ ] **Step 9: Check the ./data ownership question from the spec**
+- [ ] **Step 7: Check the ./data ownership question from the spec**
 
 Run: `ls -ld data/ 2>/dev/null || echo "no data dir"`
 
-The spec flags that Docker may create `./data` as a root-owned directory, which would
-block the phase 2 fetcher from writing. Record what actually happened in the PR
-description. Do not fix it here - phase 2 owns that.
+The spec flags that the runtime may create `./data` as a root-owned directory, which
+would block the phase 2 fetcher from writing. Under rootless nerdctl, container root
+maps to the invoking host user, so this is expected to be benign here. Record what
+actually happened in your report. Do not fix it - phase 2 owns that.
 
-- [ ] **Step 10: Tear down**
+- [ ] **Step 8: Tear down**
 
-Run: `docker compose down`
+Run: `nerdctl compose -f compose.local.yml down`
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add docker-compose.yml .env.example
-git commit -m "feat: add s7bb-site compose service for local hosting"
+git add compose.local.yml .env.example
+git commit -m "feat: add compose.local.yml for local site hosting"
 ```
 
 ---
@@ -1159,7 +1139,7 @@ In the same file, add to the **`docker`** job:
 
 ```yaml
       - name: Build site image
-        run: docker build -t s7bb-site:ci site/
+        run: nerdctl build -t s7bb-site:ci site/
 
       - name: Test site entrypoint
         run: sh site/test-entrypoint.sh
@@ -1172,7 +1152,7 @@ In the same file, add to the **`docker`** job:
 ```bash
 cd site && npm test && cd ..
 sh site/test-entrypoint.sh
-docker build -t s7bb-site:ci site/
+nerdctl build -t s7bb-site:ci site/
 ```
 
 Expected: 110 tests pass; 9 `ok` lines; image builds.
@@ -1208,41 +1188,40 @@ English; the German strings below are quoted UI text, per CLAUDE.md:
 The public site is gone. To see the statistics, run them yourself:
 
 ```bash
-cp .env.example .env
-docker compose up -d --build s7bb-site
+docker compose -f compose.local.yml up -d --build
 ```
 
-The site is then at <http://localhost:8080>.
+The site is then at <http://localhost:8080>. That is the whole setup: no credentials,
+no `.env`, no API key.
 
-The default mode is `remote`: the browser reads the published data directly from
-`s7bb/s7bb-data`. No credentials are needed and the full history is there. The data is
-current every time you load the page. A tab left open does not refresh on its own;
-reload it.
+The browser reads the published data directly from `s7bb/s7bb-data`, so the full
+history is there and the data is current every time you load the page. A tab left open
+does not refresh on its own; reload it.
 
-Name the service (`s7bb-site`) rather than running a bare `docker compose up -d`. The
-fetcher services are behind the `fetcher` profile, so a bare `up -d` starts nothing
-unless `COMPOSE_PROFILES` is set in your `.env`.
+If you use nerdctl or podman instead of Docker, the same file works:
+
+```bash
+nerdctl compose -f compose.local.yml up -d --build
+```
+
+Always pass `-f compose.local.yml`. The main `docker-compose.yml` is the production
+fetcher setup and is not meant to run on your machine.
 
 ### Changing the data source
 
-The source is a runtime setting in `.env`, so changing it needs a restart, not a
-rebuild of the image:
+The source is a runtime setting, so changing it needs a restart, not a rebuild:
 
 ```bash
-docker compose restart s7bb-site
+export S7BB_DATA_BASE_URL=https://example.org/my-mirror
+docker compose -f compose.local.yml up -d
 ```
 
-In phase 1 the only supported value is the default:
-
-```
-S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
-```
-
-`COMPOSE_PROFILES` and `S7BB_DATA_BASE_URL` have to agree. If they do not, the page
-shows "Fehler beim Laden der Daten" and the reason is in the container log:
+Phase 1 has one supported value, the default:
+`https://raw.githubusercontent.com/s7bb/s7bb-data/main`. If the site cannot reach its
+data it shows "Fehler beim Laden der Daten"; the reason is in the container log:
 
 ```bash
-docker compose logs s7bb-site
+docker compose -f compose.local.yml logs s7bb-site
 ```
 
 The `fetcher` mode, running your own fetcher instead of reading s7bb-data, is not
@@ -1255,15 +1234,21 @@ available yet. It is described as phase 2 in
 In `CLAUDE.md`, add to the "Site publishing (disabled)" section:
 
 ```markdown
-Local hosting replaces it: `docker compose up -d --build s7bb-site` builds `site/` and
-serves it with nginx on :8080. Default mode `remote` - the browser fetches JSON straight
-from `s7bb/s7bb-data`, no credentials, current on each page load (no refresh timer). The
-data source is a runtime setting (`S7BB_DATA_BASE_URL`), written to `config.json` by the
-site container's entrypoint and read by `site/src/config.ts`; changing it needs a
-restart, not a rebuild. `s7bb-repo-init` and `s7bb-fetcher` are behind the `fetcher`
-profile so a bare `up -d` cannot start the production fetcher; the VM's
-`docker compose up -d s7bb-fetcher` is unaffected. Local fetcher mode is phase 2 and not
-implemented. See `docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`.
+Local hosting replaces it: `docker compose -f compose.local.yml up -d --build` builds
+`site/` and serves it with nginx on :8080. Default mode `remote` - the browser fetches
+JSON straight from `s7bb/s7bb-data`, no credentials, no `.env`, current on each page
+load (no refresh timer). The data source is a runtime setting (`S7BB_DATA_BASE_URL`),
+written to `config.json` by the site container's entrypoint and read by
+`site/src/config.ts`; changing it needs a restart, not a rebuild.
+
+Local hosting is a **separate compose file** on purpose. `docker-compose.yml` is the
+production fetcher setup: its services carry no profile, so a bare `up -d` there starts
+the push-enabled fetcher. Profiles cannot fix that here - the runtime is nerdctl, which
+ignores `COMPOSE_PROFILES` and cannot start a profiled service by name, so profiling
+`s7bb-fetcher` would make the VM's `up -d s7bb-fetcher` fail with `no such service`.
+Keeping the site in `compose.local.yml` means no local invocation can reach production
+services. Local fetcher mode is phase 2 and not implemented. See
+`docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`.
 ```
 
 Also amend the "Project: S7BB" audience line. It currently reads:
@@ -1288,11 +1273,7 @@ In `CHANGELOG.md`, under `[Unreleased]`, add an `### Added` section above the ex
 ```markdown
 ### Added
 
-- Local Docker hosting: `docker compose up -d --build s7bb-site` builds the site and serves it at <http://localhost:8080>, reading published data straight from the s7bb-data repo with no credentials. The data source is configurable at runtime via `S7BB_DATA_BASE_URL` and takes effect on restart, without a rebuild.
-
-### Changed
-
-- The `s7bb-repo-init` and `s7bb-fetcher` services now sit behind the `fetcher` compose profile, so a bare `docker compose up -d` no longer starts the production fetcher. The documented `docker compose up -d s7bb-fetcher` is unaffected.
+- Local Docker hosting: `docker compose -f compose.local.yml up -d --build` builds the site and serves it at <http://localhost:8080>, reading published data straight from the s7bb-data repo. No credentials, no API key, no `.env`. The data source is configurable at runtime via `S7BB_DATA_BASE_URL` and takes effect on restart, without a rebuild.
 ```
 
 - [ ] **Step 8: Check the em-dash constraint across the feature diff**
@@ -1311,7 +1292,7 @@ from `.env.example`. Only added lines outside `docs/superpowers/` are in scope.
 ```bash
 cd site && npm run lint && npx tsc --noEmit && npm run build && npm test && cd ..
 sh site/test-entrypoint.sh
-docker compose config --quiet && echo "compose OK"
+nerdctl compose -f compose.local.yml config --quiet && echo "compose OK"
 ```
 
 Expected: all pass.
@@ -1340,26 +1321,30 @@ git push -u origin feat/local-docker-hosting
 Title: `feat: local Docker hosting (phase 1, remote mode)`
 
 The body must state:
-- what shipped: remote mode, runtime config, `dataBase()` refactor
-- **the production compose change**: `s7bb-repo-init` and `s7bb-fetcher` are now behind
-  the `fetcher` profile, why (a bare `up -d` previously started the production fetcher),
-  and the evidence from Task 5 Step 5 that `up -d s7bb-fetcher` still works
+- what shipped: remote mode via `compose.local.yml`, runtime config, `dataBase()` refactor
+- **that `docker-compose.yml` is untouched**, and why local hosting is a separate file
+  rather than a compose profile: nerdctl (the VM's runtime) ignores `COMPOSE_PROFILES`
+  and cannot start a profiled service by name, so profiling `s7bb-fetcher` would have
+  broken the VM. Include the evidence from Task 5 Step 4.
+- **the pre-existing trap left in place**: a bare `up -d` on `docker-compose.yml` still
+  starts the production fetcher. Not made worse by this PR, not fixed by it, needs its
+  own change with VM verification.
 - what did not ship: fetcher mode, seeding (phase 2, link the spec)
 - no auto-refresh: current per page load, by design
-- the `./data` ownership finding from Task 5 Step 9
+- the `./data` ownership finding from Task 5 Step 7
 - the cross-origin `download` attribute regression from Task 2 Step 5
-- confirmation that the browser smoke test (Task 5 Step 8) passed
+- confirmation that the browser smoke test (Task 5 Step 6) passed
 
 - [ ] **Step 3: Wait for CI**
 
 Run: `gh pr checks --watch`
 Expected: python, typescript, docker all pass.
 
-- [ ] **Step 4: Flag the VM step for the maintainer**
+- [ ] **Step 4: Confirm no VM action is needed**
 
-The compose profile change affects the VM. Note in the PR that after merge, the VM needs
-`git pull` and that its `docker compose up -d s7bb-fetcher` command is unchanged. No
-action beyond the pull is required. Do not run anything against the VM yourself.
+`docker-compose.yml` is untouched, so the VM needs nothing: no redeploy, no command
+change. Say so explicitly in the PR, and show `git diff --stat main...HEAD -- docker-compose.yml`
+returning empty as the evidence. Do not run anything against the VM.
 
 ---
 

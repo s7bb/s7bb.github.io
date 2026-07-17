@@ -83,6 +83,24 @@ These were checked against the live system and the code, not assumed.
 - **Load failures already surface.** `main.ts:67-69` catches and renders
   `Fehler beim Laden der Daten. Bitte später nochmal versuchen.`
 - **`.nvmrc` is 22**, so `node:22-alpine` matches the CI build.
+- **The runtime is nerdctl, and its compose profile support is not Docker's.** The VM
+  runs rootless nerdctl: `docker-compose.yml:40` sets `user: "0:0"` precisely because
+  "in rootless nerdctl this maps to the host invoking user", and that ownership model
+  is load-bearing across earlier specs. Measured against nerdctl 2.3.3 / compose
+  v2.3.3:
+
+  | Mechanism | nerdctl behavior |
+  |---|---|
+  | `--profile <name>` flag | works, filters correctly |
+  | `COMPOSE_PROFILES` env var | **silently ignored**; profiled services never start |
+  | naming a profiled service (`compose up svc`) | **fails**: `no such service: svc` |
+
+  Docker enables a service's profile when you name it explicitly. nerdctl does not.
+  This kills two designs outright: `COMPOSE_PROFILES=remote` in `.env` would never
+  start the site, and adding `profiles: [fetcher]` to `s7bb-fetcher` would make the
+  VM's `up -d s7bb-fetcher` fail with `no such service`, silently killing production on
+  the next redeploy. The repo's existing idiom (`--profile dev`, README:242) is the
+  flag, which is the nerdctl-compatible form.
 
 ## Components
 
@@ -152,79 +170,88 @@ Requirements:
 
 ### 6. `docker-compose.yml`
 
+Local hosting gets **its own compose file**, `compose.local.yml`, containing only the
+site. `docker-compose.yml` is not touched at all.
+
 ```yaml
-s7bb-site:
-  build:
-    context: site
-  profiles: [remote, fetcher]
-  ports:
-    - "8080:80"
-  environment:
-    S7BB_DATA_BASE_URL: ${S7BB_DATA_BASE_URL:-https://raw.githubusercontent.com/s7bb/s7bb-data/main}
-  volumes:
-    - ./data:/usr/share/nginx/html/data:ro
+# compose.local.yml
+services:
+  s7bb-site:
+    build:
+      context: site
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      S7BB_DATA_BASE_URL: ${S7BB_DATA_BASE_URL:-https://raw.githubusercontent.com/s7bb/s7bb-data/main}
+    volumes:
+      - ./data:/usr/share/nginx/html/data:ro
 ```
 
-**The production services must also be profiled.** `s7bb-repo-init` and `s7bb-fetcher`
-have no `profiles:` key today, and a Compose service without one is *always* started.
-Adding a profile to `s7bb-site` gates the site; it does nothing to the fetcher. So a
-local user running `docker compose up -d` starts the production, push-enabled fetcher.
-With a real `GITHUB_PAT` in `.env` that means a second writer pushing to `s7bb-data`,
-breaking the single-writer invariant; with placeholder credentials it means a
-`restart: unless-stopped` crash loop.
+```bash
+docker compose  -f compose.local.yml up -d --build     # Docker
+nerdctl compose -f compose.local.yml up -d --build     # nerdctl
+```
 
-Therefore add `profiles: [fetcher]` to both `s7bb-repo-init` and `s7bb-fetcher`. This
-is a change to production compose and must be verified on the VM, but it is safe by
-construction: naming a service explicitly enables its profiles, so the VM's documented
-`docker compose up -d s7bb-fetcher` keeps working and still pulls in `s7bb-repo-init`
-via `depends_on` (same profile). The resulting matrix:
+**Why a separate file rather than profiles.** Two things force it:
+
+1. `s7bb-repo-init` and `s7bb-fetcher` have no `profiles:` key, and a Compose service
+   without one is *always* started. So `docker compose up -d` starts the production,
+   push-enabled fetcher: with a real `GITHUB_PAT` that is a second writer to s7bb-data,
+   breaking the single-writer invariant; with placeholder credentials it is a
+   `restart: unless-stopped` crash loop. Putting a profile on the site does not change
+   that - it gates the site, not the fetcher.
+2. Profiling the production services *would* fix it under Docker, but the runtime here
+   is nerdctl, which ignores `COMPOSE_PROFILES` and refuses to start a profiled service
+   by name (see Verified facts). It would leave the VM unable to start its fetcher.
+
+A separate file sidesteps profile semantics entirely: the production services are not
+in it, so no invocation of it can start them, under either runtime. It also needs no
+`.env` - `S7BB_DATA_BASE_URL` has a built-in default - so local hosting requires zero
+configuration.
 
 | Command | Starts |
 |---|---|
-| `docker compose up -d` with the shipped `.env` (`COMPOSE_PROFILES=remote`) | site only |
-| `docker compose up -d` with no `.env` | nothing |
-| `docker compose up -d s7bb-site` | site only |
-| `docker compose up -d s7bb-fetcher` (VM) | fetcher + repo-init, unchanged |
+| `compose -f compose.local.yml up -d --build` | site only, both runtimes |
+| `docker compose up -d` (production file) | unchanged, pre-existing trap, not made worse |
+| `docker compose up -d s7bb-fetcher` (VM) | unchanged |
 
-Docs name the service explicitly (`up -d --build s7bb-site`) so the command is
-unambiguous regardless of `.env`.
+The pre-existing trap in `docker-compose.yml` is deliberately left alone: fixing it
+needs the profile change that nerdctl cannot support, so it wants its own change with
+VM verification.
 
 Two further notes:
 
 - **The `./data` mount is unconditional.** Harmless and unused in remote mode, and it
   means phase 2 needs no change to this service definition. On a fresh clone `./data`
-  does not exist; Docker creates an empty directory for the bind mount. That is
+  does not exist; the runtime creates an empty directory for the bind mount. That is
   acceptable (`/data/` is gitignored), but the plan should verify it does not produce a
   root-owned directory that later blocks the phase 2 fetcher from writing.
-- **Port 8080 is also used by `s7bb-dev`** (`8080:8080`, `dev` profile). They never run
-  together by default, since the profiles are disjoint. Do not enable `dev` and `remote`
-  at once.
+- **Port 8080 is also used by `s7bb-dev`** (`8080:8080`, `dev` profile). They live in
+  different compose files and never start together unless someone runs both. Do not run
+  the `dev` profile and local hosting at once.
 
-The `dev` profile services (`s7bb-dev`, `s7bb-data-init`, `s7bb-site-dev`) are not
-touched.
+Nothing in `docker-compose.yml` changes: not the production services, not the `dev`
+profile services.
 
 ### 7. `.env.example`
 
-Add a paired block, shipped defaulting to a working remote setup:
+Local hosting needs **no `.env`**: `S7BB_DATA_BASE_URL` defaults to the s7bb-data raw
+URL inside `compose.local.yml`. Add only a short commented block documenting the
+override, so the knob is discoverable without implying it is required:
 
 ```
-# --- Local hosting: where the site reads its data from ---
-# remote (default): read published data from s7bb-data. No credentials needed.
-COMPOSE_PROFILES=remote
-S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
-
-# fetcher (phase 2): run your own fetcher, serve its output from ./data
-# COMPOSE_PROFILES=fetcher
-# S7BB_DATA_BASE_URL=/data
+# --- Local hosting (compose.local.yml) ---
+# Optional. Defaults to the published s7bb-data URL; only set this to point
+# the site somewhere else.
+# S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
+#
+# Phase 2 (own fetcher, serving ./data): S7BB_DATA_BASE_URL=/data
 ```
 
-`COMPOSE_PROFILES` and `S7BB_DATA_BASE_URL` must agree. This is the design's one wart;
-it is accepted in favour of a magic derivation, and the entrypoint's startup warning
-catches the mismatch.
-
-`COMPOSE_PROFILES=remote` is only safe because the production services are profiled
-(see above). Without that change it would be actively misleading: it would enable the
-site *in addition to* the always-on production fetcher, not instead of it.
+No `COMPOSE_PROFILES`. It would be inert under nerdctl and misleading under Docker, and
+the separate compose file makes it unnecessary. This also removes the earlier design's
+one wart: there are no longer two settings that must agree.
 
 ## Error handling
 
