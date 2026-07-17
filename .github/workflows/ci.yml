@@ -89,8 +89,8 @@ jobs:
 
       - name: Smoke test site image
         run: |
+          trap 'docker rm -f s7bb-site-ci >/dev/null 2>&1 || true' EXIT
           docker run -d --name s7bb-site-ci -e S7BB_DATA_BASE_URL=https://example.test/d -p 8080:80 s7bb-site:ci
           sleep 3
           test "$(curl -sf http://localhost:8080/config.json | jq -r .dataBaseUrl)" = "https://example.test/d"
           curl -sf -o /dev/null http://localhost:8080/
-          docker rm -f s7bb-site-ci

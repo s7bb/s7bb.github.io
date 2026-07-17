@@ -4,6 +4,7 @@ import { resolveBase, dataBase, _resetConfigCache } from "./config.js";
 beforeEach(() => {
   _resetConfigCache();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("resolveBase", () => {
@@ -84,5 +85,25 @@ describe("dataBase", () => {
     await dataBase();
     await dataBase();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("warns when config.json is unreadable in a production build", async () => {
+    vi.stubEnv("DEV", false);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("not found", { status: 404 }) as Response,
+    );
+    expect(await dataBase()).toBe("/data");
+    expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  it("does not warn in a production build when config.json is readable", async () => {
+    vi.stubEnv("DEV", false);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ dataBaseUrl: "https://cdn.example/d" }), { status: 200 }) as Response,
+    );
+    expect(await dataBase()).toBe("https://cdn.example/d");
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

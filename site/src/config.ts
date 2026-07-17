@@ -47,13 +47,23 @@ export function dataBase(): Promise<string> {
   if (!_baseCache) {
     _baseCache = (async () => {
       let configValue: unknown;
+      // Set whenever config.json could not be read: a non-2xx response (e.g.
+      // a plain 404 when the entrypoint never wrote the file), a network
+      // failure, or a body that is not JSON (the Vite dev server returns
+      // index.html for any unknown path, which fails to parse).
+      let unreadable = false;
       try {
         const resp = await fetch(`${import.meta.env.BASE_URL}config.json`);
         if (resp.ok) {
           const cfg = (await resp.json()) as { dataBaseUrl?: unknown };
           configValue = cfg?.dataBaseUrl;
+        } else {
+          unreadable = true;
         }
       } catch {
+        unreadable = true;
+      }
+      if (unreadable) {
         // No config.json, or it is not JSON. Normal in dev and in a plain
         // `npm run preview`. Fall through to the build-time default; this is
         // not an error and must not be logged as one.
@@ -63,7 +73,8 @@ export function dataBase(): Promise<string> {
         if (!import.meta.env.DEV) {
           console.warn(
             "s7bb: could not read config.json; falling back to the build-time data source. " +
-              "Data may be stale or wrong.",
+              "Data may be stale or wrong. Check the container logs for the entrypoint's " +
+              "'config: dataBaseUrl=' line and verify S7BB_DATA_BASE_URL is set.",
           );
         }
       }
