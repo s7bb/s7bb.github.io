@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { loadIndex, loadMonth, _resetCache } from "./archive.js";
+import { _primeDataBase } from "./config.js";
 
 const indexJson = {
   generated_at: "2026-05-07T07:00:00+00:00",
@@ -28,6 +29,7 @@ const monthJson = {
 
 beforeEach(() => {
   _resetCache();
+  _primeDataBase("../data");
   vi.restoreAllMocks();
 });
 
@@ -81,6 +83,15 @@ describe("loadIndex", () => {
     );
     const idx = await loadIndex();
     expect(idx.months).toEqual([]);
+  });
+
+  it("fetches from the base resolved by dataBase()", async () => {
+    _primeDataBase("https://base.test");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(indexJson), { status: 200 }) as Response,
+    );
+    await loadIndex();
+    expect(fetchSpy.mock.calls[0][0]).toBe("https://base.test/archive/index.json");
   });
 });
 

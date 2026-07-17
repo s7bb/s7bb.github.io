@@ -54,6 +54,10 @@ jobs:
         run: npm run build
         working-directory: site
 
+      - name: Test
+        run: npm test
+        working-directory: site
+
   docker:
     runs-on: ubuntu-latest
     steps:
@@ -76,3 +80,17 @@ jobs:
         run: |
           docker run --rm s7bb-fetcher:ci s7bb-fetch --help
           docker run --rm s7bb-fetcher:ci s7bb-export --help
+
+      - name: Build site image
+        run: docker build -t s7bb-site:ci site/
+
+      - name: Test site entrypoint
+        run: sh site/test-entrypoint.sh
+
+      - name: Smoke test site image
+        run: |
+          trap 'docker rm -f s7bb-site-ci >/dev/null 2>&1 || true' EXIT
+          docker run -d --name s7bb-site-ci -e S7BB_DATA_BASE_URL=https://example.test/d -p 8080:80 s7bb-site:ci
+          sleep 3
+          test "$(curl -sf http://localhost:8080/config.json | jq -r .dataBaseUrl)" = "https://example.test/d"
+          curl -sf -o /dev/null http://localhost:8080/

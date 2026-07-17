@@ -6,8 +6,10 @@ import {
   terminusAggregate,
   num,
   germanMonth,
+  loadData,
 } from "./data.js";
 import type { S7Data, Arrival } from "./data.js";
+import { _primeDataBase, _resetConfigCache } from "./config.js";
 
 function arrival(overrides: Partial<Arrival>): Arrival {
   return {
@@ -48,6 +50,23 @@ function fixture(arrivals: Arrival[]): S7Data {
     expected_slots: { today: { muenchen: [], wolfratshausen: [] } },
   };
 }
+
+beforeEach(() => {
+  _resetConfigCache();
+  _primeDataBase("../data");
+  vi.restoreAllMocks();
+});
+
+describe("loadData", () => {
+  it("fetches from the base resolved by dataBase()", async () => {
+    _primeDataBase("https://base.test");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(fixture([])), { status: 200 }) as Response,
+    );
+    await loadData();
+    expect(fetchSpy.mock.calls[0][0]).toBe("https://base.test/latest.json");
+  });
+});
 
 describe("last7DaysByDayBothDirections", () => {
   it("returns empty array when no arrivals", () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { endpunktCell, renderArchiveDetail } from "./archive-detail.js";
 import { _resetCache } from "../archive.js";
+import { _primeDataBase } from "../config.js";
 import type { Arrival } from "../data.js";
 
 vi.mock("../charts/dailyByDirection.js", () => ({ renderDailyByDirection: vi.fn() }));
@@ -78,6 +79,7 @@ describe("endpunktCell", () => {
 describe("renderArchiveDetail hostile JSON", () => {
   beforeEach(() => {
     _resetCache();
+    _primeDataBase("../data");
     vi.restoreAllMocks();
   });
 

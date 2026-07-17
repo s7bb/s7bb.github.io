@@ -18,9 +18,59 @@ DB Timetables API (XML)
 
 The fetcher runs in a Docker container on a small VM and pushes the schedule JSON hourly to `s7bb/s7bb-data`.
 
-Site deployment is currently **disabled** - the `build-site.yml` workflow is
-retained but switched off, and no site is published. The site code under
-`site/` still builds locally (see [Development](#site)).
+No site is published: GitHub Pages is deleted and the `build-site.yml` workflow is
+retained but switched off. Run it yourself instead, see
+[Run it locally with Docker](#run-it-locally-with-docker).
+
+---
+
+## Run it locally with Docker
+
+The public site is gone. To see the statistics, run them yourself:
+
+```bash
+docker compose -f compose.local.yml up -d --build
+```
+
+The site is then at <http://localhost:8080>. That is the whole setup: no credentials,
+no `.env`, no API key.
+
+The browser reads the published data directly from `s7bb/s7bb-data`, so the full
+history is there and the data is current every time you load the page. A tab left open
+does not refresh on its own; reload it.
+
+If you use nerdctl or podman instead of Docker, the same file works:
+
+```bash
+nerdctl compose -f compose.local.yml up -d --build
+```
+
+Always pass `-f compose.local.yml`. The main `docker-compose.yml` is the production
+fetcher setup and is not meant to run on your machine.
+
+### Changing the data source
+
+The source is a runtime setting, so changing it needs a restart, not a rebuild:
+
+```bash
+export S7BB_DATA_BASE_URL=https://example.org/my-mirror
+docker compose -f compose.local.yml up -d
+```
+
+Any URL serving the same layout as `s7bb-data` works (`latest.json`,
+`archive/index.json`, `archive/<YYYY-MM>.json`), and it must send permissive CORS
+headers. The default is `https://raw.githubusercontent.com/s7bb/s7bb-data/main`.
+Running your own fetcher and serving `/data` is phase 2 and not available yet.
+If the site cannot reach its data it shows "Fehler beim Laden der Daten"; the reason
+is in the container log:
+
+```bash
+docker compose -f compose.local.yml logs s7bb-site
+```
+
+The `fetcher` mode, running your own fetcher instead of reading s7bb-data, is not
+available yet. It is described as phase 2 in
+[`docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`](docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md).
 
 ---
 

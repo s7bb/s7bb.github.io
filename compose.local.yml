@@ -1,0 +1,29 @@
+# Local hosting. Runs the site alone, reading published data from the
+# s7bb-data repo. Needs no credentials and no .env.
+#
+#   docker compose  -f compose.local.yml up -d --build
+#   nerdctl compose -f compose.local.yml up -d --build
+#
+# Deliberately a separate file from docker-compose.yml, not a profile:
+# the production fetcher services there have no profile and would start on a
+# bare `up -d`, and nerdctl (the runtime on the VM) ignores COMPOSE_PROFILES
+# and cannot start a profiled service by name. Keeping the site in its own
+# file means no invocation of it can reach the production services.
+services:
+  s7bb-site:
+    build:
+      context: site
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      # 8080 is also used by s7bb-dev in docker-compose.yml's dev profile.
+      # They are separate files; do not run both at once.
+      - "8080:80"
+    environment:
+      # Runtime setting: changing it needs a restart, not a rebuild. The
+      # default means local hosting works with no .env at all.
+      S7BB_DATA_BASE_URL: ${S7BB_DATA_BASE_URL:-https://raw.githubusercontent.com/s7bb/s7bb-data/main}
+    volumes:
+      # Unused in remote mode and harmless there; phase 2 (local fetcher)
+      # needs no change to this service definition.
+      - ./data:/usr/share/nginx/html/data:ro
