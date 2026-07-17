@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-17
+
 ### Added
 
 - Local Docker hosting: `docker compose -f compose.local.yml up -d --build` builds the site and serves it at <http://localhost:8080>, reading published data straight from the s7bb-data repo. No credentials, no API key, no `.env`. The data source is configurable at runtime via `S7BB_DATA_BASE_URL` and takes effect on restart, without a rebuild.
