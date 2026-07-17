@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Local Docker hosting: `docker compose -f compose.local.yml up -d --build` builds the site and serves it at <http://localhost:8080>, reading published data straight from the s7bb-data repo. No credentials, no API key, no `.env`. The data source is configurable at runtime via `S7BB_DATA_BASE_URL` and takes effect on restart, without a rebuild.
+
 ### Removed
 
 - Site publishing is switched off: the public site at s7bb.github.io no longer serves, and the `build-site.yml` deploy workflow is disabled (the workflow file is retained, so publishing can be restored). Data collection on the VM and the hourly push to `s7bb/s7bb-data` are unaffected.

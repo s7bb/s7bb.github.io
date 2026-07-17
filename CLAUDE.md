@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project: S7BB
 
-Tracks Deutsche Bahn S7 S-Bahn schedule at Baierbrunn station (Munich) - on-time status, delays, cancellations. Target audience: non-technical Baierbrunn residents; UI labels are German, code/comments English.
+Tracks Deutsche Bahn S7 S-Bahn schedule at Baierbrunn station (Munich) - on-time status, delays, cancellations. Target audience: Baierbrunn residents; UI labels are German, code/comments English.
+Note: since the public site was taken down, distribution is via local Docker, so
+running S7BB now requires technical skill even though the UI stays simple and German.
 
 ## Architecture
 
@@ -110,6 +112,22 @@ never needed in CI - fetching runs only on VM.
 
 To re-enable: `gh workflow enable "Build and deploy site"`, then Repo Settings →
 Pages → Source: GitHub Actions. Deploy uses OIDC (`id-token: write`), no secrets.
+
+Local hosting replaces it: `docker compose -f compose.local.yml up -d --build` builds
+`site/` and serves it with nginx on :8080. Default mode `remote` - the browser fetches
+JSON straight from `s7bb/s7bb-data`, no credentials, no `.env`, current on each page
+load (no refresh timer). The data source is a runtime setting (`S7BB_DATA_BASE_URL`),
+written to `config.json` by the site container's entrypoint and read by
+`site/src/config.ts`; changing it needs a restart, not a rebuild.
+
+Local hosting is a **separate compose file** on purpose. `docker-compose.yml` is the
+production fetcher setup: its services carry no profile, so a bare `up -d` there starts
+the push-enabled fetcher. Profiles cannot fix that here - the runtime is nerdctl, which
+ignores `COMPOSE_PROFILES` and cannot start a profiled service by name, so profiling
+`s7bb-fetcher` would make the VM's `up -d s7bb-fetcher` fail with `no such service`.
+Keeping the site in `compose.local.yml` means no local invocation can reach production
+services. Local fetcher mode is phase 2 and not implemented. See
+`docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`.
 
 ## Key constraints
 
