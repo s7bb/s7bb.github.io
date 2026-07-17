@@ -911,7 +911,9 @@ Expected: build succeeds.
 - [ ] **Step 4: Verify the image serves and configures correctly**
 
 ```bash
-nerdctl run --rm -d --name s7bb-site-test -p 8081:80 \
+# No --rm: nerdctl 2.3.3 rejects "-d --rm" together ("flags -d and --rm cannot
+# be specified together"). The rm -f below is the cleanup.
+nerdctl run -d --name s7bb-site-test -p 8081:80 \
   -e S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main \
   s7bb-site:test
 sleep 2
