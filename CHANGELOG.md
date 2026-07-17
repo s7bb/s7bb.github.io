@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Site publishing is switched off: the public site at s7bb.github.io no longer serves, and the `build-site.yml` deploy workflow is disabled (the workflow file is retained, so publishing can be restored). Data collection on the VM and the hourly push to `s7bb/s7bb-data` are unaffected.
+
 ## [0.10.0] - 2026-06-11
 
 ### Added
