@@ -57,9 +57,12 @@ export S7BB_DATA_BASE_URL=https://example.org/my-mirror
 docker compose -f compose.local.yml up -d
 ```
 
-Phase 1 has one supported value, the default:
-`https://raw.githubusercontent.com/s7bb/s7bb-data/main`. If the site cannot reach its
-data it shows "Fehler beim Laden der Daten"; the reason is in the container log:
+Any URL serving the same layout as `s7bb-data` works (`latest.json`,
+`archive/index.json`, `archive/<YYYY-MM>.json`), and it must send permissive CORS
+headers. The default is `https://raw.githubusercontent.com/s7bb/s7bb-data/main`.
+Running your own fetcher and serving `/data` is phase 2 and not available yet.
+If the site cannot reach its data it shows "Fehler beim Laden der Daten"; the reason
+is in the container log:
 
 ```bash
 docker compose -f compose.local.yml logs s7bb-site

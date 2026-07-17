@@ -84,6 +84,15 @@ describe("loadIndex", () => {
     const idx = await loadIndex();
     expect(idx.months).toEqual([]);
   });
+
+  it("fetches from the base resolved by dataBase()", async () => {
+    _primeDataBase("https://base.test");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(indexJson), { status: 200 }) as Response,
+    );
+    await loadIndex();
+    expect(fetchSpy.mock.calls[0][0]).toBe("https://base.test/archive/index.json");
+  });
 });
 
 describe("loadMonth", () => {

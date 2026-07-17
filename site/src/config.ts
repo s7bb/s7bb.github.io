@@ -57,6 +57,15 @@ export function dataBase(): Promise<string> {
         // No config.json, or it is not JSON. Normal in dev and in a plain
         // `npm run preview`. Fall through to the build-time default; this is
         // not an error and must not be logged as one.
+        //
+        // In a built container it IS an anomaly: the fallback may serve stale
+        // data from the ./data mount with no other signal, so say so.
+        if (!import.meta.env.DEV) {
+          console.warn(
+            "s7bb: could not read config.json; falling back to the build-time data source. " +
+              "Data may be stale or wrong.",
+          );
+        }
       }
       return resolveBase({
         configValue,
