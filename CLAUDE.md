@@ -27,9 +27,13 @@ DB Timetables API (XML)
                      GitHub: s7bb/s7bb-data main updated
                        ↓ (push → s7bb-data/.github/workflows/dispatch-build.yml)
                        ↓ (workflow_dispatch API, DISPATCH_TOKEN, Actions:write)
-                     Actions build-site.yml (event: workflow_dispatch)
-                     checks out this repo + s7bb-data, assembles
-                     site/dist, deploys gh-pages. No schedule cron.
+                       ↓
+                     [DISABLED] Actions build-site.yml (workflow_dispatch)
+                     would check out this repo + s7bb-data, assemble
+                     site/dist, deploy gh-pages. No schedule cron.
+                     Workflow is disabled and Pages is deleted - the
+                     chain stops at the s7bb-data push. See
+                     "Site publishing (disabled)" below.
 ```
 
 ### Key decisions (locked)
@@ -94,15 +98,18 @@ npm run lint     # eslint
 1. Clone **this code repo** over HTTPS. The s7bb-data working tree at
    `/repo` is auto-provisioned by the `s7bb-repo-init` compose service
    (gitignored host bind mount `./data-repo`) - do not clone it by hand.
-2. Copy `.env.example` → `.env`, fill in API credentials, `GITHUB_PAT` (see README §5), UID/GID.
+2. Copy `.env.example` → `.env`, fill in API credentials, `GITHUB_PAT` (see README §4), UID/GID.
 3. `docker compose up -d s7bb-fetcher` - `s7bb-repo-init` clones/refreshes
    `s7bb/s7bb-data` first, then APScheduler runs fetch+export+push.
 
-## GitHub Pages Setup
+## Site publishing (disabled)
 
-1. Repo Settings → Pages → Source: GitHub Actions.
-2. No secrets needed for deployment (OIDC via `id-token: write`).
-3. `DB_API_KEY` / `DB_CLIENT_ID` are never needed in CI - fetching runs only on VM.
+GitHub Pages is **deleted** and `build-site.yml` is **disabled** (workflow file
+retained, not deleted). No site is published. `DB_API_KEY` / `DB_CLIENT_ID` are
+never needed in CI - fetching runs only on VM.
+
+To re-enable: `gh workflow enable "Build and deploy site"`, then Repo Settings →
+Pages → Source: GitHub Actions. Deploy uses OIDC (`id-token: write`), no secrets.
 
 ## Key constraints
 

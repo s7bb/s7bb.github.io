@@ -1,8 +1,6 @@
 # S7BB - S7 Baierbrunn Pünktlichkeit
 
-Tracks on-time performance of the Deutsche Bahn S7 S-Bahn line at Baierbrunn station (Munich). Shows live delays, cancellations, and weekly statistics. Published as a static site on GitHub Pages, updated hourly.
-
-**Site:** https://s7bb.github.io
+Tracks on-time performance of the Deutsche Bahn S7 S-Bahn line at Baierbrunn station (Munich). Shows live delays, cancellations, and weekly statistics.
 
 ---
 
@@ -16,12 +14,13 @@ DB Timetables API (XML)
         │
         ▼  every hour (APScheduler in container)
   s7bb-export → data/latest.json → git push
-        │
-        ▼  GitHub Actions (hourly cron :10, picks up VM's :00 push)
-  Vite build  →  GitHub Pages
 ```
 
-The fetcher runs in a Docker container on a small VM and pushes the schedule JSON hourly to `s7bb/s7bb-data`. GitHub Actions rebuilds and deploys the static site on an hourly schedule (and on site-code changes).
+The fetcher runs in a Docker container on a small VM and pushes the schedule JSON hourly to `s7bb/s7bb-data`.
+
+Site deployment is currently **disabled** - the `build-site.yml` workflow is
+retained but switched off, and no site is published. The site code under
+`site/` still builds locally (see [Development](#site)).
 
 ---
 
@@ -87,7 +86,7 @@ S7BB does not currently ingest it.
 
 - Python 3.11+ with [uv](https://docs.astral.sh/uv/) (`pip install uv`)
 - Node.js 22+
-- A VM with internet access. The fetcher pushes via HTTPS using a fine-grained GitHub Personal Access Token (no SSH key required - see §5)
+- A VM with internet access. The fetcher pushes via HTTPS using a fine-grained GitHub Personal Access Token (no SSH key required - see §4)
 
 ### 1. Clone and configure
 
@@ -172,23 +171,11 @@ The CLI prints one line per check. `[OK]` is healthy, `[WARN]` is a soft failure
 - `data_writable [FAIL]: permission denied` - the bind-mounted `data/` directory is not writable by the container user.
 - `github [WARN]: bad or expired GITHUB_PAT` - issue a new fine-grained PAT and update `.env`.
 
-### 4. Configure GitHub Pages
-
-1. Repo **Settings → Pages → Source → GitHub Actions**.
-2. No secrets needed - the deploy workflow uses OIDC (`id-token: write`).
-3. On the next data push to `s7bb/s7bb-data` (or a manual `workflow_dispatch`), GitHub Actions will build and deploy the site automatically.
-
-The build workflow checks out **both** this repo (site code) and
-`s7bb/s7bb-data` (the JSON) and assembles them into the deployed
-artifact. `s7bb/s7bb-data` must stay public for the token-free checkout.
-The fallback `schedule:` cron runs at `:10` so it picks up the VM's
-`:00` hourly push.
-
-### 5. GitHub credentials for push from VM
+### 4. GitHub credentials for push from VM
 
 The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)** scoped to `s7bb/s7bb-data` only, layered with a server-side **push ruleset** that restricts which paths the bot is allowed to write. Even if the PAT leaks, the ruleset still rejects any change outside `latest.json` and `archive/**`.
 
-#### 5a. Add the push ruleset (do this first)
+#### 4a. Add the push ruleset (do this first)
 
 1. Open **`s7bb/s7bb-data`** → **Settings → Rules → Rulesets → New branch ruleset**.
 2. **Name:** `protect-main-from-bot-scope-creep`. **Status:** Active. **Bypass list:** empty.
@@ -202,7 +189,7 @@ The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)
      - `archive/**`
 5. **Create.**
 
-#### 5b. Create the fine-grained PAT
+#### 4b. Create the fine-grained PAT
 
 1. **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.**
 2. **Token name:** `s7bb-fetcher push`.
@@ -215,7 +202,7 @@ The VM authenticates to GitHub with a **fine-grained Personal Access Token (PAT)
    - All others: **No access**
 7. **Generate token.** Copy it immediately - GitHub shows it only once.
 
-#### 5c. Install the token on the VM
+#### 4c. Install the token on the VM
 
 ```bash
 # In /opt/s7bb/.env
@@ -230,15 +217,15 @@ docker compose up -d s7bb-fetcher
 
 The token is delivered to `git push` via a per-push `GIT_ASKPASS` helper. It never lands in `.git/config`, never appears in process arguments, and never persists past one push.
 
-#### 5d. Annual rotation
+#### 4d. Annual rotation
 
 1. Roughly 7 days before expiry, GitHub emails the PAT owner.
-2. Generate a replacement PAT with identical scope (steps 5b.1–7).
+2. Generate a replacement PAT with identical scope (steps 4b.1–7).
 3. Replace `GITHUB_PAT` in `.env` on the VM and restart: `docker compose up -d s7bb-fetcher`.
 4. Wait for the next hourly push to succeed (`docker compose logs --tail 50 s7bb-fetcher`).
 5. **Revoke the old PAT** in GitHub Settings.
 
-#### 5e. Suspected leak
+#### 4e. Suspected leak
 
 1. **Revoke the PAT immediately** in GitHub Settings.
 2. Generate a replacement, update `.env`, restart the container.
