@@ -2,15 +2,14 @@ import { loadMonth } from "../archive.js";
 import { escapeHtml, germanMonth, num, terminusLabelShort } from "../data.js";
 import type { Arrival } from "../data.js";
 import { renderDailyByDirection } from "../charts/dailyByDirection.js";
+import { dataBase } from "../config.js";
 
 function fmtTime(iso: string): string {
   return escapeHtml(String(iso).slice(11, 16));
 }
 
-function archiveJsonUrl(period: string): string {
-  return import.meta.env.DEV
-    ? `../data/archive/${period}.json`
-    : `${import.meta.env.BASE_URL}data/archive/${period}.json`;
+function archiveJsonUrl(base: string, period: string): string {
+  return `${base}/archive/${period}.json`;
 }
 
 export function endpunktCell(a: Arrival): string {
@@ -55,6 +54,7 @@ export async function renderArchiveDetail(period: string, container: HTMLElement
   }
 
   const agg = arc.aggregates;
+  const base = await dataBase();
 
   container.innerHTML = `
     <h2>${escapeHtml(germanMonth(period))} - S7 Baierbrunn ${arc.finalized ? "" : "<em>(läuft)</em>"}</h2>
@@ -89,7 +89,7 @@ export async function renderArchiveDetail(period: string, container: HTMLElement
       </table>
     </div>
     <p class="data-age">
-      <a href="${archiveJsonUrl(period)}" download>Rohdaten herunterladen (JSON)</a>
+      <a href="${escapeHtml(archiveJsonUrl(base, period))}" download>Rohdaten herunterladen (JSON)</a>
     </p>
   `;
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderArchiveList } from "./archive-list.js";
 import { _resetCache } from "../archive.js";
+import { _primeDataBase } from "../config.js";
 
 vi.mock("../charts/monthsBar.js", () => ({ renderMonthsBar: vi.fn() }));
 
@@ -24,6 +25,7 @@ function mockIndex(months: unknown[]): void {
 
 beforeEach(() => {
   _resetCache();
+  _primeDataBase("../data");
   vi.restoreAllMocks();
 });
 

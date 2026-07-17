@@ -1,3 +1,5 @@
+import { dataBase } from "./config.js";
+
 export type DirectionBucket = "muenchen" | "wolfratshausen" | "unknown";
 
 export type TerminusStatus = "arrived" | "short_turn" | "cancelled" | "pending";
@@ -52,9 +54,7 @@ export interface S7Data {
 }
 
 export async function loadData(): Promise<S7Data> {
-  const url = import.meta.env.DEV
-    ? "../data/latest.json"
-    : `${import.meta.env.BASE_URL}data/latest.json`;
+  const url = `${await dataBase()}/latest.json`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Failed to load data: ${resp.status}`);
   return resp.json() as Promise<S7Data>;

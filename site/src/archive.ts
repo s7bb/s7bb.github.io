@@ -1,4 +1,5 @@
 import type { Arrival, DayAggregate } from "./data.js";
+import { dataBase } from "./config.js";
 
 export interface MonthSummary {
   period: string;
@@ -36,16 +37,14 @@ const _PERIOD_RE = /^\d{4}-\d{2}$/;
 let _indexCache: Promise<ArchiveIndex> | null = null;
 const _monthCache = new Map<string, Promise<MonthlyArchive>>();
 
-function archiveBase(): string {
-  return import.meta.env.DEV
-    ? "../data/archive"
-    : `${import.meta.env.BASE_URL}data/archive`;
+async function archiveBase(): Promise<string> {
+  return `${await dataBase()}/archive`;
 }
 
 export async function loadIndex(): Promise<ArchiveIndex> {
   if (!_indexCache) {
     _indexCache = (async () => {
-      const url = `${archiveBase()}/index.json`;
+      const url = `${await archiveBase()}/index.json`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Failed to load archive index: ${resp.status}`);
       const idx = (await resp.json()) as ArchiveIndex;
@@ -67,7 +66,7 @@ export async function loadMonth(period: string): Promise<MonthlyArchive> {
   let cached = _monthCache.get(period);
   if (!cached) {
     cached = (async () => {
-      const url = `${archiveBase()}/${period}.json`;
+      const url = `${await archiveBase()}/${period}.json`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Failed to load month ${period}: ${resp.status}`);
       return resp.json() as Promise<MonthlyArchive>;

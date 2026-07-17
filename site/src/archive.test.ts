@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { loadIndex, loadMonth, _resetCache } from "./archive.js";
+import { _primeDataBase } from "./config.js";
 
 const indexJson = {
   generated_at: "2026-05-07T07:00:00+00:00",
@@ -28,6 +29,7 @@ const monthJson = {
 
 beforeEach(() => {
   _resetCache();
+  _primeDataBase("../data");
   vi.restoreAllMocks();
 });
 
