@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let anyone run the S7BB site locally with `docker compose up -d`, reading published data from the s7bb-data repo, with no credentials.
+**Goal:** Let anyone run the S7BB site locally with `docker compose up -d --build s7bb-site`, reading published data from the s7bb-data repo, with no credentials.
 
 **Architecture:** A new multi-stage `site/Dockerfile` builds the Vite bundle and serves it with nginx. The data source is a runtime setting, not a build-time bake: the container entrypoint writes `config.json` from `S7BB_DATA_BASE_URL` at startup, and the site fetches that file at boot to learn its base URL. A new `dataBase()` helper collapses the three duplicated base-URL branches into one resolution path, falling back to today's behavior when no config exists so dev workflows are unaffected.
 
@@ -10,16 +10,34 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`
 
+**Plan status:** revised after two independent reviews. Findings that were verified by
+execution (not reasoning) are marked inline so you know which "Expected:" lines are
+trustworthy.
+
+## STOP: read before running any Docker command
+
+This working copy has a real `.env` containing a **live, non-placeholder
+`GITHUB_PAT`**, and today `s7bb-repo-init` / `s7bb-fetcher` carry **no compose
+profile**, which means they start on a bare `docker compose up -d`.
+
+Until Task 5 lands, running `docker compose up -d` in this repo starts the **production
+fetcher**, which will push to `s7bb/s7bb-data` from your machine and break the
+single-writer invariant in CLAUDE.md.
+
+**Do not run a bare `docker compose up -d` at any point in this plan.** Always name the
+service. Task 5 fixes this at the root by profiling the production services.
+
 ## Global Constraints
 
 - **No em-dash.** Do not use "—" anywhere: UI text, docs, code comments, commit messages. Use a plain hyphen "-".
 - **Exact dependency pinning.** All deps use `=X.Y.Z` exact versions. Pin Docker base images to a specific tag, never `latest`.
 - **Conventional Commits.** Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `style`, `revert`. Subject imperative, lowercase, no trailing period, <=72 chars.
-- **German UI, English code.** UI labels/strings in German; code, comments, and commit messages in English.
+- **German UI, English code.** UI labels/strings in German; code, comments, and commit messages in English. The README is written in English; only quoted UI strings are German.
 - **Node 22**, per `.nvmrc`.
 - **No new npm dependencies.** Everything in this plan uses what is already installed.
-- **Do not touch production services.** `s7bb-repo-init`, `s7bb-fetcher`, and the `dev` profile in `docker-compose.yml` must keep working exactly as they do. The VM runs `docker compose up -d s7bb-fetcher` and depends on current behavior.
+- **Production services:** Task 5 adds `profiles: [fetcher]` to `s7bb-repo-init` and `s7bb-fetcher`. That is the only permitted change to them. Their behavior when started must stay identical, and the VM's `docker compose up -d s7bb-fetcher` must keep working. Do not touch the `dev` profile services at all.
 - This is **phase 1 only**: remote mode. Do not implement `S7BB_PUSH_ENABLED`, preflight rework, or `s7bb-seed`.
+- **No auto-refresh.** The site fetches once per page load; `main.ts:34-37` memoizes `liveData` and there is no timer. This is deliberate for phase 1. Do not add one, and do not claim otherwise in docs.
 
 ---
 
@@ -33,39 +51,54 @@
 | `site/src/archive.ts` | Modify (`:39-43`) | Same. `archiveBase()` becomes async. |
 | `site/src/pages/archive-detail.ts` | Modify (`:10-14`, `:92`) | Same. `archiveJsonUrl()` becomes a pure fn taking `base`. |
 | `site/src/archive.test.ts` | Modify (`:29-32`) | Prime the config cache so fetch counts stay accurate. |
+| `site/src/pages/archive-list.test.ts` | Modify (`:25-28`) | Prime the config cache. Without this the shared Response body is drained. |
+| `site/src/pages/archive-detail.test.ts` | Modify (`:79-82`) | Same. |
 | `site/nginx.conf` | Create | Serve static assets; `no-store` on config.json. |
-| `site/docker-entrypoint.sh` | Create | Write config.json from env; validate; warn on missing local data. |
+| `site/docker-entrypoint.sh` | Create | Write config.json from env; validate; warn on missing local data; chain to nginx init. |
 | `site/test-entrypoint.sh` | Create | Plain-sh tests for the entrypoint. No framework, no new deps. |
 | `site/Dockerfile` | Create | Multi-stage node build -> nginx serve. |
 | `site/.dockerignore` | Create | Keep `node_modules/` out of the build context. |
-| `docker-compose.yml` | Modify | Add the `s7bb-site` service under profiles `remote` and `fetcher`. |
+| `docker-compose.yml` | Modify | Add `s7bb-site`; add `profiles: [fetcher]` to the two production services. |
 | `.env.example` | Modify | Add the paired config block; fix the stale README pointer (Task 0). |
-| `README.md` | Modify | New "Lokal mit Docker betreiben" section. |
+| `README.md` | Modify | New "Run it locally with Docker" section; reconcile with the existing `:21-23` note. |
 | `CHANGELOG.md` | Modify | Entry under `[Unreleased]`. |
 | `CLAUDE.md` | Modify | Local-hosting architecture note; audience note. |
-| `.github/workflows/ci.yml` | Modify | Build the site image so the Dockerfile cannot rot. |
+| `.github/workflows/ci.yml` | Modify | Run vitest; build the site image; run the entrypoint tests. |
 
 ---
 
-## Task 0: Fix the stale README pointer in `.env.example`
+## Task 0: Branch, and fix the stale README pointer
 
-Unrelated to this feature, but a known defect recorded in the spec. PR #78 renumbered
-README section 5 to 4 and missed this file. Do it first so it does not pollute the
-feature diff.
+The `.env.example` fix is unrelated to this feature but is a known defect recorded in
+the spec: PR #78 renumbered README section 5 to 4 and missed this file. Doing it first
+keeps it out of the feature diff.
 
 **Files:**
 - Modify: `.env.example`
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: nothing
+- Produces: branch `feat/local-docker-hosting`
 
-- [ ] **Step 1: Confirm the stale pointer exists**
+- [ ] **Step 1: Create the feature branch**
+
+The spec and this plan are committed on `docs/local-docker-hosting-spec`. Branch the
+feature from there so the spec travels with it:
+
+```bash
+git checkout docs/local-docker-hosting-spec
+git checkout -b feat/local-docker-hosting
+git branch --show-current
+```
+
+Expected: `feat/local-docker-hosting`
+
+- [ ] **Step 2: Confirm the stale pointer exists**
 
 Run: `grep -n "README §" .env.example`
 Expected: one line reading `# See README §5 for the rotation flow.`
 
-- [ ] **Step 2: Fix it**
+- [ ] **Step 3: Fix it**
 
 In `.env.example`, change:
 
@@ -79,12 +112,16 @@ to:
 # See README §4 for the rotation flow.
 ```
 
-- [ ] **Step 3: Verify no stale pointers remain repo-wide**
+- [ ] **Step 4: Verify the fix landed**
 
-Run: `grep -rn "README §5" . --exclude-dir=.git --exclude-dir=node_modules`
-Expected: no output.
+Run: `grep -c "README §5" .env.example`
+Expected: `0`
 
-- [ ] **Step 4: Commit**
+Scope the check to this file. A repo-wide grep for "README §5" returns 9 hits in
+`docs/` (this plan, the spec, and an older plan quoting the same text). Those are
+historical records and must not be edited.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add .env.example
@@ -110,6 +147,10 @@ need no `import.meta.env` stubbing, and a thin `dataBase()` wrapper does the fet
   - `_resetConfigCache(): void` - test helper
   - `_primeDataBase(base: string): void` - test helper; sets the cache without fetching
   - `interface BaseSources { configValue: unknown; viteValue: string | undefined; dev: boolean; baseUrl: string }`
+
+**Verified:** `import.meta.env.DEV` is **true** under this repo's vitest (probed:
+`DEV=true PROD=false MODE="test" BASE_URL="/"`). The tests below account for that. Do
+not try to stub `DEV`; `resolveBase` covers the prod branch purely via `dev: false`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -162,6 +203,8 @@ describe("resolveBase", () => {
   });
 });
 
+// These exercise dataBase() end to end. Vitest sets import.meta.env.DEV = true, so
+// every fallback here resolves to the dev path "../data".
 describe("dataBase", () => {
   it("uses dataBaseUrl from config.json when present", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -175,7 +218,7 @@ describe("dataBase", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("not found", { status: 404 }) as Response,
     );
-    expect(await dataBase()).toBe("/data");
+    expect(await dataBase()).toBe("../data");
     expect(errSpy).not.toHaveBeenCalled();
   });
 
@@ -184,13 +227,13 @@ describe("dataBase", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("<!doctype html><html></html>", { status: 200 }) as Response,
     );
-    expect(await dataBase()).toBe("/data");
+    expect(await dataBase()).toBe("../data");
     expect(errSpy).not.toHaveBeenCalled();
   });
 
   it("falls back silently when the fetch itself rejects", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("network down"));
-    expect(await dataBase()).toBe("/data");
+    expect(await dataBase()).toBe("../data");
   });
 
   it("fetches config.json only once across calls", async () => {
@@ -220,6 +263,10 @@ Create `site/src/config.ts`:
 // config.json at startup, so switching data source needs a restart, not a
 // rebuild. Falls back to the build-time default when no config.json exists,
 // which is the normal case for `npm run dev` and the dev compose profile.
+//
+// VITE_DATA_BASE_URL is a build-time escape hatch for anyone building the
+// bundle outside Docker. Nothing in this repo sets it; the container uses
+// config.json instead.
 
 export interface BaseSources {
   configValue: unknown;
@@ -248,8 +295,9 @@ export function _resetConfigCache(): void {
   _baseCache = null;
 }
 
-// Test helper: set the base without a config.json round-trip, so tests that
-// count fetch calls stay accurate.
+// Test helper: set the base without a config.json round-trip. Tests that mock
+// fetch with a single shared Response need this, otherwise dataBase() drains
+// the body before the code under test can read it.
 export function _primeDataBase(base: string): void {
   _baseCache = Promise.resolve(base);
 }
@@ -284,17 +332,12 @@ export function dataBase(): Promise<string> {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd site && npx vitest run src/config.test.ts`
-Expected: PASS, 14 tests.
+Expected: **PASS, 13 tests** (8 `resolveBase` + 5 `dataBase`).
 
-Note: the `dataBase` fallback tests assert `/data` because vitest runs with
-`import.meta.env.DEV` true by default. If they instead resolve `../data`, that
-confirms DEV is true in this environment: change those three expectations to
-`"../data"`. Do not stub DEV - `resolveBase` already covers both branches purely.
+- [ ] **Step 5: Lint and type-check**
 
-- [ ] **Step 5: Lint**
-
-Run: `cd site && npm run lint`
-Expected: no errors.
+Run: `cd site && npm run lint && npx tsc --noEmit`
+Expected: both exit 0.
 
 - [ ] **Step 6: Commit**
 
@@ -311,7 +354,9 @@ git commit -m "feat(site): add runtime data-source config resolution"
 - Modify: `site/src/data.ts:54-61`
 - Modify: `site/src/archive.ts:39-43`, `:45-77`
 - Modify: `site/src/pages/archive-detail.ts:10-14`, `:43`, `:92`
-- Modify: `site/src/archive.test.ts:1`, `:29-32`
+- Modify: `site/src/archive.test.ts:1-2`, `:29-32`
+- Modify: `site/src/pages/archive-list.test.ts:1-3`, `:25-28`
+- Modify: `site/src/pages/archive-detail.test.ts:1-3`, `:79-82`
 
 **Interfaces:**
 - Consumes: `dataBase()`, `_primeDataBase()` from Task 1
@@ -319,21 +364,28 @@ git commit -m "feat(site): add runtime data-source config resolution"
   - `archiveBase(): Promise<string>` (was sync)
   - `archiveJsonUrl(base: string, period: string): string` (was `(period: string)`)
 
-- [ ] **Step 1: Prime the config cache in the existing archive tests**
+**Why three test files change.** `dataBase()` adds a `config.json` fetch before the
+first data fetch. Two distinct problems follow, and both were confirmed by running the
+suite:
 
-`dataBase()` adds a `config.json` fetch, which would make the existing
-`toHaveBeenCalledTimes(1)` assertions in `archive.test.ts` see 2 calls. Priming the
-cache skips that fetch and keeps the assertions meaningful.
+1. `archive.test.ts` asserts exact fetch counts (1, 1, 2). An extra fetch breaks them.
+2. `archive-list.test.ts` and `archive-detail.test.ts` mock fetch with
+   `mockResolvedValue(new Response(...))`, which returns **the same Response instance**
+   every call. A Response body can only be read once, so `dataBase()` drains it and the
+   code under test gets `Body is unusable: Body has already been read`.
 
-In `site/src/archive.test.ts`, change line 1-2 imports to add the helper:
+Priming the cache fixes both: no config fetch happens, so counts and bodies are
+untouched.
+
+- [ ] **Step 1: Prime the config cache in all three affected test files**
+
+In `site/src/archive.test.ts`, add the import after line 2:
 
 ```typescript
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { loadIndex, loadMonth, _resetCache } from "./archive.js";
 import { _primeDataBase } from "./config.js";
 ```
 
-and change the `beforeEach` block (currently lines 29-32) to:
+and change the `beforeEach` (lines 29-32) to:
 
 ```typescript
 beforeEach(() => {
@@ -343,12 +395,44 @@ beforeEach(() => {
 });
 ```
 
-- [ ] **Step 2: Run the archive tests to verify they still fail correctly**
+In `site/src/pages/archive-list.test.ts`, add the import after line 3:
 
-Run: `cd site && npx vitest run src/archive.test.ts`
-Expected: FAIL. `_primeDataBase` resolves, but `archive.ts` does not use it yet, so this
-should still pass on the old code path. If it PASSES, that is fine and expected: this
-step only prevents a false failure in Step 4.
+```typescript
+import { _primeDataBase } from "../config.js";
+```
+
+and change its `beforeEach` (lines 25-28) to:
+
+```typescript
+beforeEach(() => {
+  _resetCache();
+  _primeDataBase("../data");
+  vi.restoreAllMocks();
+});
+```
+
+In `site/src/pages/archive-detail.test.ts`, add the import after line 3:
+
+```typescript
+import { _primeDataBase } from "../config.js";
+```
+
+and change the `beforeEach` inside the `describe("renderArchiveDetail hostile JSON")`
+block (lines 79-82) to:
+
+```typescript
+  beforeEach(() => {
+    _resetCache();
+    _primeDataBase("../data");
+    vi.restoreAllMocks();
+  });
+```
+
+- [ ] **Step 2: Run the suite to confirm it is still green before the refactor**
+
+Run: `cd site && npx vitest run`
+Expected: **PASS, 9 files, 110 tests.** Priming is inert until Step 4 changes the
+source; this step only prevents a false failure later. It is not a red-green step.
 
 - [ ] **Step 3: Update `site/src/data.ts`**
 
@@ -491,24 +575,20 @@ here.
 - [ ] **Step 6: Run the full test suite**
 
 Run: `cd site && npx vitest run`
-Expected: PASS, all files. `archive.test.ts` fetch counts unchanged (1, 1, 2).
+Expected: **PASS, 9 files, 110 tests.** (Verified against a scratch copy with all of
+Task 1 and Task 2 applied.) `archive.test.ts` fetch counts stay 1, 1, 2.
 
 - [ ] **Step 7: Type-check, lint, build**
 
-Run: `cd site && npm run lint && npm run build`
-Expected: no errors; `dist/` written.
+Run: `cd site && npm run lint && npx tsc --noEmit && npm run build`
+Expected: all exit 0; `dist/` written.
 
-- [ ] **Step 8: Verify dev behavior is unchanged**
-
-Run: `cd site && npx vitest run src/config.test.ts -t "dev"`
-Expected: PASS. `resolveBase` with `dev: true` still yields `../data`, so
-`npm run dev` and the `s7bb-site-dev` profile keep resolving `../data/latest.json`
-exactly as before.
-
-- [ ] **Step 9: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add site/src/data.ts site/src/archive.ts site/src/pages/archive-detail.ts site/src/archive.test.ts
+git add site/src/data.ts site/src/archive.ts site/src/pages/archive-detail.ts \
+        site/src/archive.test.ts site/src/pages/archive-list.test.ts \
+        site/src/pages/archive-detail.test.ts
 git commit -m "refactor(site): resolve data URLs through dataBase()"
 ```
 
@@ -524,8 +604,9 @@ git commit -m "refactor(site): resolve data URLs through dataBase()"
 **Interfaces:**
 - Consumes: nothing
 - Produces:
-  - `docker-entrypoint.sh` reads env `S7BB_DATA_BASE_URL`, writes `${WEB_ROOT:-/usr/share/nginx/html}/config.json` as `{"dataBaseUrl":"<value>"}`
-  - exits non-zero when `S7BB_DATA_BASE_URL` is unset or blank
+  - `docker-entrypoint.sh` reads env `S7BB_DATA_BASE_URL`, writes `${WEB_ROOT:-/usr/share/nginx/html}/config.json` as compact JSON `{"dataBaseUrl":"<value>"}`
+  - exits non-zero with a `FATAL:` message when `S7BB_DATA_BASE_URL` is unset or blank
+  - chains to `/docker-entrypoint.sh` (the nginx image's own init) when present
 
 - [ ] **Step 1: Write the failing test**
 
@@ -567,6 +648,13 @@ else
   fail "writes dataBaseUrl for a normal URL (rc=$RC out=$OUT)"
 fi
 
+# 1b. Output is compact single-line JSON, which is what the docs assert
+if [ "$(wc -l < "$CONFIG")" -eq 1 ]; then
+  pass "writes compact single-line JSON"
+else
+  fail "writes compact single-line JSON (got $(wc -l < "$CONFIG") lines)"
+fi
+
 # 2. JSON-escaping: a quote in the value must not corrupt the file
 run_case 'https://evil.example/"x'
 if [ "$RC" -eq 0 ] && jq -e . "$CONFIG" >/dev/null 2>&1 \
@@ -584,22 +672,24 @@ else
   fail "JSON-escapes a value containing a backslash (rc=$RC out=$OUT)"
 fi
 
-# 4. Unset variable fails fast
+# 4. Unset variable fails fast, with a FATAL message.
+# Assert on the message, not just rc: a missing or broken script also exits
+# non-zero, and a bare rc check would pass against it.
 WEB_ROOT=$(mktemp -d); export WEB_ROOT
 unset S7BB_DATA_BASE_URL
 OUT=$(sh "$ENTRYPOINT" true 2>&1); RC=$?
-if [ "$RC" -ne 0 ]; then
-  pass "fails fast when S7BB_DATA_BASE_URL is unset"
+if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q "FATAL: S7BB_DATA_BASE_URL"; then
+  pass "fails fast with FATAL when S7BB_DATA_BASE_URL is unset"
 else
-  fail "fails fast when S7BB_DATA_BASE_URL is unset (rc=$RC)"
+  fail "fails fast with FATAL when S7BB_DATA_BASE_URL is unset (rc=$RC out=$OUT)"
 fi
 
-# 5. Blank value fails fast
+# 5. Blank value fails fast, with a FATAL message
 run_case "   "
-if [ "$RC" -ne 0 ]; then
-  pass "fails fast when S7BB_DATA_BASE_URL is blank"
+if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q "FATAL: S7BB_DATA_BASE_URL"; then
+  pass "fails fast with FATAL when S7BB_DATA_BASE_URL is blank"
 else
-  fail "fails fast when S7BB_DATA_BASE_URL is blank (rc=$RC)"
+  fail "fails fast with FATAL when S7BB_DATA_BASE_URL is blank (rc=$RC out=$OUT)"
 fi
 
 # 6. Local mode with no data warns but still starts
@@ -620,13 +710,22 @@ else
   fail "does not warn when /data/latest.json exists (rc=$RC out=$OUT)"
 fi
 
+# 8. A path that merely starts with /data must not be treated as local mode
+run_case "https://database.example/feed"
+if [ "$RC" -eq 0 ] && ! echo "$OUT" | grep -q "WARN"; then
+  pass "does not treat a lookalike URL as local mode"
+else
+  fail "does not treat a lookalike URL as local mode (rc=$RC out=$OUT)"
+fi
+
 exit "$FAILED"
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `sh site/test-entrypoint.sh`
-Expected: FAIL. `sh: site/docker-entrypoint.sh: No such file or directory`, non-zero exit.
+Expected: FAIL. Every case reports `FAIL`, non-zero exit, because
+`site/docker-entrypoint.sh` does not exist yet.
 
 - [ ] **Step 3: Write the entrypoint**
 
@@ -634,7 +733,7 @@ Create `site/docker-entrypoint.sh`:
 
 ```sh
 #!/bin/sh
-# Writes config.json from the environment, then execs the given command.
+# Writes config.json from the environment, then hands off to nginx.
 #
 # The data source is a runtime setting so users switch it with a restart
 # instead of a rebuild. Writing bad JSON here would make the site silently
@@ -653,13 +752,16 @@ fi
 
 # jq, not printf: a value containing a quote or backslash would otherwise
 # produce invalid JSON and the site would quietly use the wrong data source.
+# -c keeps it on one line, which is what the docs and tests assert.
 mkdir -p "$WEB_ROOT"
-jq -n --arg u "$S7BB_DATA_BASE_URL" '{dataBaseUrl: $u}' > "$CONFIG"
+jq -nc --arg u "$S7BB_DATA_BASE_URL" '{dataBaseUrl: $u}' > "$CONFIG"
 
 echo "config: dataBaseUrl=$S7BB_DATA_BASE_URL"
 
+# Exact match on /data or a /data/... path. A bare /data* glob would also
+# match https://database.example/... and misfire the warning.
 case "$S7BB_DATA_BASE_URL" in
-  /data*)
+  /data|/data/*)
     if [ ! -r "$WEB_ROOT/data/latest.json" ]; then
       echo "WARN: S7BB_DATA_BASE_URL is '$S7BB_DATA_BASE_URL' but $WEB_ROOT/data/latest.json" >&2
       echo "WARN: is missing. The site will show 'Fehler beim Laden der Daten'." >&2
@@ -670,17 +772,23 @@ case "$S7BB_DATA_BASE_URL" in
     ;;
 esac
 
+# Chain to the nginx image's own entrypoint when it is there, so its
+# /docker-entrypoint.d/ init scripts still run. Absent on a host running the
+# tests, in which case exec the command directly.
+if [ -x /docker-entrypoint.sh ]; then
+  exec /docker-entrypoint.sh "$@"
+fi
 exec "$@"
 ```
 
-- [ ] **Step 4: Make it executable and run the tests**
+- [ ] **Step 4: Make both scripts executable and run the tests**
 
 ```bash
 chmod +x site/docker-entrypoint.sh site/test-entrypoint.sh
 sh site/test-entrypoint.sh
 ```
 
-Expected: 7 `ok` lines, exit 0.
+Expected: 9 `ok` lines, exit 0.
 
 - [ ] **Step 5: Write the nginx config**
 
@@ -719,6 +827,10 @@ git commit -m "feat(site): add nginx config and runtime config entrypoint"
 ---
 
 ## Task 4: Site Docker image
+
+**Note:** Docker was not available in the environment where this plan was written, so
+Steps 3-5 are the first genuinely unverified steps in it. Treat their expected output
+as intent, not as measured fact, and report any deviation rather than forcing a match.
 
 **Files:**
 - Create: `site/Dockerfile`
@@ -761,15 +873,13 @@ FROM nginx:1.27-alpine
 RUN apk add --no-cache jq
 COPY --from=build /build/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# The nginx image ships its own /docker-entrypoint.sh. Copy ours alongside it
+# under a distinct name; ours chains to it so the base init still runs.
 COPY docker-entrypoint.sh /docker-entrypoint-s7bb.sh
 RUN chmod +x /docker-entrypoint-s7bb.sh
 ENTRYPOINT ["/docker-entrypoint-s7bb.sh"]
 CMD ["nginx", "-g", "daemon off;"]
 ```
-
-Note on the entrypoint path: the `nginx` image already ships its own
-`/docker-entrypoint.sh`. Writing to that path would clobber it, so the file is copied
-to `/docker-entrypoint-s7bb.sh` instead.
 
 - [ ] **Step 3: Build the image**
 
@@ -783,16 +893,19 @@ docker run --rm -d --name s7bb-site-test -p 8081:80 \
   -e S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main \
   s7bb-site:test
 sleep 2
-curl -s http://localhost:8081/config.json
+curl -s http://localhost:8081/config.json; echo
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8081/
 curl -s -I http://localhost:8081/config.json | grep -i cache-control
+docker logs s7bb-site-test 2>&1 | head -5
 docker rm -f s7bb-site-test
 ```
 
 Expected:
-- `{"dataBaseUrl":"https://raw.githubusercontent.com/s7bb/s7bb-data/main"}`
+- `{"dataBaseUrl":"https://raw.githubusercontent.com/s7bb/s7bb-data/main"}` on one line
+  (`jq -nc` is what makes it compact; without `-c` jq pretty-prints across three lines)
 - `200`
 - `Cache-Control: no-store`
+- logs contain `config: dataBaseUrl=https://raw.githubusercontent.com/s7bb/s7bb-data/main`
 
 - [ ] **Step 5: Verify fail-fast on missing config**
 
@@ -816,7 +929,10 @@ git commit -m "feat(site): add multi-stage Docker image"
 
 ---
 
-## Task 5: Compose service and `.env.example`
+## Task 5: Compose service, production profiles, and `.env.example`
+
+This task carries the plan's one production change. Read the whole task before running
+anything.
 
 **Files:**
 - Modify: `docker-compose.yml`
@@ -824,12 +940,53 @@ git commit -m "feat(site): add multi-stage Docker image"
 
 **Interfaces:**
 - Consumes: `site/Dockerfile` from Task 4
-- Produces: service `s7bb-site` on profiles `remote` and `fetcher`, port 8080
+- Produces: service `s7bb-site` on profiles `remote` and `fetcher`, port 8080;
+  `profiles: [fetcher]` on `s7bb-repo-init` and `s7bb-fetcher`
 
-- [ ] **Step 1: Add the compose service**
+**Why the production services must be profiled.** A Compose service with no `profiles:`
+key is **always** started. `s7bb-repo-init` and `s7bb-fetcher` have none, so
+`docker compose up -d` starts the production fetcher today. Putting a profile on
+`s7bb-site` gates the site and does nothing to the fetcher. Without this change, telling
+a local user to run `up -d` starts a push-enabled fetcher on their machine: a crash loop
+with placeholder credentials, or a second writer to s7bb-data with real ones.
 
-In `docker-compose.yml`, add this service. Put it above `s7bb-repo-init` so the
-user-facing service reads first. Do not modify any existing service.
+Naming a service explicitly enables its profiles, so the VM's documented
+`docker compose up -d s7bb-fetcher` keeps working, and `s7bb-repo-init` still comes
+along via `depends_on` because it shares the `fetcher` profile.
+
+- [ ] **Step 1: Profile the two production services**
+
+In `docker-compose.yml`, add a `profiles` key to `s7bb-repo-init` (currently line 12)
+so it reads:
+
+```yaml
+  s7bb-repo-init:
+    image: alpine/git:latest
+    profiles:
+      - fetcher
+    environment:
+      DATA_REPO_URL: https://github.com/s7bb/s7bb-data.git
+```
+
+and to `s7bb-fetcher` (currently line 34) so it reads:
+
+```yaml
+  s7bb-fetcher:
+    build:
+      context: fetcher
+      dockerfile: Dockerfile
+    profiles:
+      - fetcher
+    restart: unless-stopped
+    env_file: .env
+```
+
+Change nothing else in either service.
+
+- [ ] **Step 2: Add the compose service**
+
+In `docker-compose.yml`, add this service above `s7bb-repo-init` so the user-facing
+service reads first:
 
 ```yaml
   # Static site, served by nginx. Runs in both data modes:
@@ -837,10 +994,6 @@ user-facing service reads first. Do not modify any existing service.
   #   fetcher - the browser reads ./data, written by a local fetcher (phase 2)
   # The data source is a runtime setting (S7BB_DATA_BASE_URL), so switching it
   # needs a restart, not a rebuild.
-  #
-  # This service carries a profile deliberately: s7bb-repo-init and
-  # s7bb-fetcher have none, so a bare `docker compose up -d` would otherwise
-  # start the production push-enabled fetcher on a local machine.
   s7bb-site:
     build:
       context: site
@@ -850,6 +1003,7 @@ user-facing service reads first. Do not modify any existing service.
       - remote
       - fetcher
     ports:
+      # 8080 is also used by s7bb-dev, but its profile is disjoint from these.
       - "8080:80"
     environment:
       S7BB_DATA_BASE_URL: ${S7BB_DATA_BASE_URL:-https://raw.githubusercontent.com/s7bb/s7bb-data/main}
@@ -859,7 +1013,7 @@ user-facing service reads first. Do not modify any existing service.
       - ./data:/usr/share/nginx/html/data:ro
 ```
 
-- [ ] **Step 2: Add the paired config block to `.env.example`**
+- [ ] **Step 3: Add the paired config block to `.env.example`**
 
 Append to `.env.example`:
 
@@ -868,7 +1022,7 @@ Append to `.env.example`:
 # These two settings must agree. The site warns at startup if they do not.
 #
 # remote (default): read published data from the s7bb-data repo. No
-# credentials needed, full history, always current.
+# credentials needed, full history, current on every page load.
 COMPOSE_PROFILES=remote
 S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
 
@@ -879,55 +1033,93 @@ S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
 # S7BB_DATA_BASE_URL=/data
 ```
 
-- [ ] **Step 3: Validate the compose file**
+- [ ] **Step 4: Validate the compose file**
 
-Run: `docker compose config --quiet && echo "compose OK"`
-Expected: `compose OK`, no warnings.
-
-- [ ] **Step 4: Verify production services are untouched**
-
-Run: `git diff docker-compose.yml`
-Expected: additions only. No lines removed or changed in `s7bb-repo-init`,
-`s7bb-fetcher`, `s7bb-dev`, `s7bb-data-init`, or `s7bb-site-dev`.
-
-- [ ] **Step 5: End-to-end smoke test**
+`s7bb-fetcher` declares `env_file: .env`, which Compose requires to exist even when the
+service is not started. Create one if missing, then validate:
 
 ```bash
-cp -n .env.example .env 2>/dev/null || true
-docker compose up -d --build
+test -f .env || cp .env.example .env
+docker compose config --quiet && echo "compose OK"
+```
+
+Expected: `compose OK`, no warnings.
+
+Note: `cp` only when `.env` is absent. If a `.env` already exists it may hold real
+credentials; never overwrite it.
+
+- [ ] **Step 5: Verify the profile matrix**
+
+This is the check that proves the safety fix. Run each and compare:
+
+```bash
+docker compose config --services                      # every service, profiled or not
+echo "--- default (no profile) ---"
+COMPOSE_PROFILES= docker compose config --services --profiles 2>/dev/null || true
+echo "--- what a bare up -d would start ---"
+COMPOSE_PROFILES= docker compose up --dry-run -d 2>&1 | head -20
+echo "--- what up -d s7bb-site would start ---"
+COMPOSE_PROFILES= docker compose up --dry-run -d s7bb-site 2>&1 | head -20
+echo "--- what the VM's up -d s7bb-fetcher would start ---"
+COMPOSE_PROFILES= docker compose up --dry-run -d s7bb-fetcher 2>&1 | head -20
+```
+
+Expected:
+- bare `up -d` with no profile: starts **nothing** (no service is in the default set)
+- `up -d s7bb-site`: starts **s7bb-site only**
+- `up -d s7bb-fetcher`: starts **s7bb-fetcher and s7bb-repo-init**, exactly as the VM
+  does today
+
+If `up -d s7bb-fetcher` does not pull in `s7bb-repo-init`, stop. The VM depends on that
+ordering and the profiling is wrong.
+
+- [ ] **Step 6: Verify production services are otherwise untouched**
+
+Run: `git diff docker-compose.yml`
+Expected: the only changes to `s7bb-repo-init` and `s7bb-fetcher` are the added
+`profiles:` keys. No other line of theirs changed. `s7bb-dev`, `s7bb-data-init`, and
+`s7bb-site-dev` are untouched.
+
+- [ ] **Step 7: End-to-end smoke test**
+
+```bash
+docker compose up -d --build s7bb-site
 sleep 3
-curl -s http://localhost:8080/config.json
+curl -s http://localhost:8080/config.json; echo
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/
-docker compose ps
+docker compose ps --services
 ```
 
 Expected:
 - `{"dataBaseUrl":"https://raw.githubusercontent.com/s7bb/s7bb-data/main"}`
 - `200`
-- **Only `s7bb-site` running.** If `s7bb-fetcher` or `s7bb-repo-init` also started, the
-  profile is wrong - stop and fix before continuing.
+- `docker compose ps --services` prints exactly `s7bb-site` and nothing else. If
+  `s7bb-fetcher` or `s7bb-repo-init` appear, stop immediately and run
+  `docker compose down` - the profiling in Step 1 is wrong and the fetcher may be
+  pushing to s7bb-data.
 
-- [ ] **Step 6: Verify the site actually renders data in a browser**
+- [ ] **Step 8: Verify the site actually renders data in a browser**
 
 Open <http://localhost:8080> and confirm the today page shows S7 arrivals rather than
-"Fehler beim Laden der Daten". Check the browser devtools Network tab: there should be
-a request to `raw.githubusercontent.com` returning 200.
+"Fehler beim Laden der Daten". In the browser devtools Network tab, confirm a request
+to `raw.githubusercontent.com` returning 200.
 
-This is the one check that proves the whole feature works. Do not skip it.
+This is the one check that proves the whole feature works. It needs a human. Do not
+skip it, and do not substitute a passing typecheck for it.
 
-- [ ] **Step 7: Check the ./data ownership question from the spec**
+- [ ] **Step 9: Check the ./data ownership question from the spec**
 
-Run: `ls -la data/ 2>/dev/null || echo "no data dir"`
+Run: `ls -ld data/ 2>/dev/null || echo "no data dir"`
 
 The spec flags that Docker may create `./data` as a root-owned directory, which would
 block the phase 2 fetcher from writing. Record what actually happened in the PR
 description. Do not fix it here - phase 2 owns that.
 
-- [ ] **Step 8: Tear down**
+- [ ] **Step 10: Tear down**
 
 Run: `docker compose down`
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add docker-compose.yml .env.example
@@ -948,93 +1140,130 @@ git commit -m "feat: add s7bb-site compose service for local hosting"
 - Consumes: everything above
 - Produces: nothing
 
-- [ ] **Step 1: Add the site image build to CI**
+- [ ] **Step 1: Run the site tests in CI**
 
-In `.github/workflows/ci.yml`, inside the existing `docker` job, add a step that builds
-the site image so the Dockerfile cannot rot:
+CI does not currently run vitest at all: the `typescript` job runs only `npm run lint`
+and `npm run build`, so `config.test.ts` and the three refactored test files would go
+unenforced. In `.github/workflows/ci.yml`, add to the **`typescript`** job, after the
+existing "Type-check + build" step:
+
+```yaml
+      - name: Test
+        run: npm test
+        working-directory: site
+```
+
+- [ ] **Step 2: Build the site image and test the entrypoint in CI**
+
+In the same file, add to the **`docker`** job:
 
 ```yaml
       - name: Build site image
         run: docker build -t s7bb-site:ci site/
-```
 
-Add a step running the entrypoint tests to the same job:
-
-```yaml
       - name: Test site entrypoint
         run: sh site/test-entrypoint.sh
 ```
 
-Note: the entrypoint test needs `jq`, which is preinstalled on `ubuntu-latest`.
+`jq` is preinstalled on `ubuntu-latest`, so the entrypoint test needs no setup.
 
-- [ ] **Step 2: Verify the CI steps work locally**
+- [ ] **Step 3: Verify the CI steps work locally**
 
 ```bash
-docker build -t s7bb-site:ci site/ && sh site/test-entrypoint.sh
+cd site && npm test && cd ..
+sh site/test-entrypoint.sh
+docker build -t s7bb-site:ci site/
 ```
 
-Expected: build succeeds; 7 `ok` lines.
+Expected: 110 tests pass; 9 `ok` lines; image builds.
 
-- [ ] **Step 3: Add the README section**
+- [ ] **Step 4: Reconcile the existing README note**
 
-In `README.md`, add after the "How it works" section:
+`README.md:21-23` currently says deployment is disabled and points at `#site` for local
+builds. That paragraph predates local hosting and would now compete with the new
+section. Replace those three lines:
+
+```markdown
+Site deployment is currently **disabled** - the `build-site.yml` workflow is
+retained but switched off, and no site is published. The site code under
+`site/` still builds locally (see [Development](#site)).
+```
+
+with:
+
+```markdown
+No site is published: GitHub Pages is deleted and the `build-site.yml` workflow is
+retained but switched off. Run it yourself instead, see
+[Run it locally with Docker](#run-it-locally-with-docker).
+```
+
+- [ ] **Step 5: Add the README section**
+
+In `README.md`, add immediately after the "How it works" section. The README is in
+English; the German strings below are quoted UI text, per CLAUDE.md:
 
 ````markdown
-## Lokal mit Docker betreiben
+## Run it locally with Docker
 
-Der öffentliche Auftritt ist abgeschaltet. Wer die Auswertung sehen will, betreibt sie
-lokal:
+The public site is gone. To see the statistics, run them yourself:
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
+docker compose up -d --build s7bb-site
 ```
 
-Danach ist die Seite unter <http://localhost:8080> erreichbar.
+The site is then at <http://localhost:8080>.
 
-Voreingestellt ist der Modus `remote`: der Browser liest die veröffentlichten Daten
-direkt aus `s7bb/s7bb-data`. Es werden keine Zugangsdaten benötigt, die vollständige
-Historie ist vorhanden, und die Daten bleiben aktuell, solange der Container läuft.
+The default mode is `remote`: the browser reads the published data directly from
+`s7bb/s7bb-data`. No credentials are needed and the full history is there. The data is
+current every time you load the page. A tab left open does not refresh on its own;
+reload it.
 
-### Datenquelle umstellen
+Name the service (`s7bb-site`) rather than running a bare `docker compose up -d`. The
+fetcher services are behind the `fetcher` profile, so a bare `up -d` starts nothing
+unless `COMPOSE_PROFILES` is set in your `.env`.
 
-Die Quelle ist eine Laufzeit-Einstellung. Ein Wechsel braucht keinen Neubau:
+### Changing the data source
 
-```bash
-# .env
-S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
-```
+The source is a runtime setting in `.env`, so changing it needs a restart, not a
+rebuild of the image:
 
 ```bash
 docker compose restart s7bb-site
 ```
 
-`COMPOSE_PROFILES` und `S7BB_DATA_BASE_URL` müssen zusammenpassen. Passen sie nicht
-zusammen, zeigt die Seite "Fehler beim Laden der Daten"; der Grund steht im
-Container-Log:
+In phase 1 the only supported value is the default:
+
+```
+S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
+```
+
+`COMPOSE_PROFILES` and `S7BB_DATA_BASE_URL` have to agree. If they do not, the page
+shows "Fehler beim Laden der Daten" and the reason is in the container log:
 
 ```bash
 docker compose logs s7bb-site
 ```
 
-Der Modus `fetcher` (eigene Fetcher-Instanz statt s7bb-data) ist noch nicht verfügbar.
-Er ist in
-[`docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`](docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md)
-als Phase 2 beschrieben.
+The `fetcher` mode, running your own fetcher instead of reading s7bb-data, is not
+available yet. It is described as phase 2 in
+[`docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`](docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md).
 ````
 
-- [ ] **Step 4: Update CLAUDE.md**
+- [ ] **Step 6: Update CLAUDE.md**
 
 In `CLAUDE.md`, add to the "Site publishing (disabled)" section:
 
 ```markdown
-Local hosting replaces it: `docker compose up -d --build` builds `site/` and serves it
-with nginx on :8080. Default mode `remote` - the browser fetches JSON straight from
-`s7bb/s7bb-data`, no credentials. The data source is a runtime setting
-(`S7BB_DATA_BASE_URL`), written to `config.json` by the site container's entrypoint and
-read by `site/src/config.ts`; changing it needs a restart, not a rebuild. Local fetcher
-mode is phase 2 and not implemented. See
-`docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`.
+Local hosting replaces it: `docker compose up -d --build s7bb-site` builds `site/` and
+serves it with nginx on :8080. Default mode `remote` - the browser fetches JSON straight
+from `s7bb/s7bb-data`, no credentials, current on each page load (no refresh timer). The
+data source is a runtime setting (`S7BB_DATA_BASE_URL`), written to `config.json` by the
+site container's entrypoint and read by `site/src/config.ts`; changing it needs a
+restart, not a rebuild. `s7bb-repo-init` and `s7bb-fetcher` are behind the `fetcher`
+profile so a bare `up -d` cannot start the production fetcher; the VM's
+`docker compose up -d s7bb-fetcher` is unaffected. Local fetcher mode is phase 2 and not
+implemented. See `docs/superpowers/specs/2026-07-17-local-docker-hosting-design.md`.
 ```
 
 Also amend the "Project: S7BB" audience line. It currently reads:
@@ -1051,7 +1280,7 @@ Note: since the public site was taken down, distribution is via local Docker, so
 running S7BB now requires technical skill even though the UI stays simple and German.
 ```
 
-- [ ] **Step 5: Add the CHANGELOG entry**
+- [ ] **Step 7: Add the CHANGELOG entry**
 
 In `CHANGELOG.md`, under `[Unreleased]`, add an `### Added` section above the existing
 `### Removed`:
@@ -1059,25 +1288,35 @@ In `CHANGELOG.md`, under `[Unreleased]`, add an `### Added` section above the ex
 ```markdown
 ### Added
 
-- Local Docker hosting: `docker compose up -d --build` builds the site and serves it at <http://localhost:8080>, reading published data straight from the s7bb-data repo with no credentials. The data source is configurable at runtime via `S7BB_DATA_BASE_URL` and takes effect on restart, without a rebuild.
+- Local Docker hosting: `docker compose up -d --build s7bb-site` builds the site and serves it at <http://localhost:8080>, reading published data straight from the s7bb-data repo with no credentials. The data source is configurable at runtime via `S7BB_DATA_BASE_URL` and takes effect on restart, without a rebuild.
+
+### Changed
+
+- The `s7bb-repo-init` and `s7bb-fetcher` services now sit behind the `fetcher` compose profile, so a bare `docker compose up -d` no longer starts the production fetcher. The documented `docker compose up -d s7bb-fetcher` is unaffected.
 ```
 
-- [ ] **Step 6: Check the em-dash constraint across the whole diff**
-
-Run: `git diff main...HEAD | grep -n "—"`
-Expected: no output. If any line matches, replace the em-dash with a plain hyphen.
-
-- [ ] **Step 7: Full verification**
+- [ ] **Step 8: Check the em-dash constraint across the feature diff**
 
 ```bash
-cd site && npm run lint && npm run build && npx vitest run && cd ..
+git diff main...HEAD -- . ':!docs/superpowers' | grep -n "^+.*—"
+```
+Expected: no output.
+
+Scope matters here. An unscoped `git diff main...HEAD | grep "—"` matches this plan's
+own constraint text and its grep command, and can also match unchanged context lines
+from `.env.example`. Only added lines outside `docs/superpowers/` are in scope.
+
+- [ ] **Step 9: Full verification**
+
+```bash
+cd site && npm run lint && npx tsc --noEmit && npm run build && npm test && cd ..
 sh site/test-entrypoint.sh
 docker compose config --quiet && echo "compose OK"
 ```
 
 Expected: all pass.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add .github/workflows/ci.yml README.md CLAUDE.md CHANGELOG.md
@@ -1102,22 +1341,92 @@ Title: `feat: local Docker hosting (phase 1, remote mode)`
 
 The body must state:
 - what shipped: remote mode, runtime config, `dataBase()` refactor
-- what did not: fetcher mode, seeding (phase 2, with a link to the spec)
-- the `./data` ownership finding from Task 5 Step 7
+- **the production compose change**: `s7bb-repo-init` and `s7bb-fetcher` are now behind
+  the `fetcher` profile, why (a bare `up -d` previously started the production fetcher),
+  and the evidence from Task 5 Step 5 that `up -d s7bb-fetcher` still works
+- what did not ship: fetcher mode, seeding (phase 2, link the spec)
+- no auto-refresh: current per page load, by design
+- the `./data` ownership finding from Task 5 Step 9
 - the cross-origin `download` attribute regression from Task 2 Step 5
-- confirmation that the browser smoke test (Task 5 Step 6) passed
+- confirmation that the browser smoke test (Task 5 Step 8) passed
 
 - [ ] **Step 3: Wait for CI**
 
 Run: `gh pr checks --watch`
 Expected: python, typescript, docker all pass.
 
+- [ ] **Step 4: Flag the VM step for the maintainer**
+
+The compose profile change affects the VM. Note in the PR that after merge, the VM needs
+`git pull` and that its `docker compose up -d s7bb-fetcher` command is unchanged. No
+action beyond the pull is required. Do not run anything against the VM yourself.
+
 ---
 
-## Release note
+## Task 8: Cut the release
 
-This branch contains a `feat`, so per CLAUDE.md it triggers a **MINOR** release once
-merged: bump `fetcher/pyproject.toml`, sync `fetcher/uv.lock`, rename `[Unreleased]` in
-`CHANGELOG.md`, tag, push, and create the GitHub Release. Follow
-`.claude/skills/release-hygiene/SKILL.md`. Use the dot-escaped explicit-end awk form for
-the release notes and verify the body is non-empty before publishing.
+CLAUDE.md's post-merge trigger makes this mandatory: the branch contains `feat`
+commits, so merging requires a **MINOR** release. Do this immediately after merge.
+
+**Files:**
+- Modify: `fetcher/pyproject.toml`, `fetcher/uv.lock`, `CHANGELOG.md`
+
+- [ ] **Step 1: Pull main and determine the version**
+
+```bash
+git checkout main && git pull
+grep '^version' fetcher/pyproject.toml
+```
+
+Current is `0.10.0`, so the new version is `0.11.0` (MINOR: `feat`, no breaking change).
+If `pyproject.toml` shows something else, recompute: MINOR bump from whatever is there.
+
+- [ ] **Step 2: Bump the version and sync the lock**
+
+```bash
+# edit fetcher/pyproject.toml: version = "0.11.0"
+cd fetcher && uv sync --no-dev && cd ..
+git diff --stat fetcher/uv.lock
+```
+
+Expected: `uv.lock` shows the new version.
+
+- [ ] **Step 3: Update the CHANGELOG**
+
+Rename `## [Unreleased]` to `## [0.11.0] - 2026-07-17` (use the actual date), and add a
+fresh empty `## [Unreleased]` above it.
+
+- [ ] **Step 4: Commit and tag**
+
+```bash
+git add fetcher/pyproject.toml fetcher/uv.lock CHANGELOG.md
+git commit -m "chore(release): 0.11.0"
+git tag v0.11.0
+git push && git push --tags
+```
+
+- [ ] **Step 5: Extract the release notes and VERIFY THEY ARE NOT EMPTY**
+
+The form in CLAUDE.md silently yields an empty body. Use the dot-escaped, explicit-end
+form, and check the output before publishing:
+
+```bash
+awk '/^## \[0\.11\.0\]/,/^## \[0\.10\.0\]/' CHANGELOG.md | sed '$d' > /tmp/notes.md
+cat /tmp/notes.md
+wc -l /tmp/notes.md
+```
+
+Expected: the 0.11.0 section body, several lines, **not empty**. If it is empty or one
+line, stop and fix the awk before continuing. Publishing an empty release body is the
+recorded failure mode here.
+
+- [ ] **Step 6: Create the GitHub Release**
+
+```bash
+gh release create v0.11.0 --title "v0.11.0" --notes-file /tmp/notes.md --latest
+gh release view v0.11.0
+```
+
+Expected: the release exists at
+<https://github.com/s7bb/s7bb.github.io/releases> with a non-empty body matching the
+CHANGELOG section.

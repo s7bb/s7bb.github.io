@@ -23,7 +23,7 @@ Both must be configurable, in the site and in `docker-compose.yml`.
 |---|---|
 | Audience | Each viewer runs their own container, views at `localhost`. Technical users. |
 | Default mode | `remote` - zero credentials, full history, works on first `up` |
-| Freshness | Auto-refresh while running; no rebuild, no restart needed to see new data |
+| Freshness | Current on every page load. No build-time bake, so the container never goes stale. No auto-refresh timer: a tab left open does not update until reloaded. |
 | Config surface | Site reads a data-source base URL; `.env` sets it |
 | Config timing | Runtime (`config.json` written at container start), not baked at build |
 | Phase 1 | Remote mode only |
@@ -49,7 +49,12 @@ site container (nginx) serves only the built assets + config.json
 ```
 
 One container. No `/data` volume, no fetcher, no repo clone, no credentials. Data is
-always current because the browser fetches it live on each load.
+current on each page load because the browser fetches it live.
+
+`main.ts:34-37` memoizes `liveData` for the page session and there is no timer
+anywhere, so an open tab does not refresh on its own. That is accepted for phase 1: the
+site is a thing you open, read, and close. Correcting a build-time bake was the point;
+a refresh timer is not required to achieve it and is not implemented.
 
 ### fetcher mode (phase 2, designed for now, not built)
 
@@ -160,20 +165,43 @@ s7bb-site:
     - ./data:/usr/share/nginx/html/data:ro
 ```
 
-Two deliberate choices:
+**The production services must also be profiled.** `s7bb-repo-init` and `s7bb-fetcher`
+have no `profiles:` key today, and a Compose service without one is *always* started.
+Adding a profile to `s7bb-site` gates the site; it does nothing to the fetcher. So a
+local user running `docker compose up -d` starts the production, push-enabled fetcher.
+With a real `GITHUB_PAT` in `.env` that means a second writer pushing to `s7bb-data`,
+breaking the single-writer invariant; with placeholder credentials it means a
+`restart: unless-stopped` crash loop.
 
-- **The site carries a profile.** `s7bb-repo-init` and `s7bb-fetcher` have no profile
-  today, so a bare `docker compose up -d` already starts the production fetcher. A
-  profile-less site service would mean a local user running `up -d` boots the VM's
-  push-enabled fetcher. The profile prevents that.
+Therefore add `profiles: [fetcher]` to both `s7bb-repo-init` and `s7bb-fetcher`. This
+is a change to production compose and must be verified on the VM, but it is safe by
+construction: naming a service explicitly enables its profiles, so the VM's documented
+`docker compose up -d s7bb-fetcher` keeps working and still pulls in `s7bb-repo-init`
+via `depends_on` (same profile). The resulting matrix:
+
+| Command | Starts |
+|---|---|
+| `docker compose up -d` with the shipped `.env` (`COMPOSE_PROFILES=remote`) | site only |
+| `docker compose up -d` with no `.env` | nothing |
+| `docker compose up -d s7bb-site` | site only |
+| `docker compose up -d s7bb-fetcher` (VM) | fetcher + repo-init, unchanged |
+
+Docs name the service explicitly (`up -d --build s7bb-site`) so the command is
+unambiguous regardless of `.env`.
+
+Two further notes:
+
 - **The `./data` mount is unconditional.** Harmless and unused in remote mode, and it
   means phase 2 needs no change to this service definition. On a fresh clone `./data`
   does not exist; Docker creates an empty directory for the bind mount. That is
   acceptable (`/data/` is gitignored), but the plan should verify it does not produce a
   root-owned directory that later blocks the phase 2 fetcher from writing.
+- **Port 8080 is also used by `s7bb-dev`** (`8080:8080`, `dev` profile). They never run
+  together by default, since the profiles are disjoint. Do not enable `dev` and `remote`
+  at once.
 
-Production services (`s7bb-repo-init`, `s7bb-fetcher`, the `dev` profile) are not
-touched. The VM's `docker compose up -d s7bb-fetcher` keeps working as-is.
+The `dev` profile services (`s7bb-dev`, `s7bb-data-init`, `s7bb-site-dev`) are not
+touched.
 
 ### 7. `.env.example`
 
@@ -193,6 +221,10 @@ S7BB_DATA_BASE_URL=https://raw.githubusercontent.com/s7bb/s7bb-data/main
 `COMPOSE_PROFILES` and `S7BB_DATA_BASE_URL` must agree. This is the design's one wart;
 it is accepted in favour of a magic derivation, and the entrypoint's startup warning
 catches the mismatch.
+
+`COMPOSE_PROFILES=remote` is only safe because the production services are profiled
+(see above). Without that change it would be actively misleading: it would enable the
+site *in addition to* the always-on production fetcher, not instead of it.
 
 ## Error handling
 
