@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit review config for S7BB. Reviews in English; UI strings are German.
+language: en-US
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  in_progress_fortune: false
+  review_status: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  path_filters:
+    - "!site/package-lock.json"
+    - "!fetcher/uv.lock"
+    - "!site/dist/**"
+
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Never use the em-dash character in UI text, docs, code comments or
+        commit messages; a plain hyphen "-" is required. Flag any occurrence.
+    - path: "site/src/**/*.ts"
+      instructions: |
+        All JSON is loaded from the s7bb/s7bb-data repo, which is written by a
+        bot and must be treated as untrusted. Any value from it that reaches
+        innerHTML (including stats and archive pages) must be escaped or
+        coerced first. Flag unescaped interpolation into innerHTML.
+        UI labels are German; code and comments are English.
+        Times must be shown and bucketed in Europe/Berlin, not UTC.
+    - path: "fetcher/**/*.py"
+      instructions: |
+        DB Timetables times are local German time (YYMMDDHHMM). SQL must stay
+        parameterized. The GitHub PAT must never appear in argv, URLs or logs.
+        Station EVA numbers must come from docs/s7-station-evas.md, not new
+        /station API lookups.
+    - path: "**/{pyproject.toml,package.json}"
+      instructions: |
+        Dependencies must be pinned to exact versions (==X.Y.Z / X.Y.Z).
+        Flag ranges such as ^, ~ or >=.
+    - path: ".github/workflows/**"
+      instructions: |
+        Check for an explicit least-privilege permissions block. Actions are
+        currently pinned to major tags; mention SHA pinning only for newly
+        added third-party actions.
+    - path: "CHANGELOG.md"
+      instructions: |
+        Must follow Keep a Changelog; new entries go under [Unreleased].
+
+  tools:
+    github-checks:
+      enabled: true
+
+chat:
+  auto_reply: true
